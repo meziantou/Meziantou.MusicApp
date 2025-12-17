@@ -1,11 +1,12 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 import type {
   AppSettings,
   PlaybackState,
   CachedTrack,
   CachedPlaylist,
   PlaylistSummary,
-  TrackInfo
+  TrackInfo,
+  StreamingQuality
 } from '../types';
 
 interface MusicPlayerDB extends DBSchema {
@@ -63,7 +64,7 @@ interface MusicPlayerDB extends DBSchema {
 }
 
 const DB_NAME = 'meziantou-music-player';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 class StorageService {
   private db: IDBPDatabase<MusicPlayerDB> | null = null;
@@ -76,7 +77,7 @@ class StorageService {
 
     console.log('[StorageService] Creating new DB connection');
     this.initPromise = openDB<MusicPlayerDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      async upgrade(db: IDBPDatabase<MusicPlayerDB>, oldVersion: number, _newVersion: number | null, transaction: IDBPTransaction<MusicPlayerDB, string[], "versionchange">) {
         console.log('[StorageService] Running upgrade, version:', db.version);
         // Settings store
         if (!db.objectStoreNames.contains('settings')) {
@@ -91,8 +92,18 @@ class StorageService {
         // Cached tracks store
         if (!db.objectStoreNames.contains('cachedTracks')) {
           const tracksStore = db.createObjectStore('cachedTracks', { keyPath: 'trackId' });
-          tracksStore.createIndex('by-playlist', 'playlistId');
+          tracksStore.createIndex('by-playlist', 'playlistIds', { multiEntry: true });
           tracksStore.createIndex('by-cached-at', 'cachedAt');
+        } else {
+          const tracksStore = transaction.objectStore('cachedTracks');
+          if (oldVersion < 5) {
+            // Clear cache to avoid migration issues with schema change
+            await tracksStore.clear();
+            if (tracksStore.indexNames.contains('by-playlist')) {
+              tracksStore.deleteIndex('by-playlist');
+            }
+            tracksStore.createIndex('by-playlist', 'playlistIds', { multiEntry: true });
+          }
         }
 
         // Cached playlists store
@@ -173,9 +184,70 @@ class StorageService {
     return db.get('cachedTracks', trackId);
   }
 
-  async saveCachedTrack(track: CachedTrack): Promise<void> {
+  async saveCachedTrack(trackData: { trackId: string; playlistIds: string[]; blob: Blob; quality: StreamingQuality; cachedAt: number }): Promise<void> {
     const db = await this.init();
-    await db.put('cachedTracks', track);
+    const tx = db.transaction('cachedTracks', 'readwrite');
+    const store = tx.objectStore('cachedTracks');
+    
+    const existing = await store.get(trackData.trackId);
+    let playlistIds: string[] = trackData.playlistIds;
+    
+    if (existing) {
+      const existingIds = existing.playlistIds || [];
+      const set = new Set([...existingIds, ...trackData.playlistIds]);
+      playlistIds = Array.from(set);
+    }
+    
+    await store.put({
+      trackId: trackData.trackId,
+      playlistIds: playlistIds,
+      blob: trackData.blob,
+      quality: trackData.quality,
+      cachedAt: trackData.cachedAt
+    });
+    await tx.done;
+  }
+
+  async addPlaylistToTrack(trackId: string, playlistId: string): Promise<void> {
+    const db = await this.init();
+    const tx = db.transaction('cachedTracks', 'readwrite');
+    const store = tx.objectStore('cachedTracks');
+    
+    const track = await store.get(trackId);
+    if (!track) {
+        await tx.done;
+        return;
+    }
+    
+    if (!track.playlistIds.includes(playlistId)) {
+        track.playlistIds.push(playlistId);
+        await store.put(track);
+    }
+    
+    await tx.done;
+  }
+
+  async removePlaylistFromTrack(trackId: string, playlistId: string): Promise<void> {
+    const db = await this.init();
+    const tx = db.transaction('cachedTracks', 'readwrite');
+    const store = tx.objectStore('cachedTracks');
+    
+    const track = await store.get(trackId);
+    if (!track) {
+        await tx.done;
+        return;
+    }
+    
+    const newPlaylistIds = track.playlistIds.filter((id: string) => id !== playlistId);
+    
+    if (newPlaylistIds.length === 0) {
+        await store.delete(trackId);
+    } else {
+        track.playlistIds = newPlaylistIds;
+        await store.put(track);
+    }
+    
+    await tx.done;
   }
 
   async deleteCachedTrack(trackId: string): Promise<void> {
@@ -259,7 +331,7 @@ class StorageService {
   async getOfflinePlaylistIds(): Promise<Set<string>> {
     const db = await this.init();
     const entries = await db.getAll('offlinePlaylists');
-    return new Set(entries.map(e => e.playlistId));
+    return new Set(entries.map((e: { playlistId: string }) => e.playlistId));
   }
 
   async setPlaylistOffline(playlistId: string, enabled: boolean): Promise<void> {

@@ -12,7 +12,7 @@ export interface DownloadProgress {
 type DownloadCallback = (progress: DownloadProgress) => void;
 
 class DownloadService {
-  private downloadQueue: Map<string, { track: TrackInfo; playlistId: string; quality: StreamingQuality }> = new Map();
+  private downloadQueue: Map<string, { track: TrackInfo; playlistIds: Set<string>; quality: StreamingQuality }> = new Map();
   private activeDownloads: Set<string> = new Set();
   private maxConcurrentDownloads = 8;
   private callbacks: Set<DownloadCallback> = new Set();
@@ -44,11 +44,18 @@ class DownloadService {
   }
 
   async queueDownload(track: TrackInfo, playlistId: string, quality: StreamingQuality): Promise<void> {
-    if (this.cachedTrackIds.has(track.id) || this.downloadQueue.has(track.id)) {
+    if (this.cachedTrackIds.has(track.id)) {
+      await storageService.addPlaylistToTrack(track.id, playlistId);
       return;
     }
 
-    this.downloadQueue.set(track.id, { track, playlistId, quality });
+    if (this.downloadQueue.has(track.id)) {
+      const item = this.downloadQueue.get(track.id)!;
+      item.playlistIds.add(playlistId);
+      return;
+    }
+
+    this.downloadQueue.set(track.id, { track, playlistIds: new Set([playlistId]), quality });
     this.notifyProgress({ trackId: track.id, progress: 0, status: 'pending' });
     this.processQueue();
   }
@@ -65,7 +72,8 @@ class DownloadService {
 
   cancelPlaylistDownloads(playlistId: string): void {
     for (const [trackId, item] of this.downloadQueue.entries()) {
-      if (item.playlistId === playlistId) {
+      item.playlistIds.delete(playlistId);
+      if (item.playlistIds.size === 0) {
         this.downloadQueue.delete(trackId);
       }
     }
@@ -83,19 +91,19 @@ class DownloadService {
     const next = this.downloadQueue.entries().next();
     if (next.done) return;
 
-    const [trackId, { track, playlistId, quality }] = next.value;
+    const [trackId, { track, playlistIds, quality }] = next.value;
     this.downloadQueue.delete(trackId);
     this.activeDownloads.add(trackId);
 
     try {
-      await this.downloadTrack(track, playlistId, quality);
+      await this.downloadTrack(track, Array.from(playlistIds), quality);
     } finally {
       this.activeDownloads.delete(trackId);
       this.processQueue();
     }
   }
 
-  private async downloadTrack(track: TrackInfo, playlistId: string, quality: StreamingQuality): Promise<void> {
+  private async downloadTrack(track: TrackInfo, playlistIds: string[], quality: StreamingQuality): Promise<void> {
     const api = getApiService();
     
     this.notifyProgress({ trackId: track.id, progress: 0, status: 'downloading' });
@@ -142,7 +150,7 @@ class DownloadService {
       
       await storageService.saveCachedTrack({
         trackId: track.id,
-        playlistId,
+        playlistIds,
         blob,
         quality,
         cachedAt: Date.now()
@@ -168,7 +176,11 @@ class DownloadService {
   async deletePlaylistTracks(playlistId: string): Promise<void> {
     const tracks = await storageService.getCachedTracksByPlaylist(playlistId);
     for (const track of tracks) {
-      await this.deleteTrack(track.trackId);
+      await storageService.removePlaylistFromTrack(track.trackId, playlistId);
+      const stillCached = await storageService.getCachedTrack(track.trackId);
+      if (!stillCached) {
+        this.cachedTrackIds.delete(track.trackId);
+      }
     }
   }
 

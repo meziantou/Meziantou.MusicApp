@@ -39,7 +39,7 @@ export type RepeatMode = 'off' | 'all' | 'one';
 
 export interface CachedTrack {
   trackId: string;
-  playlistId: string;
+  playlistIds: string[];
   blob: Blob;
   quality: StreamingQuality;
   cachedAt: number;
