@@ -21,7 +21,7 @@
   "license": "MIT",
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "16.3.0",
+    "@testing-library/react": "16.3.1",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.2",
@@ -30,7 +30,7 @@
     "typescript": "5.9.3",
     "vite": "6.4.1",
     "vite-plugin-pwa": "1.2.0",
-    "vitest": "4.0.15",
+    "vitest": "4.0.16",
     "workbox-window": "7.4.0"
   },
   "dependencies": {
