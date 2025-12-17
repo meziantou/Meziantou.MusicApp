@@ -2,8 +2,6 @@
   "mimeTypes": {
     ".js": "text/javascript",
     ".mjs": "text/javascript",
-    ".jsx": "text/javascript",
-    ".tsx": "text/javascript",
     ".json": "application/json",
     ".webmanifest": "application/manifest+json"
   },
