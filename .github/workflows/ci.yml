@@ -12,11 +12,13 @@ jobs:
         contents: read
         packages: write
     steps:
+      - run: echo ::add-mask::${{ secrets.PLAYERURL }}
+
       - uses: actions/checkout@v5
 
       - name: Annotate with image version
         run: |
-          IMAGE_VERSION="${{ github.run_number }}"
+          IMAGE_VERSION="1.0.${{ github.run_number }}"
           echo "::notice title=Docker Image Version::ghcr.io/meziantou/meziantou-music-app-server:${IMAGE_VERSION}"
           echo "::notice title=Docker Image Latest::ghcr.io/meziantou/meziantou-music-app-server:latest"
 
@@ -92,5 +94,5 @@ jobs:
           file: Meziantou.MusicApp.WebPlayer/Dockerfile
           push: true
           tags: |
-            ghcr.io/meziantou/meziantou-music-app-web-player:${{ github.run_number }}
+            ghcr.io/meziantou/meziantou-music-app-web-player:1.0.${{ github.run_number }}
             ghcr.io/meziantou/meziantou-music-app-web-player:latest
