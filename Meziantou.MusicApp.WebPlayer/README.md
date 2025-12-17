@@ -1,4 +1,4 @@
-# Web Music Player
+# Meziantou.MusicApp.WebPlayer
 
 This project is a web-based music player that connects to a compatible server and streams music directly to your browser. It offers a rich set of features for an optimal listening experience.
 

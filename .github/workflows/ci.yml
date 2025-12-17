@@ -17,8 +17,8 @@ jobs:
       - name: Annotate with image version
         run: |
           IMAGE_VERSION="${{ github.run_number }}"
-          echo "::notice title=Docker Image Version::ghcr.io/${{ github.repository }}:${IMAGE_VERSION}"
-          echo "::notice title=Docker Image Latest::ghcr.io/${{ github.repository }}:latest"
+          echo "::notice title=Docker Image Version::ghcr.io/meziantou/meziantou-music-app-server:${IMAGE_VERSION}"
+          echo "::notice title=Docker Image Latest::ghcr.io/meziantou/meziantou-music-app-server:latest"
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
@@ -57,22 +57,22 @@ jobs:
       - name: Annotate with image version
         run: |
           IMAGE_VERSION="${{ github.run_number }}"
-          echo "::notice title=Web Player Image Version::ghcr.io/${{ github.repository }}-player:${IMAGE_VERSION}"
-          echo "::notice title=Web Player Image Latest::ghcr.io/${{ github.repository }}-player:latest"
+          echo "::notice title=Web Player Image Version::ghcr.io/meziantou/meziantou-music-app-web-player:${IMAGE_VERSION}"
+          echo "::notice title=Web Player Image Latest::ghcr.io/meziantou/meziantou-music-app-web-player:latest"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: Meziantou.MusicApp.WebMusicPlayer/package-lock.json
+          cache-dependency-path: Meziantou.MusicApp.WebPlayer/package-lock.json
 
       - name: Install dependencies
-        working-directory: Meziantou.MusicApp.WebMusicPlayer
+        working-directory: Meziantou.MusicApp.WebPlayer
         run: npm ci
 
       - name: Run tests
-        working-directory: Meziantou.MusicApp.WebMusicPlayer
+        working-directory: Meziantou.MusicApp.WebPlayer
         run: npm test
 
       - name: Log in to Docker
@@ -88,9 +88,9 @@ jobs:
       - name: Build and push web player image
         uses: docker/build-push-action@v6
         with:
-          context: Meziantou.MusicApp.WebMusicPlayer
-          file: Meziantou.MusicApp.WebMusicPlayer/Dockerfile
+          context: Meziantou.MusicApp.WebPlayer
+          file: Meziantou.MusicApp.WebPlayer/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-player:${{ github.run_number }}
-            ghcr.io/${{ github.repository }}-player:latest
+            ghcr.io/meziantou/meziantou-music-app-web-player:${{ github.run_number }}
+            ghcr.io/meziantou/meziantou-music-app-web-player:latest

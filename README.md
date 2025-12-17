@@ -12,7 +12,7 @@ A dual-API music server supporting both **Subsonic** and **Jellyfin** protocols.
 - Last.fm scrobbling
 - ReplayGain support
 
-### [Meziantou.MusicApp.WebMusicPlayer](Meziantou.MusicApp.WebMusicPlayer/README.md)
+### [Meziantou.MusicApp.WebPlayer](Meziantou.MusicApp.WebPlayer/README.md)
 
 A modern, web-based music player designed to work with the server. Features include:
 - Progressive Web App (PWA) support
@@ -26,4 +26,4 @@ A modern, web-based music player designed to work with the server. Features incl
 Please refer to the individual project READMEs for detailed instructions on how to build, configure, and run each component.
 
 - [Server Documentation](Meziantou.MusicApp.Server/README.md)
-- [Web Player Documentation](Meziantou.MusicApp.WebMusicPlayer/README.md)
+- [Web Player Documentation](Meziantou.MusicApp.WebPlayer/README.md)

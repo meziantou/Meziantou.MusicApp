@@ -1,5 +1,5 @@
 {
-  "name": "meziantou-music-app-web-music-player",
+  "name": "meziantou-music-app-web-player",
   "version": "1.0.0",
   "description": "A web-based music player that connects to Meziantou Music Server",
   "type": "module",
