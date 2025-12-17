@@ -59,6 +59,20 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
     }
   };
 
+  const handleCleanupOrphans = async () => {
+    setIsClearing(true);
+    try {
+      const count = await storageService.cleanupOrphanedTracks();
+      showToast(`Removed ${count} orphaned tracks`, 'success');
+      await loadStorageEstimate();
+    } catch (error) {
+      console.error('Failed to cleanup orphaned tracks:', error);
+      showToast('Failed to cleanup orphaned tracks', 'error');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const handleRefreshPlaylists = async () => {
     setIsClearing(true);
     try {
@@ -130,6 +144,17 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
                 Clear Cover Cache
               </button>
               <small>Removes all cached album art images. They will be downloaded again when needed.</small>
+            </div>
+
+            <div className="form-group">
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleCleanupOrphans}
+                disabled={isClearing}
+              >
+                Cleanup Orphaned Tracks
+              </button>
+              <small>Removes tracks that are not part of any cached playlist.</small>
             </div>
 
             <div className="form-group">

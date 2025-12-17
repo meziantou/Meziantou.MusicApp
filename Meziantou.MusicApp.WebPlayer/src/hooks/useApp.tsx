@@ -55,7 +55,7 @@ interface AppContextValue {
   showToast: (message: string, type?: 'info' | 'error' | 'success') => void;
 
   // Playback
-  playTrack: (track: TrackInfo, index: number) => Promise<void>;
+  playTrack: (track: TrackInfo, index: number, tracks?: TrackInfo[]) => Promise<void>;
   addTrackToPlaylist: (playlist: PlaylistSummary, trackId: string) => Promise<void>;
   removeTrackFromPlaylist: (playlistId: string, trackIndex: number) => Promise<void>;
 
@@ -389,6 +389,15 @@ export function AppProvider({ children }: AppProviderProps) {
               await downloadService.queuePlaylistDownload(uncachedTracks, playlist.id, settings.downloadQuality);
             }
 
+            // Remove tracks that are no longer in the playlist
+            if (cached) {
+              const newTrackIds = new Set(tracksResponse.tracks.map(t => t.id));
+              const removedTracks = cached.tracks.filter(t => !newTrackIds.has(t.id));
+              for (const track of removedTracks) {
+                await storageService.removePlaylistFromTrack(track.id, playlist.id);
+              }
+            }
+
             if (currentPlaylistId === playlist.id) {
               setCurrentPlaylistTracks(tracksResponse.tracks);
             }
@@ -526,7 +535,7 @@ export function AppProvider({ children }: AppProviderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, playlists, showToast]);
 
-  const playTrack = useCallback(async (_track: TrackInfo, _index: number) => {
+  const playTrack = useCallback(async (_track: TrackInfo, _index: number, tracks?: TrackInfo[]) => {
     if (!currentPlaylistId) return;
 
     const networkType = getNetworkType();
@@ -538,7 +547,7 @@ export function AppProvider({ children }: AppProviderProps) {
       : settings.normalQuality;
     playerActions.setQuality(quality);
 
-    playerActions.setPlaylist(currentPlaylistId, currentPlaylistTracks);
+    playerActions.setPlaylist(currentPlaylistId, tracks || currentPlaylistTracks);
     setPlayingPlaylistId(currentPlaylistId);
     await playerActions.playTrack(_track, currentPlaylistId);
   }, [currentPlaylistId, currentPlaylistTracks, settings, playerActions]);
@@ -823,6 +832,9 @@ export function AppProvider({ children }: AppProviderProps) {
 
       // Remove from cached playlists
       await storageService.deleteCachedPlaylist(playlistId);
+      
+      // Cleanup orphaned tracks
+      await storageService.cleanupOrphanedTracks();
 
       // Update local state
       setPlaylists(prev => prev.filter(p => p.id !== playlistId));
@@ -927,6 +939,9 @@ export function AppProvider({ children }: AppProviderProps) {
       next.delete(playlistId);
       return next;
     });
+
+    // Cleanup orphaned tracks
+    await storageService.cleanupOrphanedTracks();
 
     showToast('Removed offline playlist');
   }, [showToast]);

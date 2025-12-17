@@ -132,7 +132,7 @@ export function TrackList() {
     const isCached = cachedTrackIds.has(track.id);
     const isAvailable = isOnline || isCached;
     if (isAvailable) {
-      playTrack(track, index);
+      playTrack(track, index, filteredTracks);
     }
   };
 
@@ -252,7 +252,7 @@ export function TrackList() {
                     if (isPlaying) {
                       playerActions.togglePlayPause();
                     } else {
-                      playTrack(track, originalIndex);
+                      playTrack(track, originalIndex, filteredTracks);
                     }
                   }}
                 />
@@ -270,7 +270,7 @@ export function TrackList() {
           index={contextMenu.index}
           isCached={cachedTrackIds.has(contextMenu.track.id)}
           onPlay={() => {
-            playTrack(contextMenu.track, contextMenu.index);
+            playTrack(contextMenu.track, contextMenu.index, filteredTracks);
             setContextMenu(null);
           }}
           onAddToQueue={() => {

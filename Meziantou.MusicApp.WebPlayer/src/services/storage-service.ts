@@ -1,4 +1,4 @@
-import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type {
   AppSettings,
   PlaybackState,
@@ -77,7 +77,7 @@ class StorageService {
 
     console.log('[StorageService] Creating new DB connection');
     this.initPromise = openDB<MusicPlayerDB>(DB_NAME, DB_VERSION, {
-      async upgrade(db: IDBPDatabase<MusicPlayerDB>, oldVersion: number, _newVersion: number | null, transaction: IDBPTransaction<MusicPlayerDB, string[], "versionchange">) {
+      async upgrade(db, oldVersion, _newVersion, transaction) {
         console.log('[StorageService] Running upgrade, version:', db.version);
         // Settings store
         if (!db.objectStoreNames.contains('settings')) {
@@ -284,6 +284,35 @@ class StorageService {
     }
     
     await tx.done;
+  }
+
+  async cleanupOrphanedTracks(): Promise<number> {
+    const db = await this.init();
+    const offlinePlaylists = await db.getAll('offlinePlaylists');
+    const offlinePlaylistIds = new Set(offlinePlaylists.map((p: { playlistId: string }) => p.playlistId));
+    
+    const tx = db.transaction('cachedTracks', 'readwrite');
+    let cursor = await tx.store.openCursor();
+    let removedCount = 0;
+
+    while (cursor) {
+      const track = cursor.value;
+      const originalCount = track.playlistIds.length;
+      const validPlaylistIds = track.playlistIds.filter((id: string) => offlinePlaylistIds.has(id));
+      
+      if (validPlaylistIds.length === 0) {
+        await cursor.delete();
+        removedCount++;
+      } else if (validPlaylistIds.length !== originalCount) {
+        track.playlistIds = validPlaylistIds;
+        await cursor.update(track);
+      }
+      
+      cursor = await cursor.continue();
+    }
+    
+    await tx.done;
+    return removedCount;
   }
 
   // Cached Playlists
