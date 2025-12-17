@@ -25,7 +25,9 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
-    steps:
+    steps:      
+      - run: echo ::add-mask::${{ secrets.PLAYERURL }}
+
       - uses: actions/checkout@v5
         with:
           submodules: true

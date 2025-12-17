@@ -12,8 +12,6 @@ jobs:
         contents: read
         packages: write
     steps:
-      - run: echo ::add-mask::${{ secrets.PLAYERURL }}
-
       - uses: actions/checkout@v5
 
       - name: Setup .NET SDK
