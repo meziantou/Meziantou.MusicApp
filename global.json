@@ -1,0 +1,9 @@
+{
+    "sdk": {
+        "version": "10.0.100"
+    },
+    "msbuild-sdks": {
+        "Meziantou.NET.Sdk.Test": "1.0.43",
+        "Meziantou.NET.Sdk.Web": "1.0.43"
+    }
+}

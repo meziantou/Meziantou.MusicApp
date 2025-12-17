@@ -1,0 +1,7 @@
+<Solution>
+    <Project Path="Meziantou.MusicApp.Server/Meziantou.MusicApp.Server.csproj" />
+    <Folder Name="/Solution Items/">
+        <File Path=".editorconfig" />
+    </Folder>
+    <Project Path="Meziantou.MusicApp.Server.Tests/Meziantou.MusicApp.Server.Tests.csproj" />
+</Solution>

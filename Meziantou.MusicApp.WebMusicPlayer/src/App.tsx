@@ -1,0 +1,132 @@
+import { useState, useEffect } from 'react';
+import { AppProvider, useApp } from './hooks';
+import { audioPlayer } from './services';
+import {
+  PlaylistSidebar,
+  TrackList,
+  PlayerBar,
+  QueuePanel,
+  SettingsDialog,
+  CacheDiagnosticsDialog,
+} from './components';
+import './styles/main.css';
+
+function AppContent() {
+  const { isLoading, settings, isInitialized, playerActions } = useApp();
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+
+  // Show settings on first load if not configured (only after initialization)
+  useEffect(() => {
+    if (isInitialized && !settings.serverUrl) {
+      setSettingsOpen(true);
+    }
+  }, [isInitialized, settings.serverUrl]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          // Toggle play/pause is handled by the hook
+          break;
+        case 'ArrowLeft':
+          if (e.shiftKey) {
+            e.preventDefault();
+            playerActions.seek(audioPlayer.getCurrentTime() - 10);
+          } else if (e.ctrlKey) {
+            e.preventDefault();
+            playerActions.seek(audioPlayer.getCurrentTime() - 30);
+          }
+          break;
+        case 'ArrowRight':
+          if (e.shiftKey) {
+            e.preventDefault();
+            playerActions.seek(audioPlayer.getCurrentTime() + 10);
+          } else if (e.ctrlKey) {
+            e.preventDefault();
+            playerActions.seek(audioPlayer.getCurrentTime() + 30);
+          }
+          break;
+        case 'ArrowUp':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            playerActions.setVolume(Math.min(1, audioPlayer.getVolume() + 0.05));
+          }
+          break;
+        case 'ArrowDown':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            playerActions.setVolume(Math.max(0, audioPlayer.getVolume() - 0.05));
+          }
+          break;
+        case 'Escape':
+          setQueueOpen(false);
+          setSettingsOpen(false);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [playerActions]);
+
+  return (
+    <>
+      <div className="app-layout">
+        <aside className="sidebar-container">
+          <PlaylistSidebar onSettingsClick={() => setSettingsOpen(true)} />
+        </aside>
+        <main className="main-content">
+          <div className="track-list-wrapper">
+            <TrackList />
+          </div>
+        </main>
+        <footer className="player-bar-container">
+          <PlayerBar
+            onQueueClick={() => setQueueOpen(!queueOpen)}
+          />
+        </footer>
+      </div>
+
+      <div className="queue-panel-container">
+        <QueuePanel isOpen={queueOpen} onClose={() => setQueueOpen(false)} />
+      </div>
+
+      <SettingsDialog 
+        isOpen={settingsOpen} 
+        onClose={() => setSettingsOpen(false)} 
+        onOpenDiagnostics={() => {
+          setSettingsOpen(false);
+          setDiagnosticsOpen(true);
+        }}
+      />
+
+      <CacheDiagnosticsDialog 
+        isOpen={diagnosticsOpen} 
+        onClose={() => setDiagnosticsOpen(false)} 
+      />
+
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
+  );
+}

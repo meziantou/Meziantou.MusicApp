@@ -1,0 +1,22 @@
+<Project Sdk="Meziantou.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <ContainerBaseImage>localhost:5000/meziantou-music-app-server-base:latest</ContainerBaseImage>
+		<ContainerRegistry>ghcr.io</ContainerRegistry>
+		<ContainerRepository>meziantou/meziantou-music-app-server</ContainerRepository>
+		<ContainerImageTags>0.0.1-preview</ContainerImageTags>
+		<ContainerImageTags Condition="$(GITHUB_REF) == 'refs/heads/main'">1.0.$(GITHUB_RUN_NUMBER);latest</ContainerImageTags>
+	</PropertyGroup>
+	
+  <ItemGroup>
+    <PackageReference Include="Meziantou.Framework.FullPath" Version="1.1.9" />
+    <PackageReference Include="Meziantou.Framework.StronglyTypedId" Version="2.3.9" />
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+	
+  <ItemGroup>
+    <Folder Include="wwwroot\" />
+  </ItemGroup>
+
+</Project>

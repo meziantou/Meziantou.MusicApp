@@ -1,0 +1,96 @@
+on:
+  workflow_dispatch:
+  push:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Annotate with image version
+        run: |
+          IMAGE_VERSION="${{ github.run_number }}"
+          echo "::notice title=Docker Image Version::ghcr.io/${{ github.repository }}:${IMAGE_VERSION}"
+          echo "::notice title=Docker Image Latest::ghcr.io/${{ github.repository }}:latest"
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+
+      - name: Run tests
+        run: dotnet test
+
+      - name: run local docker registry
+        run: docker run -d -p 5000:5000 --name registry registry:latest
+
+      - name: Build base image
+        working-directory: Meziantou.MusicApp.Server
+        run: docker build --tag localhost:5000/meziantou-music-app-server-base:latest --file Dockerfile.Base .
+
+      - name: push base image
+        working-directory: Meziantou.MusicApp.Server
+        run: docker push localhost:5000/meziantou-music-app-server-base:latest
+      - name: Log in to Docker
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create image
+        run: dotnet publish Meziantou.MusicApp.Server --os linux --arch x64 --configuration Release /t:PublishContainer
+
+  player:
+    runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Annotate with image version
+        run: |
+          IMAGE_VERSION="${{ github.run_number }}"
+          echo "::notice title=Web Player Image Version::ghcr.io/${{ github.repository }}-player:${IMAGE_VERSION}"
+          echo "::notice title=Web Player Image Latest::ghcr.io/${{ github.repository }}-player:latest"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: Meziantou.MusicApp.WebMusicPlayer/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Meziantou.MusicApp.WebMusicPlayer
+        run: npm ci
+
+      - name: Run tests
+        working-directory: Meziantou.MusicApp.WebMusicPlayer
+        run: npm test
+
+      - name: Log in to Docker
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push web player image
+        uses: docker/build-push-action@v6
+        with:
+          context: Meziantou.MusicApp.WebMusicPlayer
+          file: Meziantou.MusicApp.WebMusicPlayer/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-player:${{ github.run_number }}
+            ghcr.io/${{ github.repository }}-player:latest

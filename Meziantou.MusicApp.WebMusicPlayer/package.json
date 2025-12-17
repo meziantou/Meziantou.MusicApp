@@ -1,0 +1,41 @@
+{
+  "name": "meziantou-music-app-web-music-player",
+  "version": "1.0.0",
+  "description": "A web-based music player that connects to Meziantou Music Server",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "generate-icons": "node scripts/generate-icons.js"
+  },
+  "keywords": [
+    "music",
+    "player",
+    "pwa",
+    "offline"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^27.3.0",
+    "sharp": "^0.34.5",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^4.0.15",
+    "workbox-window": "^7.3.0"
+  },
+  "dependencies": {
+    "idb": "^8.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
