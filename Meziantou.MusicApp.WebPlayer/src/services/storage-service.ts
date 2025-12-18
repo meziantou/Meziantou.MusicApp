@@ -71,11 +71,9 @@ class StorageService {
   private initPromise: Promise<IDBPDatabase<MusicPlayerDB>> | null = null;
 
   async init(): Promise<IDBPDatabase<MusicPlayerDB>> {
-    console.log('[StorageService] init called, db:', !!this.db, 'initPromise:', !!this.initPromise);
     if (this.db) return this.db;
     if (this.initPromise) return this.initPromise;
 
-    console.log('[StorageService] Creating new DB connection');
     this.initPromise = openDB<MusicPlayerDB>(DB_NAME, DB_VERSION, {
       async upgrade(db, oldVersion, _newVersion, transaction) {
         console.log('[StorageService] Running upgrade, version:', db.version);
