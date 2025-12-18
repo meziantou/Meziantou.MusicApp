@@ -707,7 +707,6 @@ body {
   font-size: 13px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  margin-left: auto;
 }
 
 .cached-icon {
@@ -715,7 +714,6 @@ body {
   height: 16px;
   color: var(--success);
   flex-shrink: 0;
-  margin-left: 8px;
 }
 
 .track-options-btn {
