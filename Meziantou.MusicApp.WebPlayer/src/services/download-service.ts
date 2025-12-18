@@ -156,6 +156,29 @@ class DownloadService {
         cachedAt: Date.now()
       });
 
+      // Try to download cover art
+      try {
+        const cachedCover = await storageService.getCachedCover(track.id);
+        const isMissing = await storageService.isCoverMissing(track.id);
+        
+        if (!cachedCover && !isMissing) {
+          // Use a reasonable size for caching (256px)
+          const coverUrl = api.getSongCoverUrl(track.id, 256);
+          const coverResponse = await fetch(coverUrl, {
+            headers: api.getAuthHeaders()
+          });
+          
+          if (coverResponse.ok) {
+            const coverBlob = await coverResponse.blob();
+            await storageService.saveCachedCover(track.id, coverBlob);
+          } else if (coverResponse.status === 404) {
+            await storageService.addMissingCover(track.id);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to download cover for track ${track.id}`, error);
+      }
+
       this.cachedTrackIds.add(track.id);
       this.notifyProgress({ trackId: track.id, progress: 1, status: 'complete' });
     } catch (error) {
