@@ -13,6 +13,7 @@ export interface AppSettings {
   hideCoverArt: boolean;
   replayGainMode: ReplayGainMode;
   replayGainPreamp: number; // in dB
+  showReplayGainWarning: boolean;
 }
 
 export interface StreamingQuality {

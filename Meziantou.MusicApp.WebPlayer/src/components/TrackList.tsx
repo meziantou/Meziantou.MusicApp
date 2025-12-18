@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
-import type { TrackInfo } from '../types';
+import type { TrackInfo, AppSettings } from '../types';
 import { formatDuration, matchesSearch, debounce } from '../utils';
 import { useApp } from '../hooks';
 import { PlayingIndicator } from './PlayingIndicator';
@@ -13,6 +13,7 @@ const BUFFER_SIZE = 5;
 
 export function TrackList() {
   const {
+    settings,
     currentPlaylistTracks,
     currentPlaylistId,
     playingPlaylistId,
@@ -245,6 +246,7 @@ export function TrackList() {
                   isPlaying={isPlaying}
                   isPlayerPlaying={playerState.isPlaying}
                   isAvailable={isAvailable}
+                  settings={settings}
                   onDoubleClick={() => handleTrackDoubleClick(track, originalIndex)}
                   onContextMenu={(e) => handleContextMenu(e, track, originalIndex)}
                   onDragStart={(e) => handleDragStart(e, track)}
@@ -307,6 +309,7 @@ interface TrackItemProps {
   isPlaying: boolean;
   isPlayerPlaying: boolean;
   isAvailable: boolean;
+  settings: AppSettings;
   onDoubleClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDragStart: (e: React.DragEvent) => void;
@@ -320,6 +323,7 @@ function TrackItem({
   isPlaying,
   isPlayerPlaying,
   isAvailable,
+  settings,
   onDoubleClick,
   onContextMenu,
   onDragStart,
@@ -331,6 +335,29 @@ function TrackItem({
     !isAvailable && 'unavailable',
     isCached && 'cached',
   ].filter(Boolean).join(' ');
+
+  const showReplayGainWarning = settings.showReplayGainWarning && settings.replayGainMode !== 'off';
+  const hasTrackGain = track.replayGainTrackGain !== null && track.replayGainTrackGain !== undefined;
+  const hasAlbumGain = track.replayGainAlbumGain !== null && track.replayGainAlbumGain !== undefined;
+
+  let isMissingReplayGain = false;
+  let replayGainTooltip = '';
+
+  if (showReplayGainWarning) {
+    if (settings.replayGainMode === 'track') {
+      if (!hasTrackGain) {
+        isMissingReplayGain = true;
+        replayGainTooltip = hasAlbumGain 
+          ? "Missing Track ReplayGain (Album ReplayGain available)" 
+          : "Missing Track and Album ReplayGain";
+      }
+    } else if (settings.replayGainMode === 'album') {
+      if (!hasAlbumGain && !hasTrackGain) {
+        isMissingReplayGain = true;
+        replayGainTooltip = "Missing Track and Album ReplayGain";
+      }
+    }
+  }
 
   return (
     <div
@@ -356,7 +383,18 @@ function TrackItem({
         alt=""
       />
       <div className="track-info">
-        <span className="track-title">{track.title}</span>
+        <span className="track-title">
+          {track.title}
+          {isMissingReplayGain && (
+            <span 
+              className="replay-gain-warning" 
+              title={replayGainTooltip}
+              style={{ marginLeft: '8px', fontSize: '0.8em', cursor: 'help' }}
+            >
+              ⚠️
+            </span>
+          )}
+        </span>
         <span className="track-artist">
           {track.artists || 'Unknown Artist'} • {track.album || 'Unknown Album'}
         </span>

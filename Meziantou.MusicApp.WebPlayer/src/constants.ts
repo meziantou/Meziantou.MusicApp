@@ -10,7 +10,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   scrobbleEnabled: true,
   hideCoverArt: false,
   replayGainMode: 'off',
-  replayGainPreamp: 0
+  replayGainPreamp: 0,
+  showReplayGainWarning: true
 };
 
 export const DEFAULT_PLAYBACK_STATE: PlaybackState = {

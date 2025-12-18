@@ -253,6 +253,19 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                 <span className="range-value">{formData.replayGainPreamp} dB</span>
               </div>
             </div>
+
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="show-replaygain-warning"
+                  checked={formData.showReplayGainWarning}
+                  onChange={(e) => handleInputChange('showReplayGainWarning', e.target.checked)}
+                />
+                Show ReplayGain Warning
+              </label>
+              <small>Show an indicator when a track is missing ReplayGain data</small>
+            </div>
           </section>
 
           {onOpenDiagnostics && (
