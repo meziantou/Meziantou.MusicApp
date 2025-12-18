@@ -1000,6 +1000,45 @@ body {
 
 .volume-slider-container {
   flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.volume-popover {
+  position: absolute;
+  bottom: 100%;
+  left: var(--volume-percent);
+  transform: translateX(-50%);
+  background: var(--bg-active);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.volume-popover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: var(--bg-active) transparent transparent transparent;
+}
+
+.volume-slider-container:hover .volume-popover,
+.volume-slider:active + .volume-popover,
+.volume-popover.visible {
+  opacity: 1;
 }
 
 .volume-slider {

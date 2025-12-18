@@ -66,6 +66,19 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
     };
   }, [isDragging, handleSeek]);
 
+  const [isVolumePopoverVisible, setIsVolumePopoverVisible] = useState(false);
+  const volumePopoverTimeoutRef = useRef<number | undefined>(undefined);
+
+  const showVolumePopover = () => {
+    setIsVolumePopoverVisible(true);
+    if (volumePopoverTimeoutRef.current) {
+      window.clearTimeout(volumePopoverTimeoutRef.current);
+    }
+    volumePopoverTimeoutRef.current = window.setTimeout(() => {
+      setIsVolumePopoverVisible(false);
+    }, 1300);
+  };
+
   const handleVolumeWheel = (e: React.WheelEvent) => {
     const step = 0.05;
     const delta = e.deltaY < 0 ? step : -step;
@@ -75,6 +88,7 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
       playerActions.toggleMute();
     }
     playerActions.setVolume(newVolume);
+    showVolumePopover();
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,6 +97,7 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
       playerActions.toggleMute();
     }
     playerActions.setVolume(volume);
+    showVolumePopover();
   };
 
   const handleCoverClick = async () => {
@@ -226,7 +241,6 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
         <div
           className="player-volume"
           onWheel={handleVolumeWheel}
-          title={`Volume: ${Math.round(playerState.volume * 100)}%`}
         >
           <VolumeButton
             volume={playerState.volume}
@@ -243,6 +257,14 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
               aria-label="Volume"
               onChange={handleVolumeChange}
             />
+            <div
+              className={`volume-popover ${isVolumePopoverVisible ? 'visible' : ''}`}
+              style={{
+                '--volume-percent': `${(playerState.isMuted ? 0 : playerState.volume) * 50}%`
+              } as React.CSSProperties}
+            >
+              {Math.round(playerState.volume * 100)}%
+            </div>
           </div>
         </div>
       </div>
