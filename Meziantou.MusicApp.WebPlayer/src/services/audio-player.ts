@@ -245,35 +245,42 @@ export class AudioPlayerService {
     const gainNode = instance.gainNode;
     const track = instance.track;
     
-    if (!gainNode || !track || this.replayGainMode === 'off') {
-      if (gainNode) {
-        gainNode.gain.value = 1;
-      }
+    if (!gainNode || !track) {
       return;
     }
 
-    let gain: number | null = null;
-    
-    if (this.replayGainMode === 'track') {
-      gain = track.replayGainTrackGain;
-    } else if (this.replayGainMode === 'album') {
-      gain = track.replayGainAlbumGain ?? track.replayGainTrackGain;
+    let appliedGain = 1;
+    let gainDb: number | null = null;
+
+    if (this.replayGainMode !== 'off') {
+      if (this.replayGainMode === 'track') {
+        gainDb = track.replayGainTrackGain ?? null;
+      } else if (this.replayGainMode === 'album') {
+        gainDb = track.replayGainAlbumGain ?? track.replayGainTrackGain ?? null;
+      }
+
+      if (gainDb !== null && gainDb !== undefined && Number.isFinite(gainDb)) {
+        // Convert dB to linear gain: 10^(dB/20)
+        const preamp = Number.isFinite(this.replayGainPreamp) ? this.replayGainPreamp : 0;
+        const linearGain = Math.pow(10, (gainDb + preamp) / 20);
+        
+        if (Number.isFinite(linearGain)) {
+          // Prevent clipping by limiting to reasonable values
+          appliedGain = Math.min(linearGain, 2);
+        }
+      }
     }
 
-    if (gain !== null && gain !== undefined && Number.isFinite(gain)) {
-      // Convert dB to linear gain: 10^(dB/20)
-      const preamp = Number.isFinite(this.replayGainPreamp) ? this.replayGainPreamp : 0;
-      const linearGain = Math.pow(10, (gain + preamp) / 20);
-      
-      if (Number.isFinite(linearGain)) {
-        // Prevent clipping by limiting to reasonable values
-        gainNode.gain.value = Math.min(linearGain, 2);
-      } else {
-        gainNode.gain.value = 1;
-      }
-    } else {
-      gainNode.gain.value = 1;
-    }
+    gainNode.gain.value = appliedGain;
+
+    console.log(`Playing track: ${track.title} - ${track.artists}`, {
+      replayGainMode: this.replayGainMode,
+      trackGain: track.replayGainTrackGain,
+      albumGain: track.replayGainAlbumGain,
+      usedGain: gainDb,
+      preamp: this.replayGainPreamp,
+      appliedGain: appliedGain
+    });
   }
 
   private async handleScrobble(trackId: string, submission: boolean): Promise<void> {
