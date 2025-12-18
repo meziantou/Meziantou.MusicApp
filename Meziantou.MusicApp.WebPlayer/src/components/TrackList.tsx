@@ -114,6 +114,29 @@ export function TrackList() {
     }
   }, [currentPlaylistId, filteredTracks]);
 
+  // Listen for scroll requests from PlayerBar
+  useEffect(() => {
+    const handleScrollRequest = () => {
+      if (!playerState.currentTrack || !scrollContainerRef.current) return;
+
+      const index = filteredTracks.findIndex(t => t.id === playerState.currentTrack?.id);
+      if (index !== -1) {
+        const scrollTop = index * ITEM_HEIGHT;
+        // Center the track if possible
+        const containerHeight = scrollContainerRef.current.clientHeight;
+        const centeredScrollTop = Math.max(0, scrollTop - containerHeight / 2 + ITEM_HEIGHT / 2);
+        
+        scrollContainerRef.current.scrollTo({
+          top: centeredScrollTop,
+          behavior: 'smooth'
+        });
+      }
+    };
+
+    window.addEventListener('scrollToCurrentTrack', handleScrollRequest);
+    return () => window.removeEventListener('scrollToCurrentTrack', handleScrollRequest);
+  }, [filteredTracks, playerState.currentTrack]);
+
   const debouncedSearch = useMemo(
     () => debounce((query: string) => setSearchQuery(query), 150),
     []

@@ -95,6 +95,9 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
         await selectPlaylist(playlist);
       }
     }
+    
+    // Dispatch event to scroll to current track
+    window.dispatchEvent(new CustomEvent('scrollToCurrentTrack'));
   };
 
   const progressPercent = playerState.duration > 0
