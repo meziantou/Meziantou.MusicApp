@@ -223,7 +223,11 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
             onClick={onQueueClick}
           />
         </div>
-        <div className="player-volume" onWheel={handleVolumeWheel}>
+        <div
+          className="player-volume"
+          onWheel={handleVolumeWheel}
+          title={`Volume: ${Math.round(playerState.volume * 100)}%`}
+        >
           <VolumeButton
             volume={playerState.volume}
             isMuted={playerState.isMuted}
@@ -236,7 +240,6 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
               min="0"
               max="200"
               value={playerState.isMuted ? 0 : playerState.volume * 100}
-              title={`Volume: ${Math.round(playerState.volume * 100)}%`}
               aria-label="Volume"
               onChange={handleVolumeChange}
             />
