@@ -69,7 +69,7 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
   const handleVolumeWheel = (e: React.WheelEvent) => {
     const step = 0.05;
     const delta = e.deltaY < 0 ? step : -step;
-    const newVolume = Math.max(0, Math.min(1, playerState.volume + delta));
+    const newVolume = Math.max(0, Math.min(2, playerState.volume + delta));
 
     if (playerState.isMuted) {
       playerActions.toggleMute();
@@ -231,8 +231,9 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
               type="range"
               className="volume-slider"
               min="0"
-              max="100"
+              max="200"
               value={playerState.isMuted ? 0 : playerState.volume * 100}
+              title={`Volume: ${Math.round(playerState.volume * 100)}%`}
               aria-label="Volume"
               onChange={handleVolumeChange}
             />
@@ -333,10 +334,12 @@ function VolumeButton({
     );
   };
 
+  const volumePercentage = Math.round(volume * 100);
+
   return (
     <button
       className="icon-button volume-btn"
-      title="Volume"
+      title={`Volume: ${volumePercentage}%`}
       aria-label="Toggle mute"
       onClick={onMuteToggle}
     >

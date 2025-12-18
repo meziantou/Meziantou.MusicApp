@@ -58,7 +58,7 @@ function AppContent() {
         case 'ArrowUp':
           if (e.ctrlKey) {
             e.preventDefault();
-            playerActions.setVolume(Math.min(1, audioPlayer.getVolume() + 0.05));
+            playerActions.setVolume(Math.min(2, audioPlayer.getVolume() + 0.05));
           }
           break;
         case 'ArrowDown':

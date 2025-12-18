@@ -848,12 +848,12 @@ export class AudioPlayerService {
   }
 
   setVolume(volume: number): void {
-    this.masterVolume = Math.max(0, Math.min(1, volume));
+    this.masterVolume = Math.max(0, Math.min(2, volume));
     if (this.masterGainNode) {
       this.masterGainNode.gain.value = this.isMuted ? 0 : this.masterVolume;
     } else {
       // Fallback if no audio context
-      this.audioInstance.audio.volume = this.isMuted ? 0 : this.masterVolume;
+      this.audioInstance.audio.volume = this.isMuted ? 0 : Math.min(1, this.masterVolume);
     }
     this.emit('volumechange', { volume: this.masterVolume });
   }
