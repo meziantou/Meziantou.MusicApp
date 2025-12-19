@@ -161,30 +161,25 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
       </div>
 
       <div className="sidebar-footer">
-        <div className="network-status">
-          {!isOnline ? (
-            <>
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className="status-icon offline">
-                <path d="M23.64 7c-.45-.34-4.93-4-11.64-4-1.5 0-2.89.19-4.15.48L18.18 13.8 23.64 7zm-6.6 8.22L3.27 1.44 2 2.72l2.05 2.06C1.91 5.17 1.5 5.68 1 6.07l11 13.73 2.11-2.63 4.17 4.17 1.27-1.27-2.51-2.51z" />
-              </svg>
-              <span>Offline</span>
-            </>
-          ) : networkType === 'low-data' ? (
-            <>
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className="status-icon cellular">
-                <path d="M2 22h20V2z" />
-              </svg>
-              <span>Low Data Mode</span>
-            </>
-          ) : (
-            <>
-              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className="status-icon wifi">
-                <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z" />
-              </svg>
-              <span>Normal Data Mode</span>
-            </>
-          )}
-        </div>
+        {(!isOnline || networkType === 'low-data') && (
+          <div className="network-status">
+            {!isOnline ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className="status-icon offline">
+                  <path d="M23.64 7c-.45-.34-4.93-4-11.64-4-1.5 0-2.89.19-4.15.48L18.18 13.8 23.64 7zm-6.6 8.22L3.27 1.44 2 2.72l2.05 2.06C1.91 5.17 1.5 5.68 1 6.07l11 13.73 2.11-2.63 4.17 4.17 1.27-1.27-2.51-2.51z" />
+                </svg>
+                <span>Offline</span>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className="status-icon cellular">
+                  <path d="M2 22h20V2z" />
+                </svg>
+                <span>Low Data Mode</span>
+              </>
+            )}
+          </div>
+        )}
         <button
           className="sidebar-settings-btn"
           onClick={onSettingsClick}
