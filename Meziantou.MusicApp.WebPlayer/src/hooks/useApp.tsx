@@ -362,6 +362,19 @@ export function AppProvider({ children }: AppProviderProps) {
       const api = getApiService();
       const response = await api.getPlaylists();
       const sorted = response.playlists.sort((a, b) => a.sortOrder - b.sortOrder);
+
+      // Check if response is empty
+      if (sorted.length === 0) {
+        // Check if indexing is still in progress
+        const scanStatus = await api.getScanStatus();
+        if (!scanStatus.isInitialScanCompleted) {
+          // Indexing not complete, keep cached data and retry later
+          console.log('Playlists response is empty but indexing not complete, keeping cache');
+          const cachedPlaylists = await storageService.getAllCachedPlaylists();
+          return cachedPlaylists.map(cp => cp.playlist).sort((a, b) => a.sortOrder - b.sortOrder);
+        }
+      }
+
       setPlaylists(sorted);
 
       // Get current offline playlist IDs
@@ -425,6 +438,21 @@ export function AppProvider({ children }: AppProviderProps) {
       return sorted;
     } catch (error) {
       console.error('Failed to sync playlists:', error);
+
+      // On error, check if indexing is still in progress
+      try {
+        const api = getApiService();
+        const scanStatus = await api.getScanStatus();
+        if (!scanStatus.isInitialScanCompleted) {
+          // Indexing not complete, keep cached data and retry later
+          console.log('Failed to sync playlists but indexing not complete, keeping cache');
+          const cachedPlaylists = await storageService.getAllCachedPlaylists();
+          return cachedPlaylists.map(cp => cp.playlist).sort((a, b) => a.sortOrder - b.sortOrder);
+        }
+      } catch (scanError) {
+        console.error('Failed to check scan status:', scanError);
+      }
+
       return [];
     }
   }
@@ -448,6 +476,21 @@ export function AppProvider({ children }: AppProviderProps) {
         const api = getApiService();
         const response = await api.getPlaylistTracks(playlistId);
         tracks = response.tracks;
+
+        // Check if response is empty
+        if (tracks.length === 0) {
+          // Check if indexing is still in progress
+          const scanStatus = await api.getScanStatus();
+          if (!scanStatus.isInitialScanCompleted) {
+            // Indexing not complete, keep cached data and retry later
+            console.log('Playlist tracks response is empty but indexing not complete, keeping cache');
+            if (cached) {
+              return cached.tracks;
+            }
+            return [];
+          }
+        }
+
         setCurrentPlaylistTracks(tracks);
 
         const playlist = (knownPlaylists || playlists).find(p => p.id === playlistId);
@@ -461,6 +504,25 @@ export function AppProvider({ children }: AppProviderProps) {
       return tracks;
     } catch (error) {
       console.error('Failed to load playlist tracks:', error);
+
+      // On error, check if indexing is still in progress
+      try {
+        const api = getApiService();
+        const scanStatus = await api.getScanStatus();
+        if (!scanStatus.isInitialScanCompleted) {
+          // Indexing not complete, keep cached data and retry later
+          console.log('Failed to load playlist tracks but indexing not complete, keeping cache');
+          const cached = await storageService.getCachedPlaylist(playlistId);
+          if (cached) {
+            setCurrentPlaylistTracks(cached.tracks);
+            return cached.tracks;
+          }
+          return [];
+        }
+      } catch (scanError) {
+        console.error('Failed to check scan status:', scanError);
+      }
+
       showToast('Failed to load tracks', 'error');
       return [];
     }
