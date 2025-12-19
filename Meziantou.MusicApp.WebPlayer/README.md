@@ -85,7 +85,7 @@ In the future, I want to support more backend servers like Subsonic, Airsonic, s
 - Add tracks to the queue from the track list or playlists
 - Queue must be persistent across sessions
 - When a track ends, automatically play the next track in the queue
-- If the mode is repeat mode, be sure there are always at least 50 items in the queue by fetching more from the current playlist. If the playlist has less than 50 items, loop over it multiple times.
+- If the mode is repeat mode, be sure there are always at least 200 items in the queue by fetching more from the current playlist. If the playlist has less than 200 items, loop over it multiple times.
 - Manually added tracks and playlist tracks are displayed in different sections in the queue
 
 ### Search

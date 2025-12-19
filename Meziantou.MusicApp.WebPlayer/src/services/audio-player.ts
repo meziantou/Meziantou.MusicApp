@@ -603,7 +603,7 @@ export class AudioPlayerService {
     
     this.emit('queuechange', {});
     
-    // Replenish queue if needed (keep it at ~50 items for repeat mode)
+    // Replenish queue if needed (keep it at ~200 items for repeat mode)
     if (this.repeatMode !== 'off' || this.queue.filter(i => i.source === 'playlist').length < 10) {
       this.rebuildPlaylistQueue();
     } else {
@@ -1020,7 +1020,7 @@ export class AudioPlayerService {
   /**
    * Rebuilds the playlist portion of the queue based on current position.
    * Keeps manual items and adds upcoming playlist tracks.
-   * Ensures at least 50 playlist items in queue when repeat mode is on.
+   * Ensures at least 200 playlist items in queue when repeat mode is on.
    */
   private rebuildPlaylistQueue(): void {
     if (!this.currentPlaylistId || this.playlist.length === 0) return;
@@ -1029,7 +1029,7 @@ export class AudioPlayerService {
     const manualItems = this.queue.filter(item => item.source === 'manual');
     
     // Calculate how many playlist items we need
-    const targetCount = this.repeatMode !== 'off' ? 50 : Math.min(50, this.playlist.length - this.currentIndex - 1);
+    const targetCount = this.repeatMode !== 'off' ? 200 : Math.min(200, this.playlist.length - this.currentIndex - 1);
     
     // Generate playlist items starting from current position + 1
     const playlistItems: QueueItem[] = [];
