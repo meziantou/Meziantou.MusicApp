@@ -380,6 +380,28 @@ export function AppProvider({ children }: AppProviderProps) {
       // Get current offline playlist IDs
       const currentOfflinePlaylists = await storageService.getOfflinePlaylistIds();
 
+      // Remove playlists that no longer exist
+      const cachedPlaylists = await storageService.getAllCachedPlaylists();
+      const currentPlaylistIds = new Set(sorted.map(p => p.id));
+      for (const cachedPlaylist of cachedPlaylists) {
+        if (!currentPlaylistIds.has(cachedPlaylist.playlist.id)) {
+          console.log(`Removing deleted playlist from cache: ${cachedPlaylist.playlist.id}`);
+          await storageService.deleteCachedPlaylist(cachedPlaylist.playlist.id);
+
+          // Remove from offline playlists if it was marked as offline
+          if (currentOfflinePlaylists.has(cachedPlaylist.playlist.id)) {
+            await storageService.setPlaylistOffline(cachedPlaylist.playlist.id, false);
+          }
+
+          // Remove from offline playlist tracks
+          setOfflinePlaylistTracks(prev => {
+            const next = new Map(prev);
+            next.delete(cachedPlaylist.playlist.id);
+            return next;
+          });
+        }
+      }
+
       // Cache playlists metadata and check for offline playlist updates
       for (const playlist of sorted) {
         const cached = await storageService.getCachedPlaylist(playlist.id);
