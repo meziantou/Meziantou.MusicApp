@@ -83,4 +83,40 @@ public class RestApiIntegrationTests
         Assert.True(response.Headers.TryGetValues("Access-Control-Allow-Credentials", out var allowCredentialsValues));
         Assert.Equal("true", allowCredentialsValues.Single());
     }
+
+    [Fact]
+    public async Task ComputeReplayGain_WithValidSong_ReturnsResponse()
+    {
+        await using var app = AppTestContext.Create();
+        app.MusicLibrary.CreateTestMp3File("test.mp3", "Test Song", "Test Artist", "Test Artist", "Test Album", "Rock", 2024, 1);
+        var service = await app.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        var song = songs.First();
+
+        var requestBody = System.Text.Json.JsonSerializer.Serialize(new { id = song.Id });
+        using var content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json");
+
+        using var response = await app.Client.PostAsync("/api/songs/compute-replay-gain", content, app.CancellationToken);
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var responseBody = await response.Content.ReadAsStringAsync(app.CancellationToken);
+        Assert.Contains("\"id\":", responseBody, StringComparison.Ordinal);
+        Assert.Contains("\"title\":", responseBody, StringComparison.Ordinal);
+        Assert.Contains("\"success\":", responseBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeReplayGain_WithInvalidSongId_ReturnsNotFound()
+    {
+        await using var app = AppTestContext.Create();
+        await app.ScanCatalog();
+
+        var requestBody = System.Text.Json.JsonSerializer.Serialize(new { id = "invalid-song-id" });
+        using var content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json");
+
+        using var response = await app.Client.PostAsync("/api/songs/compute-replay-gain", content, app.CancellationToken);
+
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+    }
 }

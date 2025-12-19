@@ -95,3 +95,16 @@ export interface ScanStatusResponse {
 export interface ErrorResponse {
   error: string;
 }
+
+export interface ComputeReplayGainRequest {
+  id: string;
+}
+
+export interface ComputeReplayGainResponse {
+  success: boolean;
+  id: string;
+  title: string;
+  trackGain: number | null;
+  trackPeak: number | null;
+  message: string | null;
+}

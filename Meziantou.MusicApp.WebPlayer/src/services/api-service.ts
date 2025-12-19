@@ -4,7 +4,8 @@ import type {
   ScanStatusResponse,
   StreamingQuality,
   CreatePlaylistRequest,
-  UpdatePlaylistRequest
+  UpdatePlaylistRequest,
+  ComputeReplayGainResponse
 } from '../types';
 
 export class ApiService {
@@ -105,6 +106,16 @@ export class ApiService {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ id: songId, submission })
+    });
+  }
+
+  async computeReplayGain(songId: string): Promise<ComputeReplayGainResponse> {
+    return this.fetch<ComputeReplayGainResponse>('/api/songs/compute-replay-gain', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: songId })
     });
   }
 
