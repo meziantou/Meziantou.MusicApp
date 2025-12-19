@@ -548,8 +548,16 @@ public class MusicLibraryServiceTests
         } // Dispose to ensure file is closed
 
         // Explicitly update the file timestamp to ensure modification is detected
-        File.SetLastWriteTimeUtc(mp3FilePath, DateTime.UtcNow);
-        await Task.Delay(100, testContext.CancellationToken); // Small delay to ensure file system registers the change
+        var timestampBefore = File.GetLastWriteTimeUtc(mp3FilePath);
+        File.SetLastWriteTimeUtc(mp3FilePath, timestampBefore.AddMinutes(1));
+
+        // Wait for file system to register the timestamp change
+        var maxWait = TimeSpan.FromMinutes(2);
+        var start = DateTime.UtcNow;
+        while (File.GetLastWriteTimeUtc(mp3FilePath) <= timestampBefore && DateTime.UtcNow - start < maxWait)
+        {
+            await Task.Delay(10, testContext.CancellationToken);
+        }
 
         await service.ScanMusicLibrary();
 
