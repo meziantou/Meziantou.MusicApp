@@ -35,7 +35,7 @@ public sealed class ReplayGainService : IDisposable
         await _semaphore.WaitAsync(cancellationToken);
         try
         {
-            _logger.LogDebug("Analyzing ReplayGain for: {Path}", filePath);
+            _logger.LogInformation("Analyzing ReplayGain for: {Path}", filePath);
 
             // Use FFmpeg's loudnorm filter in measurement mode
             // This uses EBU R128 standard which is what ReplayGain 2.0 is based on
