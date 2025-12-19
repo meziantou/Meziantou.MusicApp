@@ -1155,5 +1155,84 @@ public class MusicLibraryServiceTests
         Assert.True(track2AddedAt >= beforeUpdate && track2AddedAt <= afterUpdate,
             $"New song addedAt ({track2AddedAt:O}) should be between {beforeUpdate:O} and {afterUpdate:O}");
     }
+
+    [Fact]
+    public async Task GetPlaylists_IncludesNoReplayGainVirtualPlaylist_WhenSongsWithoutReplayGainExist()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 2, -8.5, 0.95);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlists = service.GetPlaylists().ToList();
+
+        var noReplayGainPlaylist = playlists.FirstOrDefault(p => p.Id == Playlist.NoReplayGainPlaylistId);
+        Assert.NotNull(noReplayGainPlaylist);
+        Assert.Equal("virtual:no-replay-gain", noReplayGainPlaylist.Id);
+        Assert.Equal("⚠️ No Replay Gain", noReplayGainPlaylist.Name);
+        Assert.Equal(1, noReplayGainPlaylist.SongCount);
+    }
+
+    [Fact]
+    public async Task GetPlaylists_DoesNotIncludeNoReplayGainVirtualPlaylist_WhenAllSongsHaveReplayGain()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1, -7.2, 0.88);
+        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1, -8.5, 0.95);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlists = service.GetPlaylists().ToList();
+
+        var noReplayGainPlaylist = playlists.FirstOrDefault(p => p.Id == Playlist.NoReplayGainPlaylistId);
+        Assert.Null(noReplayGainPlaylist);
+    }
+
+    [Fact]
+    public async Task GetPlaylist_NoReplayGainVirtualPlaylist_ReturnsOnlySongsWithoutReplayGain()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist A", "Artist A", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist B", "Artist B", "Album 2", "Pop", 2024, 1, -8.5, 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", "Song 3", "Artist C", "Artist C", "Album 3", "Jazz", 2024, 1);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlist = service.GetPlaylist("virtual:no-replay-gain");
+
+        Assert.NotNull(playlist);
+        Assert.Equal("⚠️ No Replay Gain", playlist.Name);
+        Assert.Equal(2, playlist.SongCount);
+        Assert.Equal(2, playlist.Items.Count);
+
+        Assert.Contains(playlist.Items, item => item.Song.Title == "Song 1");
+        Assert.DoesNotContain(playlist.Items, item => item.Song.Title == "Song 2");
+        Assert.Contains(playlist.Items, item => item.Song.Title == "Song 3");
+    }
+
+    [Fact]
+    public async Task UpdatePlaylist_NoReplayGainVirtualPlaylist_ThrowsInvalidOperationException()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+
+        var service = await testContext.ScanCatalog();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdatePlaylist("virtual:no-replay-gain", "New Name", null, null));
+    }
+
+    [Fact]
+    public async Task DeletePlaylist_NoReplayGainVirtualPlaylist_ThrowsInvalidOperationException()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+
+        var service = await testContext.ScanCatalog();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeletePlaylist("virtual:no-replay-gain"));
+    }
 }
 

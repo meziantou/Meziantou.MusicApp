@@ -60,6 +60,34 @@ internal sealed class MusicLibraryTestContext(FullPath root)
         tagFile.Save();
     }
 
+    public void CreateTestMp3FileWithReplayGain(string relativePath, string title, string? artist, string? albumArtist, string album, string genre, int year, uint track, double trackGain, double trackPeak)
+    {
+        CreateTestMp3File(relativePath, title, artist, albumArtist, album, genre, year, track);
+
+        var fullPath = root / relativePath;
+        using var tagFile = TagLib.File.Create(fullPath);
+
+        var trackGainStr = $"{trackGain:F2} dB";
+        var trackPeakStr = $"{trackPeak:F6}";
+
+        if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+        {
+            var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
+            {
+                Text = [trackGainStr]
+            };
+            id3v2Tag.AddFrame(trackGainFrame);
+
+            var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
+            {
+                Text = [trackPeakStr]
+            };
+            id3v2Tag.AddFrame(trackPeakFrame);
+        }
+
+        tagFile.Save();
+    }
+
     public async Task CreateLrcFile(string relativePath, string content)
     {
         var fullPath = root / relativePath;

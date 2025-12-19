@@ -179,6 +179,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             {
                 if (XspfPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
                 {
+                    logger.LogInformation("Scanning XSPF playlist: {Path}", file);
                     await ScanXspfPlaylist(new IndexerContext(rootFolder, file, library));
                 }
             }
@@ -188,6 +189,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             {
                 if (M3uPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
                 {
+                    logger.LogInformation("Converting and scanning M3U playlist: {Path}", file);
                     var xspfPath = await ConvertM3uToXspf(new IndexerContext(rootFolder, file, library));
                     if (xspfPath != null)
                     {
@@ -201,6 +203,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             {
                 try
                 {
+                    logger.LogInformation("Caching music library to {Path}", cachePath);
                     var json = JsonSerializer.Serialize(library, JsonOptions);
                     Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
                     await File.WriteAllTextAsync(cachePath, json);
@@ -212,6 +215,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 }
             }
 
+            logger.LogInformation("Music library scan finished, updating catalog");
             _cachedSerializableCatalog = library;
             _catalog = await CreateCatalog(library);
             _scanCount = _catalog.Songs.Count;
@@ -705,6 +709,13 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             playlists.Insert(1, missingTracksPlaylist);
         }
 
+        // Add "No Replay Gain" virtual playlist if there are songs without replay gain
+        var noReplayGainPlaylist = CreateNoReplayGainVirtualPlaylist();
+        if (noReplayGainPlaylist.SongCount > 0)
+        {
+            playlists.Insert(playlists.Count, noReplayGainPlaylist);
+        }
+
         return playlists;
     }
 
@@ -721,6 +732,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             if (id == Playlist.MissingTracksPlaylistId)
             {
                 return CreateMissingTracksVirtualPlaylist();
+            }
+
+            if (id == Playlist.NoReplayGainPlaylistId)
+            {
+                return CreateNoReplayGainVirtualPlaylist();
             }
 
             // Future virtual playlists can be added here
@@ -801,6 +817,37 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             Changed = DateTime.UtcNow,
             CoverArt = null,
             Comment = "Virtual playlist containing tracks that are referenced in playlists but don't exist locally",
+            Items = items,
+        };
+    }
+
+    private Playlist CreateNoReplayGainVirtualPlaylist()
+    {
+        var songsWithoutReplayGain = _catalog.Songs
+            .Where(s => s.ReplayGainTrackGain is null && s.ReplayGainAlbumGain is null)
+            .OrderBy(s => s.Artist, StringComparer.Ordinal)
+            .ThenBy(s => s.Album, StringComparer.Ordinal)
+            .ThenBy(s => s.Track ?? 0)
+            .ThenBy(s => s.Title, StringComparer.Ordinal)
+            .ToList();
+
+        var items = songsWithoutReplayGain.Select(song => new PlaylistItem
+        {
+            Song = song,
+            AddedDate = song.Created,
+        }).ToList();
+
+        return new Playlist
+        {
+            Id = Playlist.NoReplayGainPlaylistId,
+            Name = "⚠️ No Replay Gain",
+            Path = string.Empty,
+            SongCount = items.Count,
+            Duration = items.Sum(i => i.Song.Duration),
+            Created = DateTime.UtcNow,
+            Changed = DateTime.UtcNow,
+            CoverArt = items.FirstOrDefault()?.Song.CoverArt,
+            Comment = "Virtual playlist containing tracks without replay gain information",
             Items = items,
         };
     }
