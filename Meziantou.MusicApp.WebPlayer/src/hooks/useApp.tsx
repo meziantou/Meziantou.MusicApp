@@ -64,6 +64,9 @@ interface AppContextValue {
 
   // Playing state
   playingPlaylistId: string | null;
+
+  // Library scan
+  triggerLibraryScan: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -730,6 +733,27 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }, [settings]);
 
+  const triggerLibraryScan = useCallback(async () => {
+    if (!isOnline) {
+      showToast('Cannot trigger scan while offline', 'error');
+      return;
+    }
+
+    if (!settings.serverUrl) {
+      showToast('Server is not configured', 'error');
+      return;
+    }
+
+    try {
+      const api = getApiService();
+      await api.triggerScan();
+      showToast('Library scan started', 'success');
+    } catch (error) {
+      console.error('Failed to trigger library scan:', error);
+      showToast('Failed to trigger library scan', 'error');
+    }
+  }, [isOnline, settings.serverUrl, showToast]);
+
   const syncPlaylists = useCallback(async () => {
     await syncPlaylistsInternal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -976,6 +1000,7 @@ export function AppProvider({ children }: AppProviderProps) {
     removeTrackFromPlaylist,
     testConnection,
     playingPlaylistId,
+    triggerLibraryScan,
   };
 
   return (

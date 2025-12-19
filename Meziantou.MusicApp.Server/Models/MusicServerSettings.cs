@@ -6,7 +6,7 @@ public sealed class MusicServerSettings
     public string MusicFolderPath { get; set; } = "";
     public string CachePath { get; set; } = "";
     public bool EnableTranscodingCache { get; set; }
-    public int CacheRefreshIntervalHours { get; set; } = 24;
+    public TimeSpan CacheRefreshInterval { get; set; } = TimeSpan.FromHours(24);
 
     /// <summary>
     /// When true, analyzes tracks that are missing ReplayGain data during library scan

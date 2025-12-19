@@ -77,7 +77,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             logger.LogInformation("Starting scheduled music library scan");
             await Task.Run(() => ScanMusicLibrary(), stoppingToken);
-            await Task.Delay(TimeSpan.FromMinutes(options.Value.CacheRefreshIntervalHours), stoppingToken);
+            await Task.Delay(options.Value.CacheRefreshInterval, stoppingToken);
         }
     }
 

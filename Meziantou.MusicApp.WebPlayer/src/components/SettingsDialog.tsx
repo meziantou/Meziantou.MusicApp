@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import type { AppSettings, StreamingQuality, ReplayGainMode } from '../types';
+import type { AppSettings, StreamingQuality, ReplayGainMode, ScanStatusResponse } from '../types';
 import { DEFAULT_SETTINGS } from '../constants';
 import { useApp } from '../hooks';
+import { getApiService } from '../services';
 
 const QUALITY_OPTIONS: { label: string; value: StreamingQuality }[] = [
   { label: 'Original (Raw)', value: { format: 'raw' } },
@@ -28,10 +29,12 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsDialogProps) {
-  const { settings, updateSettings, testConnection } = useApp();
+  const { settings, updateSettings, testConnection, triggerLibraryScan } = useApp();
 
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning'>('idle');
+  const [scanProgress, setScanProgress] = useState<ScanStatusResponse | null>(null);
   const settingsRef = useRef(settings);
   const prevIsOpenRef = useRef(isOpen);
 
@@ -52,6 +55,36 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     settingsRef.current = settings;
   }, [isOpen, settings]);
 
+  // Poll scan status when dialog is open
+  useEffect(() => {
+    if (!isOpen || !settings.serverUrl) return;
+
+    const pollScanStatus = async () => {
+      try {
+        const api = getApiService();
+        const status = await api.getScanStatus();
+        setScanProgress(status);
+        
+        if (status.isScanning) {
+          setScanStatus('scanning');
+        } else if (scanStatus === 'scanning') {
+          // Scan just completed
+          setScanStatus('idle');
+        }
+      } catch (error) {
+        console.error('Failed to get scan status:', error);
+      }
+    };
+
+    // Initial poll
+    pollScanStatus();
+
+    // Poll every 2 seconds while dialog is open
+    const interval = setInterval(pollScanStatus, 2000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, settings.serverUrl, scanStatus]);
+
   if (!isOpen) return null;
 
   const getQualityIndex = (quality: StreamingQuality): number => {
@@ -64,6 +97,12 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     setConnectionStatus('testing');
     const success = await testConnection();
     setConnectionStatus(success ? 'success' : 'error');
+  };
+
+  const handleRescanLibrary = async () => {
+    setScanStatus('scanning');
+    await triggerLibraryScan();
+    // Don't reset to idle - let the polling detect when scan completes
   };
 
   const handleSave = async () => {
@@ -80,6 +119,30 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
   const handleQualityChange = (field: 'normalQuality' | 'lowDataQuality' | 'downloadQuality', index: number) => {
     const quality = QUALITY_OPTIONS[index]?.value ?? DEFAULT_SETTINGS[field];
     setFormData(prev => ({ ...prev, [field]: quality }));
+  };
+
+  const formatEta = (etaString: string | null): string => {
+    if (!etaString) return '';
+    
+    try {
+      // Parse TimeSpan format (e.g., "00:05:30.1234567")
+      const parts = etaString.split(':');
+      if (parts.length < 3) return '';
+      
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      const seconds = Math.floor(parseFloat(parts[2]));
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    } catch {
+      return '';
+    }
   };
 
   return (
@@ -268,9 +331,46 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
             </div>
           </section>
 
-          {onOpenDiagnostics && (
-            <section className="settings-section">
-              <h3>Advanced</h3>
+          <section className="settings-section">
+            <h3>Advanced</h3>
+            <div className="form-group">
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleRescanLibrary}
+                disabled={scanStatus === 'scanning'}
+                style={{ width: '100%', marginBottom: scanProgress?.isScanning ? '8px' : onOpenDiagnostics ? '8px' : '0' }}
+              >
+                {scanStatus === 'scanning' ? 'Scanning...' : 'Rescan Music Library'}
+              </button>
+              {scanProgress?.isScanning && (
+                <div style={{ marginBottom: onOpenDiagnostics ? '8px' : '0' }}>
+                  <small style={{ display: 'block', marginBottom: '4px' }}>
+                    {scanProgress.percentage != null 
+                      ? `Progress: ${Math.round(scanProgress.percentage)}%`
+                      : 'Scanning...'}
+                    {scanProgress.estimatedCompletionTime && 
+                      ` - ETA: ${formatEta(scanProgress.estimatedCompletionTime)}`}
+                  </small>
+                  {scanProgress.percentage != null && (
+                    <div style={{ 
+                      width: '100%', 
+                      height: '4px', 
+                      backgroundColor: 'var(--color-bg-secondary, #e0e0e0)', 
+                      borderRadius: '2px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ 
+                        width: `${Math.min(100, Math.max(0, scanProgress.percentage))}%`, 
+                        height: '100%', 
+                        backgroundColor: 'var(--color-primary, #1976d2)',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {onOpenDiagnostics && (
               <div className="form-group">
                 <button 
                   className="btn btn-secondary" 
@@ -280,8 +380,8 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                   Cache Diagnostics
                 </button>
               </div>
-            </section>
-          )}
+            )}
+          </section>
         </div>
 
         <div className="dialog-footer">

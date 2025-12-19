@@ -88,6 +88,8 @@ export interface ScanStatusResponse {
   isInitialScanCompleted: boolean;
   scanCount: number;
   lastScanDate: string | null;
+  percentage: number | null;
+  estimatedCompletionTime: string | null;
 }
 
 export interface ErrorResponse {
