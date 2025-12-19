@@ -246,7 +246,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
             // Check if we have a cached version of this song and if the file hasn't changed
             if (context.CachedSongsByPath.TryGetValue(relativePath, out var cachedSong) &&
-                cachedSong.FileLastWriteTime == fileLastWriteTime &&
+                TruncateMilliseconds(cachedSong.FileLastWriteTime) >= TruncateMilliseconds(fileLastWriteTime) &&
                 cachedSong.FileSize == fileInfo.Length)
             {
                 // File hasn't changed, reuse cached metadata
@@ -491,58 +491,80 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     {
         try
         {
-            using var file = TagLib.File.Create(filePath);
-
-            // Format values according to ReplayGain spec
-            var trackGainStr = $"{trackGain:F2} dB";
-            var trackPeakStr = trackPeak.HasValue ? $"{trackPeak.Value:F6}" : null;
-
-            // Write to ID3v2 tags (MP3)
-            if (file.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+            using (var file = TagLib.File.Create(filePath))
             {
-                // Remove existing ReplayGain frames first
-                RemoveId3v2ReplayGainFrames(id3v2Tag);
+                // Format values according to ReplayGain spec
+                var trackGainStr = $"{trackGain:F2} dB";
+                var trackPeakStr = trackPeak.HasValue ? $"{trackPeak.Value:F6}" : null;
 
-                // Add track gain
-                var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
+                // Write to ID3v2 tags (MP3)
+                if (file.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
                 {
-                    Text = [trackGainStr]
-                };
-                id3v2Tag.AddFrame(trackGainFrame);
+                    // Remove existing ReplayGain frames first
+                    RemoveId3v2ReplayGainFrames(id3v2Tag);
 
-                // Add track peak
-                if (trackPeakStr is not null)
-                {
-                    var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
+                    // Add track gain
+                    var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
                     {
-                        Text = [trackPeakStr]
+                        Text = [trackGainStr]
                     };
-                    id3v2Tag.AddFrame(trackPeakFrame);
-                }
-            }
+                    id3v2Tag.AddFrame(trackGainFrame);
 
-            // Write to Xiph Comment (Vorbis/FLAC/Opus)
-            if (file.GetTag(TagLib.TagTypes.Xiph, create: true) is TagLib.Ogg.XiphComment xiphTag)
-            {
-                xiphTag.SetField("REPLAYGAIN_TRACK_GAIN", trackGainStr);
-                if (trackPeakStr is not null)
+                    // Add track peak
+                    if (trackPeakStr is not null)
+                    {
+                        var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
+                        {
+                            Text = [trackPeakStr]
+                        };
+                        id3v2Tag.AddFrame(trackPeakFrame);
+                    }
+                }
+
+                // Write to Xiph Comment (Vorbis/FLAC/Opus)
+                if (file.GetTag(TagLib.TagTypes.Xiph, create: true) is TagLib.Ogg.XiphComment xiphTag)
                 {
-                    xiphTag.SetField("REPLAYGAIN_TRACK_PEAK", trackPeakStr);
+                    xiphTag.SetField("REPLAYGAIN_TRACK_GAIN", trackGainStr);
+                    if (trackPeakStr is not null)
+                    {
+                        xiphTag.SetField("REPLAYGAIN_TRACK_PEAK", trackPeakStr);
+                    }
                 }
-            }
 
-            // Write to Apple tags (M4A/AAC)
-            if (file.GetTag(TagLib.TagTypes.Apple, create: true) is TagLib.Mpeg4.AppleTag appleTag)
-            {
-                appleTag.SetDashBox("com.apple.iTunes", "replaygain_track_gain", trackGainStr);
-                if (trackPeakStr is not null)
+                // Write to Apple tags (M4A/AAC)
+                if (file.GetTag(TagLib.TagTypes.Apple, create: true) is TagLib.Mpeg4.AppleTag appleTag)
                 {
-                    appleTag.SetDashBox("com.apple.iTunes", "replaygain_track_peak", trackPeakStr);
+                    appleTag.SetDashBox("com.apple.iTunes", "replaygain_track_gain", trackGainStr);
+                    if (trackPeakStr is not null)
+                    {
+                        appleTag.SetDashBox("com.apple.iTunes", "replaygain_track_peak", trackPeakStr);
+                    }
                 }
+
+                file.Save();
             }
 
-            file.Save();
             logger.LogDebug("Wrote ReplayGain tags to {Path}", filePath);
+
+            // Verify tags were written correctly
+            using (var file = TagLib.File.Create(filePath))
+            {
+                var song = new SerializableSong { RelativePath = "" };
+                ReadReplayGainTags(file, song);
+
+                if (!song.ReplayGainTrackGain.HasValue || Math.Abs(song.ReplayGainTrackGain.Value - trackGain) > 0.01)
+                {
+                    logger.LogError("Failed to verify ReplayGain Track Gain for {Path}. Expected: {Expected}, Actual: {Actual}", filePath, trackGain, song.ReplayGainTrackGain);
+                }
+
+                if (trackPeak.HasValue)
+                {
+                    if (!song.ReplayGainTrackPeak.HasValue || Math.Abs(song.ReplayGainTrackPeak.Value - trackPeak.Value) > 0.000001)
+                    {
+                        logger.LogError("Failed to verify ReplayGain Track Peak for {Path}. Expected: {Expected}, Actual: {Actual}", filePath, trackPeak, song.ReplayGainTrackPeak);
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1260,6 +1282,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     public IEnumerable<Song> GetRandomSongs(int count) => _catalog.GetRandomSongs(count);
     public (IEnumerable<Artist> artists, IEnumerable<Album> albums, IEnumerable<Song> songs) SearchAll(string query) => _catalog.SearchAll(query);
     public CoverArtData? GetCoverArt(string? id) => _catalog.GetCoverArt(id);
+    private static DateTime TruncateMilliseconds(DateTime dt)
+    {
+        return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind);
+    }
 
     private readonly record struct IndexerContext(
         FullPath Root,
