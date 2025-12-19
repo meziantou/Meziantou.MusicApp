@@ -538,11 +538,17 @@ public class MusicLibraryServiceTests
         Assert.Single(songs);
         Assert.Equal("Original Title", songs[0].Title);
 
-        using var tagFile = TagLib.File.Create(mp3FilePath);
-        tagFile.Tag.Title = "Modified Title";
-        tagFile.Tag.Performers = ["Modified Artist"];
-        tagFile.Tag.Album = "Modified Album";
-        tagFile.Save();
+        // Modify the file and ensure it's fully written before scanning
+        using (var tagFile = TagLib.File.Create(mp3FilePath))
+        {
+            tagFile.Tag.Title = "Modified Title";
+            tagFile.Tag.Performers = ["Modified Artist"];
+            tagFile.Tag.Album = "Modified Album";
+            tagFile.Save();
+        } // Dispose to ensure file is closed
+
+        // Explicitly update the file timestamp to ensure modification is detected
+        File.SetLastWriteTimeUtc(mp3FilePath, DateTime.UtcNow);
 
         await service.ScanMusicLibrary();
 
