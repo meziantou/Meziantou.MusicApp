@@ -23,9 +23,7 @@ public sealed class LastFmService
         !string.IsNullOrEmpty(_settings.ApiSecret) &&
         !string.IsNullOrEmpty(_settings.SessionKey);
 
-    /// <summary>
-    /// Scrobbles a track to Last.fm (submission = true means the track was played, false means "now playing")
-    /// </summary>
+    /// <summary>Scrobbles a track to Last.fm (submission = true means the track was played, false means "now playing")</summary>
     public async Task<bool> ScrobbleAsync(Song song, bool submission, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured)
@@ -52,9 +50,7 @@ public sealed class LastFmService
         }
     }
 
-    /// <summary>
-    /// Updates the "Now Playing" status on Last.fm
-    /// </summary>
+    /// <summary>Updates the "Now Playing" status on Last.fm</summary>
     private async Task<bool> UpdateNowPlayingAsync(Song song, CancellationToken cancellationToken)
     {
         var parameters = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -98,9 +94,7 @@ public sealed class LastFmService
         return false;
     }
 
-    /// <summary>
-    /// Submits a scrobble to Last.fm (track has finished playing)
-    /// </summary>
+    /// <summary>Submits a scrobble to Last.fm (track has finished playing)</summary>
     private async Task<bool> SubmitScrobbleAsync(Song song, CancellationToken cancellationToken)
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -147,9 +141,7 @@ public sealed class LastFmService
         return false;
     }
 
-    /// <summary>
-    /// Generates the API signature required by Last.fm (MD5 is required by the Last.fm API)
-    /// </summary>
+    /// <summary>Generates the API signature required by Last.fm (MD5 is required by the Last.fm API)</summary>
     [SuppressMessage("Security", "CA5351:Do Not Use Broken Cryptographic Algorithms", Justification = "MD5 is required by Last.fm API")]
     private string GenerateApiSignature(Dictionary<string, string> parameters)
     {
