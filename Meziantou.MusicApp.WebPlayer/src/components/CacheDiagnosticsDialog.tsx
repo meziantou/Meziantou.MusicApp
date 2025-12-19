@@ -126,7 +126,7 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
             
             <div className="form-group">
               <button 
-                className="btn btn-secondary" 
+                className="secondary-button" 
                 onClick={handleClearSongs}
                 disabled={isClearing}
               >
@@ -137,7 +137,7 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
 
             <div className="form-group">
               <button 
-                className="btn btn-secondary" 
+                className="secondary-button" 
                 onClick={handleClearCovers}
                 disabled={isClearing}
               >
@@ -148,7 +148,7 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
 
             <div className="form-group">
               <button 
-                className="btn btn-secondary" 
+                className="secondary-button" 
                 onClick={handleCleanupOrphans}
                 disabled={isClearing}
               >
@@ -159,7 +159,7 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
 
             <div className="form-group">
               <button 
-                className="btn btn-secondary" 
+                className="secondary-button" 
                 onClick={handleRefreshPlaylists}
                 disabled={isClearing}
               >
@@ -171,7 +171,7 @@ export function CacheDiagnosticsDialog({ isOpen, onClose }: CacheDiagnosticsDial
         </div>
         
         <div className="dialog-footer">
-          <button className="btn btn-primary" onClick={onClose}>Close</button>
+          <button className="primary-button" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

@@ -335,7 +335,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
             <h3>Advanced</h3>
             <div className="form-group">
               <button 
-                className="btn btn-secondary" 
+                className="secondary-button" 
                 onClick={handleRescanLibrary}
                 disabled={scanStatus === 'scanning'}
                 style={{ width: '100%', marginBottom: scanProgress?.isScanning ? '8px' : onOpenDiagnostics ? '8px' : '0' }}
@@ -373,7 +373,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
             {onOpenDiagnostics && (
               <div className="form-group">
                 <button 
-                  className="btn btn-secondary" 
+                  className="secondary-button" 
                   onClick={onOpenDiagnostics}
                   style={{ width: '100%' }}
                 >
