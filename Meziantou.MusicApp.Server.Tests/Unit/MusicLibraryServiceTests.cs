@@ -549,6 +549,7 @@ public class MusicLibraryServiceTests
 
         // Explicitly update the file timestamp to ensure modification is detected
         File.SetLastWriteTimeUtc(mp3FilePath, DateTime.UtcNow);
+        await Task.Delay(100, testContext.CancellationToken); // Small delay to ensure file system registers the change
 
         await service.ScanMusicLibrary();
 
