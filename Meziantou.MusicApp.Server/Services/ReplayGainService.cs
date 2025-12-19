@@ -1,10 +1,11 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
+using System.Text.Json;
+using Meziantou.Framework;
 using Meziantou.MusicApp.Server.Models;
 
 namespace Meziantou.MusicApp.Server.Services;
 
-public sealed partial class ReplayGainService : IDisposable
+public sealed class ReplayGainService : IDisposable
 {
     private readonly ILogger<ReplayGainService> _logger;
     private readonly string _ffmpegPath;
@@ -23,7 +24,7 @@ public sealed partial class ReplayGainService : IDisposable
     /// Returns the track gain and peak values.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA3006:Review code for process command injection vulnerabilities")]
-    public async Task<ReplayGainResult?> AnalyzeTrackAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<ReplayGainResult?> AnalyzeTrackAsync(FullPath filePath, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(filePath))
         {
@@ -32,7 +33,6 @@ public sealed partial class ReplayGainService : IDisposable
         }
 
         await _semaphore.WaitAsync(cancellationToken);
-        Process? process = null;
         try
         {
             _logger.LogDebug("Analyzing ReplayGain for: {Path}", filePath);
@@ -41,20 +41,17 @@ public sealed partial class ReplayGainService : IDisposable
             // This uses EBU R128 standard which is what ReplayGain 2.0 is based on
             var arguments = $"-hide_banner -i \"{filePath}\" -af loudnorm=I=-18:TP=-1:LRA=11:print_format=json -f null -";
 
-            process = new Process
+            using var process = Process.Start(new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = _ffmpegPath,
-                    Arguments = arguments,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                },
-            };
+                FileName = _ffmpegPath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            });
 
-            if (!process.Start())
+            if (process is null)
             {
                 _logger.LogError("Failed to start FFmpeg for ReplayGain analysis");
                 return null;
@@ -79,48 +76,39 @@ public sealed partial class ReplayGainService : IDisposable
         }
         finally
         {
-            process?.Dispose();
             _semaphore.Release();
         }
     }
 
-    private ReplayGainResult? ParseLoudnormOutput(string output, string filePath)
+    private ReplayGainResult? ParseLoudnormOutput(string output, FullPath filePath)
     {
         try
         {
-            // Extract JSON block from FFmpeg output
-            // The loudnorm filter outputs JSON at the end of stderr
-            var jsonMatch = LoudnormJsonRegex().Match(output);
-            if (!jsonMatch.Success)
+            var json = ExtractLoudnormJson(output);
+            if (json is null)
             {
                 _logger.LogWarning("Could not find loudnorm JSON output for {Path}", filePath);
                 return null;
             }
 
-            var json = jsonMatch.Value;
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
 
-            // Parse individual values from the JSON
-            var inputI = ExtractDoubleValue(json, "input_i");
-            var inputTp = ExtractDoubleValue(json, "input_tp");
+            var inputI = GetJsonDouble(root, "input_i");
+            var inputTp = GetJsonDouble(root, "input_tp");
 
-            if (inputI is null)
+            if (!inputI.HasValue)
             {
                 _logger.LogWarning("Could not parse integrated loudness from loudnorm output for {Path}", filePath);
                 return null;
             }
 
-            // Calculate ReplayGain value
-            // ReplayGain reference level is -18 LUFS (same as EBU R128)
-            // Gain = reference level - measured loudness
             const double ReferenceLufs = -18.0;
             var trackGain = ReferenceLufs - inputI.Value;
 
-            // Convert true peak from dBTP to linear scale for peak value
-            // Peak in ReplayGain is typically stored as linear (0.0 to 1.0+)
             double? trackPeak = null;
             if (inputTp.HasValue)
             {
-                // Convert dB to linear: linear = 10^(dB/20)
                 trackPeak = Math.Pow(10, inputTp.Value / 20.0);
             }
 
@@ -133,6 +121,11 @@ public sealed partial class ReplayGainService : IDisposable
                 TrackPeak = trackPeak.HasValue ? Math.Round(trackPeak.Value, 6, MidpointRounding.AwayFromZero) : null,
             };
         }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Invalid loudnorm JSON output for {Path}", filePath);
+            return null;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error parsing loudnorm output for {Path}", filePath);
@@ -140,19 +133,59 @@ public sealed partial class ReplayGainService : IDisposable
         }
     }
 
-    private static double? ExtractDoubleValue(string json, string key)
+    private static string? ExtractLoudnormJson(string output)
     {
-        var pattern = $"\"{key}\"\\s*:\\s*\"([^\"]+)\"";
-        var match = Regex.Match(json, pattern, RegexOptions.None, TimeSpan.FromSeconds(5));
-        if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+        // FFmpeg's loudnorm filter outputs JSON to stderr at the end
+        // Find the last occurrence of the opening brace
+        var span = output.AsSpan();
+        var lastBraceIndex = span.LastIndexOf('{');
+
+        if (lastBraceIndex < 0)
+            return null;
+
+        // Verify this looks like loudnorm output by checking for a key field
+        var searchSpan = span[lastBraceIndex..];
+        if (!searchSpan.Contains("input_i", StringComparison.Ordinal))
+            return null;
+
+        // Find the matching closing brace
+        var depth = 0;
+        for (var i = lastBraceIndex; i < span.Length; i++)
         {
-            return value;
+            var c = span[i];
+            if (c == '{')
+            {
+                depth++;
+            }
+            else if (c == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return output[lastBraceIndex..(i + 1)];
+                }
+            }
         }
+
         return null;
     }
 
-    [GeneratedRegex(@"\{[^{}]*""input_i""[^{}]*\}", RegexOptions.Singleline, matchTimeoutMilliseconds: 5000)]
-    private static partial Regex LoudnormJsonRegex();
+    private static double? GetJsonDouble(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+            return null;
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var d))
+            return d;
+
+        if (value.ValueKind == JsonValueKind.String &&
+            double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var s))
+        {
+            return s;
+        }
+
+        return null;
+    }
 
     public void Dispose()
     {

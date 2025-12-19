@@ -13,7 +13,7 @@ public class ReplayGainServiceTests
         await using var context = AppTestContext.Create();
         var service = context.GetRequiredService<ReplayGainService>();
 
-        var result = await service.AnalyzeTrackAsync("/non/existent/file.mp3", context.CancellationToken);
+        var result = await service.AnalyzeTrackAsync(FullPath.FromPath("non/existent/file.mp3"), context.CancellationToken);
 
         Assert.Null(result);
     }
@@ -160,7 +160,7 @@ public class ReplayGainServiceTests
         var service = context.GetRequiredService<ReplayGainService>();
 
         // Create test audio files using FFmpeg
-        var testFiles = new List<string>();
+        var testFiles = new List<FullPath>();
         for (var i = 0; i < 3; i++)
         {
             var testFilePath = context.MusicPath / $"test{i}.mp3";
