@@ -689,7 +689,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             }
 
             var xspfDoc = new XDocument(
-                new XDeclaration("1.0", "utf-8", null),
+                new XDeclaration("1.0", "utf-8", standalone: null),
                 new XElement(XspfNamespace + "playlist",
                     new XAttribute("version", "1"),
                     new XAttribute(XNamespace.Xmlns + "meziantou", MeziantouExtensionNamespace.NamespaceName),
