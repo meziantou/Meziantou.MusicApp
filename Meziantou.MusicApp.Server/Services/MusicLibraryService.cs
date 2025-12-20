@@ -678,7 +678,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 }
 
                 // Include all tracks in the XSPF (both existing and missing) so missing tracks can be tracked
-                var relativePath = context.CreateRelativePath(songPath);
+                // Path should be relative to the playlist file, not to the music library root
+                var relativePath = songPath.MakePathRelativeTo(context.Path.Parent).Replace('\\', '/');
                 var trackElement = new XElement(XspfNamespace + "track",
                     new XElement(XspfNamespace + "location", relativePath),
                     new XElement(XspfNamespace + "extension",

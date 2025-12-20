@@ -1234,5 +1234,35 @@ public class MusicLibraryServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.DeletePlaylist("virtual:no-replay-gain"));
     }
+
+    [Fact]
+    public async Task ScanMusicLibrary_M3uConversion_PreservesRelativePathsToPlaylistFile()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.AddFolder("subfolder");
+        testContext.MusicLibrary.CreateTestMp3File("subfolder/song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("subfolder/song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
+
+        var playlistContent = """
+            song1.mp3
+            song2.mp3
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("subfolder/test-playlist.m3u", playlistContent);
+
+        var service = await testContext.ScanCatalog();
+
+        var xspfFile = Path.Combine(testContext.MusicLibrary.RootPath, "subfolder", "test-playlist.xspf");
+        Assert.True(File.Exists(xspfFile), "XSPF file should be created");
+
+        var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
+
+        // Paths should remain relative to the playlist file, not to the music library root
+        Assert.Contains("<location>song1.mp3</location>", xspfContent, StringComparison.Ordinal);
+        Assert.Contains("<location>song2.mp3</location>", xspfContent, StringComparison.Ordinal);
+
+        // Paths should NOT be relative to the music library root
+        Assert.DoesNotContain("<location>subfolder/song1.mp3</location>", xspfContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("<location>subfolder/song2.mp3</location>", xspfContent, StringComparison.Ordinal);
+    }
 }
 
