@@ -168,7 +168,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
             IndexerContext CreateContext(FullPath path) => new IndexerContext(rootFolder, path, library, cachedSongsByPath);
 
-            await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (file, cancellationToken) =>
+            var maxDegreeOfParallelism = options.Value.MaxDegreeOfParallelismForScan > 0
+                ? options.Value.MaxDegreeOfParallelismForScan
+                : Environment.ProcessorCount;
+
+            await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async (file, cancellationToken) =>
             {
                 await ScanMusicFile(CreateContext(file));
                 var count = Interlocked.Increment(ref _processedFilesCount);

@@ -13,4 +13,10 @@ public sealed class MusicServerSettings
     /// and computes ReplayGain values using FFmpeg.
     /// </summary>
     public bool ComputeMissingReplayGain { get; set; }
+
+    /// <summary>
+    /// Maximum number of files to process in parallel during music library scan.
+    /// Defaults to the number of processors if not specified or set to 0.
+    /// </summary>
+    public int MaxDegreeOfParallelismForScan { get; set; }
 }
