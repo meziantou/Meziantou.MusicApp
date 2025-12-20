@@ -661,8 +661,8 @@ export class AudioPlayerService {
       currentTrackIndex: this.currentIndex,
       currentTime: this.audio.currentTime,
       isPlaying: !this.audio.paused,
-      volume: this.audio.volume,
-      isMuted: this.audio.muted,
+      volume: this.masterVolume,
+      isMuted: this.isMuted,
       shuffleEnabled: this.shuffleEnabled,
       repeatMode: this.repeatMode,
       shuffleOrder: this.shuffleOrder,
@@ -988,8 +988,8 @@ export class AudioPlayerService {
       currentTrackIndex: this.currentIndex,
       currentTime: this.audio.currentTime,
       isPlaying: !this.audio.paused,
-      volume: this.audio.volume,
-      isMuted: this.audio.muted,
+      volume: this.masterVolume,
+      isMuted: this.isMuted,
       shuffleEnabled: this.shuffleEnabled,
       repeatMode: this.repeatMode,
       shuffleOrder: this.shuffleOrder,
@@ -998,8 +998,8 @@ export class AudioPlayerService {
   }
 
   async restoreState(state: PlaybackState): Promise<void> {
-    this.audio.volume = state.volume;
-    this.audio.muted = state.isMuted;
+    this.setVolume(state.volume);
+    this.setMuted(state.isMuted);
     this.shuffleEnabled = state.shuffleEnabled;
     this.repeatMode = state.repeatMode;
     this.shuffleOrder = state.shuffleOrder;
