@@ -682,60 +682,6 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         }
     }
 
-    /// <summary>Compute replay gain for a specific song by ID</summary>
-    public async Task<ReplayGainResult?> ComputeSongReplayGainAsync(string songId)
-    {
-        var song = _catalog.GetSong(songId);
-        if (song is null)
-            return null;
-
-        var filePath = FullPath.FromPath(song.Path);
-        if (!File.Exists(filePath))
-            return null;
-
-        var result = await replayGainService.AnalyzeTrackAsync(filePath);
-        if (result is not null)
-        {
-            // Find the serializable song in the cached catalog and update it
-            if (_cachedSerializableCatalog is not null)
-            {
-                // Calculate relative path from the root to find the matching SerializableSong
-                var relativePath = Path.GetRelativePath(RootFolder, song.Path);
-                var serializableSong = _cachedSerializableCatalog.Songs.FirstOrDefault(s => s.RelativePath.Equals(relativePath, StringComparison.Ordinal));
-                if (serializableSong is not null)
-                {
-                    serializableSong.ReplayGainTrackGain = result.TrackGain;
-                    serializableSong.ReplayGainTrackPeak = result.TrackPeak;
-                    logger.LogInformation("Computed ReplayGain for {Path}: Gain={Gain:F2}dB, Peak={Peak:F6}", filePath, result.TrackGain, result.TrackPeak);
-
-                    // Update the in-memory catalog as well
-                    _catalog = await CreateCatalog(_cachedSerializableCatalog);
-
-                    // Save updated cache to disk
-                    var cachePath = GetCacheJsonPath();
-                    if (!cachePath.IsEmpty)
-                    {
-                        try
-                        {
-                            var json = JsonSerializer.Serialize(_cachedSerializableCatalog, JsonOptions);
-                            await File.WriteAllTextAsync(cachePath, json);
-                            logger.LogInformation("Updated cached music library at {Path}", cachePath);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogError(ex, "Error updating cached music library at {Path}", cachePath);
-                        }
-                    }
-                }
-            }
-
-            // Write ReplayGain tags back to the file
-            WriteReplayGainTags(filePath, result.TrackGain, result.TrackPeak);
-        }
-
-        return result;
-    }
-
     // Query methods for compatibility
     public IEnumerable<Artist> GetAllArtists() => _catalog.Artists.OrderBy(a => a.Name, StringComparer.Ordinal);
     public Artist? GetArtist(string id) => _catalog.GetArtist(id);

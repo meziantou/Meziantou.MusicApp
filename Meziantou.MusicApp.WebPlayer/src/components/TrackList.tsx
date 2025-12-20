@@ -4,7 +4,6 @@ import { formatDuration, matchesSearch, debounce } from '../utils';
 import { useApp } from '../hooks';
 import { PlayingIndicator } from './PlayingIndicator';
 import { CoverImage } from './CoverImage';
-import { getApiService } from '../services';
 
 type SortOption = 'added' | 'title' | 'artist' | 'album';
 type SortDirection = 'asc' | 'desc';
@@ -15,7 +14,6 @@ const BUFFER_SIZE = 5;
 export function TrackList() {
   const {
     settings,
-    playlists,
     currentPlaylistTracks,
     currentPlaylistId,
     playingPlaylistId,
@@ -26,7 +24,6 @@ export function TrackList() {
     downloadTrack,
     deleteDownloadedTrack,
     removeTrackFromPlaylist,
-    selectPlaylist,
     playerActions,
     showToast,
   } = useApp();
@@ -322,32 +319,6 @@ export function TrackList() {
                 }
               : undefined
           }
-          onComputeReplayGain={
-            contextMenu.track.replayGainTrackGain === null && contextMenu.track.replayGainAlbumGain === null
-              ? async () => {
-                  try {
-                    const api = getApiService();
-                    const result = await api.computeReplayGain(contextMenu.track.id);
-                    if (result.success) {
-                      showToast(`Replay gain computed: ${result.trackGain?.toFixed(2)} dB`, 'success');
-                      // Refresh the playlist to get updated track info
-                      if (currentPlaylistId) {
-                        const currentPlaylist = playlists.find(p => p.id === currentPlaylistId);
-                        if (currentPlaylist) {
-                          await selectPlaylist(currentPlaylist);
-                        }
-                      }
-                    } else {
-                      showToast(result.message || 'Failed to compute replay gain', 'error');
-                    }
-                  } catch (error) {
-                    showToast('Failed to compute replay gain: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
-                  } finally {
-                    setContextMenu(null);
-                  }
-                }
-              : undefined
-          }
         />
       )}
     </div>
@@ -485,10 +456,9 @@ interface ContextMenuProps {
   onDownload: () => void;
   onDelete: () => void;
   onRemoveFromPlaylist?: () => void;
-  onComputeReplayGain?: () => void;
 }
 
-function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist, onComputeReplayGain }: ContextMenuProps) {
+function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x, y });
 
@@ -540,14 +510,6 @@ function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelet
             <path d="M19 13H5v-2h14v2z" />
           </svg>
           Remove from Playlist
-        </button>
-      )}
-      {onComputeReplayGain && (
-        <button className="context-menu-item" onClick={onComputeReplayGain}>
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z" />
-          </svg>
-          Compute Replay Gain
         </button>
       )}
       {!isCached ? (
