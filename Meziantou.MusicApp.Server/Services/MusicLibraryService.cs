@@ -500,16 +500,24 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     private void WriteReplayGainTags(FullPath filePath, double trackGain, double? trackPeak)
     {
+        FullPath tempFilePath = FullPath.FromPath(filePath.Value + ".tmp");
+
         try
         {
-            using (var file = TagLib.File.Create(filePath))
+            // Copy the original file to the temporary file
+            File.Copy(filePath, tempFilePath, overwrite: true);
+
+            // Get the mimetype from the original file's extension
+            var mimeType = GetMimeTypeFromExtension(filePath.Value);
+
+            using (var file = TagLib.File.Create(tempFilePath, mimeType, TagLib.ReadStyle.Average))
             {
                 // Format values according to ReplayGain spec
-                var trackGainStr = $"{trackGain:F2} dB";
-                var trackPeakStr = trackPeak.HasValue ? $"{trackPeak.Value:F6}" : null;
+                var trackGainStr = string.Create(CultureInfo.InvariantCulture, $"{trackGain:F2} dB");
+                var trackPeakStr = trackPeak.HasValue ? string.Create(CultureInfo.InvariantCulture, $"{trackPeak.Value:F6}") : null;
 
                 // Write to ID3v2 tags (MP3)
-                if (file.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+                if (file.GetTag(TagLib.TagTypes.Id3v2, create: true) is TagLib.Id3v2.Tag id3v2Tag)
                 {
                     // Remove existing ReplayGain frames first
                     RemoveId3v2ReplayGainFrames(id3v2Tag);
@@ -555,6 +563,9 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 file.Save();
             }
 
+            // Replace the original file with the temporary file
+            File.Move(tempFilePath, filePath, overwrite: true);
+
             logger.LogDebug("Wrote ReplayGain tags to {Path}", filePath);
 
             // Verify tags were written correctly
@@ -581,6 +592,38 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             logger.LogWarning(ex, "Failed to write ReplayGain tags to {Path}", filePath);
         }
+        finally
+        {
+            // Clean up temporary file if it still exists
+            if (File.Exists(tempFilePath))
+            {
+                try
+                {
+                    File.Delete(tempFilePath);
+                }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
+            }
+        }
+    }
+
+    private static string? GetMimeTypeFromExtension(string filePath)
+    {
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        return extension switch
+        {
+            ".mp3" => "taglib/mp3",
+            ".flac" => "taglib/flac",
+            ".ogg" => "taglib/ogg",
+            ".opus" => "taglib/opus",
+            ".m4a" => "taglib/m4a",
+            ".aac" => "taglib/aac",
+            ".wma" => "taglib/wma",
+            ".wav" => "taglib/wav",
+            _ => null,
+        };
     }
 
     private static void RemoveId3v2ReplayGainFrames(TagLib.Id3v2.Tag id3v2Tag)
