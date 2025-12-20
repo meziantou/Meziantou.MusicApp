@@ -155,24 +155,25 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 .Select(FullPath.FromPath)
                 .ToArray();
 
-            _totalFilesToScan = files.Count(f => AudioExtensions.Contains(f.Extension, StringComparer.OrdinalIgnoreCase));
+            var audioFiles = files.Where(f => AudioExtensions.Contains(f.Extension, StringComparer.OrdinalIgnoreCase)).ToArray();
+
+            _totalFilesToScan = audioFiles.Length;
             _processedFilesCount = 0;
             _scanStartTime = DateTime.UtcNow;
 
             // Build a lookup dictionary from cached songs for incremental scanning
             var cachedSongsByPath = _cachedSerializableCatalog?.Songs
-                .ToDictionary(s => s.RelativePath, s => s, StringComparer.Ordinal)
-                ?? new Dictionary<string, SerializableSong>(StringComparer.Ordinal);
+                .ToImmutableDictionary(s => s.RelativePath, s => s, StringComparer.Ordinal)
+                ?? [];
 
-            foreach (var file in files)
+            IndexerContext CreateContext(FullPath path) => new IndexerContext(rootFolder, path, library, cachedSongsByPath);
+
+            await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (file, cancellationToken) =>
             {
-                if (AudioExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
-                {
-                    await ScanMusicFile(new IndexerContext(rootFolder, file, library, cachedSongsByPath));
-                    _processedFilesCount++;
-                    logger.LogInformation("Processed file {Count}/{Total}: {Path}", _processedFilesCount, _totalFilesToScan, file);
-                }
-            }
+                await ScanMusicFile(CreateContext(file));
+                var count = Interlocked.Increment(ref _processedFilesCount);
+                logger.LogInformation("Processed file {Count}/{Total}: {Path}", count, _totalFilesToScan, file);
+            });
 
             // Scan existing XSPF playlists
             foreach (var file in files)
@@ -180,7 +181,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 if (XspfPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
                 {
                     logger.LogInformation("Scanning XSPF playlist: {Path}", file);
-                    await ScanXspfPlaylist(new IndexerContext(rootFolder, file, library));
+                    await ScanXspfPlaylist(CreateContext(file));
                 }
             }
 
@@ -190,10 +191,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 if (M3uPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
                 {
                     logger.LogInformation("Converting and scanning M3U playlist: {Path}", file);
-                    var xspfPath = await ConvertM3uToXspf(new IndexerContext(rootFolder, file, library));
+                    var xspfPath = await ConvertM3uToXspf(CreateContext(file));
                     if (xspfPath != null)
                     {
-                        await ScanXspfPlaylist(new IndexerContext(rootFolder, xspfPath.Value, library));
+                        await ScanXspfPlaylist(CreateContext(xspfPath.Value));
                     }
                 }
             }
@@ -305,7 +306,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     await ComputeReplayGainAsync(context.Path, song);
                 }
 
-                context.Catalog.Songs.Add(song);
+                lock (context.Catalog.Songs)
+                {
+                    context.Catalog.Songs.Add(song);
+                }
                 return;
             }
 
@@ -371,7 +375,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 await ComputeReplayGainAsync(context.Path, newSong);
             }
 
-            context.Catalog.Songs.Add(newSong);
+            lock (context.Catalog.Songs)
+            {
+                context.Catalog.Songs.Add(newSong);
+            }
         }
         catch (Exception ex)
         {
@@ -871,7 +878,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private async Task<Playlist> RefreshPlaylist(FullPath playlistPath)
     {
         // Parse the XSPF file to get playlist data
-        var (serializablePlaylist, _) = await ParseXspfPlaylist(new IndexerContext(RootFolder, playlistPath, null!));
+        var (serializablePlaylist, _) = await ParseXspfPlaylist(new IndexerContext(RootFolder, playlistPath, null!, []));
 
         // Update the catalog
         var playlist = _catalog.AddOrUpdatePlaylist(serializablePlaylist);
@@ -1338,9 +1345,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         FullPath Root,
         FullPath Path,
         SerializableMusicCatalog Catalog,
-        Dictionary<string, SerializableSong>? CachedSongsByPath = null)
+        ImmutableDictionary<string, SerializableSong> CachedSongsByPath)
     {
-        public Dictionary<string, SerializableSong> CachedSongsByPath { get; init; } = CachedSongsByPath ?? new Dictionary<string, SerializableSong>(StringComparer.Ordinal);
         public string RelativePath => CreateRelativePath(Path);
 
         public string CreateRelativePath(FullPath path) => path.MakePathRelativeTo(Root).Replace('\\', '/');
