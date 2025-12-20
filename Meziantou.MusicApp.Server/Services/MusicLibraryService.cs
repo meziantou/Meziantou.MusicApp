@@ -24,6 +24,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private int _processedFilesCount;
     private int _totalFilesToScan;
     private DateTime _scanStartTime;
+    private CancellationToken _cancellationToken = CancellationToken.None;
 
     private static readonly XNamespace XspfNamespace = "http://xspf.org/ns/0/";
     private static readonly XNamespace MeziantouExtensionNamespace = "http://meziantou.net/xspf-extension/1/";
@@ -53,7 +54,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     {
         get
         {
-            if (!IsScanning || _processedFilesCount == 0 || _totalFilesToScan == 0) return null;
+            if (!IsScanning || _processedFilesCount == 0 || _totalFilesToScan == 0)
+                return null;
             var elapsed = DateTime.UtcNow - _scanStartTime;
             var rate = elapsed.TotalSeconds / _processedFilesCount;
             var remainingItems = _totalFilesToScan - _processedFilesCount;
@@ -69,6 +71,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _cancellationToken = stoppingToken;
         logger.LogInformation("Music Library Service is starting");
 
         await LoadCachedLibrary();
@@ -142,7 +145,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 return;
             }
 
-            if (!_scanSemaphore.Wait(0))
+            if (!_scanSemaphore.Wait(0, _cancellationToken))
             {
                 logger.LogInformation("Library scan already in progress, skipping concurrent scan request");
                 return;
@@ -172,7 +175,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 ? options.Value.MaxDegreeOfParallelismForScan
                 : Environment.ProcessorCount;
 
-            await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism }, async (file, cancellationToken) =>
+            await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism, CancellationToken = _cancellationToken }, async (file, cancellationToken) =>
             {
                 await ScanMusicFile(CreateContext(file));
                 var count = Interlocked.Increment(ref _processedFilesCount);
@@ -206,17 +209,29 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             var cachePath = GetCacheJsonPath();
             if (!cachePath.IsEmpty)
             {
+                var tempCachePath = FullPath.FromPath(cachePath.Value + ".tmp");
                 try
                 {
                     logger.LogInformation("Caching music library to {Path}", cachePath);
                     var json = JsonSerializer.Serialize(library, JsonOptions);
-                    Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-                    await File.WriteAllTextAsync(cachePath, json);
+                    tempCachePath.CreateParentDirectory();
+                    cachePath.CreateParentDirectory();
+                    await File.WriteAllTextAsync(tempCachePath, json, CancellationToken.None);
+                    File.Move(tempCachePath, cachePath, overwrite: true);
                     logger.LogInformation("Cached music library to {Path}", cachePath);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Error caching music library to {Path}", cachePath);
+
+                    try
+                    {
+                        File.Delete(tempCachePath);
+                    }
+                    catch
+                    {
+                        // Ignore cleanup errors
+                    }
                 }
             }
 
