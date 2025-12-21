@@ -1,11 +1,13 @@
 using System.CommandLine;
-using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
+using CliWrap;
+using CliWrap.Buffered;
 
 namespace Meziantou.MusicApp.StaticSiteGenerator;
 
@@ -332,28 +334,20 @@ internal sealed class Program
 
     private static async Task ConvertToOpus(string inputPath, string outputPath, int bitrate)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "ffmpeg",
-            Arguments = $"-i \"{inputPath}\" -c:a libopus -b:a {bitrate}k -vn -y \"{outputPath}\"",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+        var result = await Cli.Wrap("ffmpeg")
+            .WithArguments(args => args
+                .Add("-i").Add(inputPath)
+                .Add("-c:a").Add("libopus")
+                .Add("-b:a").Add($"{bitrate}k")
+                .Add("-vn")
+                .Add("-y")
+                .Add(outputPath))
+            .WithValidation(CommandResultValidation.None)
+            .ExecuteBufferedAsync();
 
-        using var process = Process.Start(startInfo);
-        if (process == null)
+        if (result.ExitCode != 0)
         {
-            throw new InvalidOperationException("Failed to start ffmpeg process");
-        }
-
-        await process.WaitForExitAsync();
-
-        if (process.ExitCode != 0)
-        {
-            var error = await process.StandardError.ReadToEndAsync();
-            throw new InvalidOperationException($"ffmpeg failed: {error}");
+            throw new InvalidOperationException($"ffmpeg failed: {result.StandardError}");
         }
     }
 
@@ -361,24 +355,16 @@ internal sealed class Program
     {
         try
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "ffprobe",
-                Arguments = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
+            var result = await Cli.Wrap("ffprobe")
+                .WithArguments(args => args
+                    .Add("-v").Add("error")
+                    .Add("-show_entries").Add("format=duration")
+                    .Add("-of").Add("default=noprint_wrappers=1:nokey=1")
+                    .Add(filePath))
+                .WithValidation(CommandResultValidation.None)
+                .ExecuteBufferedAsync();
 
-            using var process = Process.Start(startInfo);
-            if (process == null)
-                return 0;
-
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            if (double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration))
+            if (double.TryParse(result.StandardOutput.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration))
             {
                 return (int)Math.Round(duration);
             }
@@ -395,24 +381,16 @@ internal sealed class Program
     {
         try
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "ffprobe",
-                Arguments = $"-v error -show_entries format=bit_rate -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
+            var result = await Cli.Wrap("ffprobe")
+                .WithArguments(args => args
+                    .Add("-v").Add("error")
+                    .Add("-show_entries").Add("format=bit_rate")
+                    .Add("-of").Add("default=noprint_wrappers=1:nokey=1")
+                    .Add(filePath))
+                .WithValidation(CommandResultValidation.None)
+                .ExecuteBufferedAsync();
 
-            using var process = Process.Start(startInfo);
-            if (process == null)
-                return null;
-
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            if (double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var bitrate))
+            if (double.TryParse(result.StandardOutput.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var bitrate))
             {
                 return (int)Math.Round(bitrate / 1000);
             }
