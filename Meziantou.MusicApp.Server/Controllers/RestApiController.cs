@@ -11,7 +11,7 @@ namespace Meziantou.MusicApp.Server.Controllers;
 public class RestApiController(MusicLibraryService library, TranscodingService transcoding, ImageResizingService imageResizing, LastFmService lastFm, ILogger<RestApiController> logger) : ControllerBase
 {
     /// <summary>Get all playlists with name and track count</summary>
-    [HttpGet("playlists")]
+    [HttpGet("playlists.json")]
     [ProducesResponseType<PlaylistsResponse>(StatusCodes.Status200OK)]
     public ActionResult<PlaylistsResponse> GetPlaylists()
     {
@@ -33,7 +33,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Get tracks for a specific playlist</summary>
-    [HttpGet("playlists/{id}")]
+    [HttpGet("playlists/{id}.json")]
     [ProducesResponseType<PlaylistTracksResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
     public ActionResult<PlaylistTracksResponse> GetPlaylistTracks(string id)
@@ -48,7 +48,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Create a new playlist</summary>
-    [HttpPost("playlists")]
+    [HttpPost("playlists.json")]
     [ProducesResponseType<PlaylistTracksResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PlaylistTracksResponse>> CreatePlaylist([FromBody] CreatePlaylistRequest request)
@@ -67,7 +67,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Update an existing playlist</summary>
-    [HttpPut("playlists/{id}")]
+    [HttpPut("playlists/{id}.json")]
     [ProducesResponseType<PlaylistTracksResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status400BadRequest)]
@@ -90,7 +90,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Delete a playlist</summary>
-    [HttpDelete("playlists/{id}")]
+    [HttpDelete("playlists/{id}.json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeletePlaylist(string id)
@@ -112,7 +112,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Rename a playlist (renames the file on disk)</summary>
-    [HttpPost("playlists/{id}/rename")]
+    [HttpPost("playlists/{id}/rename.json")]
     [ProducesResponseType<PlaylistTracksResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status400BadRequest)]
@@ -183,7 +183,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Get all available tracks (not only those in playlists)</summary>
-    [HttpGet("tracks")]
+    [HttpGet("tracks.json")]
     [ProducesResponseType<TracksResponse>(StatusCodes.Status200OK)]
     public ActionResult<TracksResponse> GetAllTracks([FromQuery] int? limit = null, [FromQuery] int? offset = null)
     {
@@ -402,7 +402,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Get all albums</summary>
-    [HttpGet("albums")]
+    [HttpGet("albums.json")]
     [ProducesResponseType<AlbumsResponse>(StatusCodes.Status200OK)]
     public ActionResult<AlbumsResponse> GetAllAlbums()
     {
@@ -423,7 +423,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Get all artists</summary>
-    [HttpGet("artists")]
+    [HttpGet("artists.json")]
     [ProducesResponseType<ArtistsResponse>(StatusCodes.Status200OK)]
     public ActionResult<ArtistsResponse> GetAllArtists()
     {
@@ -438,7 +438,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Trigger a library scan</summary>
-    [HttpPost("scan")]
+    [HttpPost("scan.json")]
     [ProducesResponseType<ScanStatusResponse>(StatusCodes.Status200OK)]
     public ActionResult<ScanStatusResponse> TriggerScan()
     {
@@ -457,7 +457,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>Get scan status</summary>
-    [HttpGet("scan/status")]
+    [HttpGet("scan/status.json")]
     [ProducesResponseType<ScanStatusResponse>(StatusCodes.Status200OK)]
     public ActionResult<ScanStatusResponse> GetScanStatus()
     {
@@ -478,7 +478,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     /// When submission is true, it records the track as played.
     /// When submission is false, it updates the "Now Playing" status.
     /// </remarks>
-    [HttpPost("scrobble")]
+    [HttpPost("scrobble.json")]
     [ProducesResponseType<ScrobbleResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ErrorResponse>(StatusCodes.Status400BadRequest)]

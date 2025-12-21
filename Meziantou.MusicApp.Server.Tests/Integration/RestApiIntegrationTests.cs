@@ -10,7 +10,7 @@ public class RestApiIntegrationTests
     {
         // Act
         await using var app = AppTestContext.Create();
-        using var response = await app.Client.PostAsync("/api/scan", content: null, app.CancellationToken);
+        using var response = await app.Client.PostAsync("/api/scan.json", content: null, app.CancellationToken);
         InlineSnapshot
             .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
             .Validate(response, """
@@ -32,7 +32,7 @@ public class RestApiIntegrationTests
     {
         // Act
         await using var app = AppTestContext.Create();
-        using var response = await app.Client.GetAsync("/api/scan/status", app.CancellationToken);
+        using var response = await app.Client.GetAsync("/api/scan/status.json", app.CancellationToken);
         InlineSnapshot
             .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
             .Validate(response, """
@@ -72,7 +72,7 @@ public class RestApiIntegrationTests
     {
         await using var app = AppTestContext.Create();
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/scan/status");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/scan/status.json");
         request.Headers.Add("Origin", "http://localhost:3000");
 
         using var response = await app.Client.SendAsync(request, app.CancellationToken);

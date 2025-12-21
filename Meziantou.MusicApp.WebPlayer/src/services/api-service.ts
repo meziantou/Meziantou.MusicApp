@@ -49,15 +49,15 @@ export class ApiService {
   }
 
   async getPlaylists(): Promise<PlaylistsResponse> {
-    return this.fetch<PlaylistsResponse>('/api/playlists');
+    return this.fetch<PlaylistsResponse>('/api/playlists.json');
   }
 
   async getPlaylistTracks(playlistId: string): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}`);
+    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}.json`);
   }
 
   async updatePlaylist(playlistId: string, request: UpdatePlaylistRequest): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}`, {
+    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}.json`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -67,7 +67,7 @@ export class ApiService {
   }
 
   async createPlaylist(request: CreatePlaylistRequest): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>('/api/playlists', {
+    return this.fetch<PlaylistTracksResponse>('/api/playlists.json', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -77,7 +77,7 @@ export class ApiService {
   }
 
   async deletePlaylist(playlistId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/playlists/${encodeURIComponent(playlistId)}`;
+    const url = `${this.baseUrl}/api/playlists/${encodeURIComponent(playlistId)}.json`;
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
@@ -92,30 +92,20 @@ export class ApiService {
   }
 
   async getScanStatus(): Promise<ScanStatusResponse> {
-    return this.fetch<ScanStatusResponse>('/api/scan/status');
+    return this.fetch<ScanStatusResponse>('/api/scan/status.json');
   }
 
   async triggerScan(): Promise<ScanStatusResponse> {
-    return this.fetch<ScanStatusResponse>('/api/scan', { method: 'POST' });
+    return this.fetch<ScanStatusResponse>('/api/scan.json', { method: 'POST' });
   }
 
   async scrobble(songId: string, submission: boolean): Promise<void> {
-    await this.fetch('/api/scrobble', {
+    await this.fetch('/api/scrobble.json', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ id: songId, submission })
-    });
-  }
-
-  async computeReplayGain(songId: string): Promise<ComputeReplayGainResponse> {
-    return this.fetch<ComputeReplayGainResponse>('/api/songs/compute-replay-gain', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ id: songId })
     });
   }
 
