@@ -82,3 +82,78 @@ jobs:
           tags: |
             ghcr.io/meziantou/meziantou-music-app-web-player:1.0.${{ github.run_number }}
             ghcr.io/meziantou/meziantou-music-app-web-player:latest
+
+  static-site-generator:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+        contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+
+      - name: Publish StaticSiteGenerator for Windows x64
+        run: dotnet publish Meziantou.MusicApp.StaticSiteGenerator --configuration Release --runtime win-x64 --self-contained --output ./publish/win-x64
+
+      - name: Publish StaticSiteGenerator for Windows arm64
+        run: dotnet publish Meziantou.MusicApp.StaticSiteGenerator --configuration Release --runtime win-arm64 --self-contained --output ./publish/win-arm64
+
+      - name: Publish StaticSiteGenerator for Linux x64
+        run: dotnet publish Meziantou.MusicApp.StaticSiteGenerator --configuration Release --runtime linux-x64 --self-contained --output ./publish/linux-x64
+
+      - name: Publish StaticSiteGenerator for macOS arm64
+        run: dotnet publish Meziantou.MusicApp.StaticSiteGenerator --configuration Release --runtime osx-arm64 --self-contained --output ./publish/osx-arm64
+
+      - name: Create release archives
+        run: |
+          cd publish
+          zip -r ../StaticSiteGenerator-win-x64.zip win-x64/
+          zip -r ../StaticSiteGenerator-win-arm64.zip win-arm64/
+          tar -czf ../StaticSiteGenerator-linux-x64.tar.gz -C linux-x64 .
+          tar -czf ../StaticSiteGenerator-osx-arm64.tar.gz -C osx-arm64 .
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Static Site Generator v1.0.${{ github.run_number }}
+          body: |
+            ## Static Site Generator Release
+
+            Generate static music streaming sites from XSPF playlists.
+
+            ### Features
+            - Converts audio files to Opus format
+            - Generates REST API compatible JSON files
+            - Cross-platform support
+
+            ### Downloads
+            - **Windows x64**: StaticSiteGenerator-win-x64.zip
+            - **Windows arm64**: StaticSiteGenerator-win-arm64.zip
+            - **Linux x64**: StaticSiteGenerator-linux-x64.tar.gz
+            - **macOS arm64**: StaticSiteGenerator-osx-arm64.tar.gz
+
+            ### Requirements
+            - ffmpeg and ffprobe must be installed and available in PATH
+
+            ### Usage
+            ```bash
+            # Windows
+            StaticSiteGenerator.exe --playlists playlist.xspf --output ./output
+
+            # Linux/macOS
+            ./StaticSiteGenerator --playlists playlist.xspf --output ./output
+            ```
+
+            See [README](https://github.com/meziantou/Meziantou.MusicApp/tree/main/Meziantou.MusicApp.StaticSiteGenerator) for full documentation.
+          files: |
+            StaticSiteGenerator-win-x64.zip
+            StaticSiteGenerator-win-arm64.zip
+            StaticSiteGenerator-linux-x64.tar.gz
+            StaticSiteGenerator-osx-x64.tar.gz
+            StaticSiteGenerator-osx-arm64.tar.gz
+          draft: false
+          prerelease: false

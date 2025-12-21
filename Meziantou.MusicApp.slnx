@@ -4,4 +4,5 @@
         <File Path=".editorconfig" />
     </Folder>
     <Project Path="Meziantou.MusicApp.Server.Tests/Meziantou.MusicApp.Server.Tests.csproj" />
+    <Project Path="Meziantou.MusicApp.StaticSiteGenerator/Meziantou.MusicApp.StaticSiteGenerator.csproj" />
 </Solution>
