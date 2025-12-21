@@ -4,8 +4,7 @@ import type {
   ScanStatusResponse,
   StreamingQuality,
   CreatePlaylistRequest,
-  UpdatePlaylistRequest,
-  ComputeReplayGainResponse
+  UpdatePlaylistRequest
 } from '../types';
 
 export class ApiService {
