@@ -26,6 +26,7 @@ export type ReplayGainMode = 'off' | 'track' | 'album';
 export interface PlaybackState {
   currentPlaylistId: string | null;
   currentTrackIndex: number;
+  currentTrackId: string | null;
   currentTime: number;
   isPlaying: boolean;
   volume: number;

@@ -255,8 +255,29 @@ export function AppProvider({ children }: AppProviderProps) {
              if (tracks.length > 0) {
                  setPlayingPlaylistId(state.currentPlaylistId);
                  playerActions.setPlaylist(state.currentPlaylistId, tracks, state.shuffleOrder);
-                 if (state.currentTrackIndex >= 0) {
-                     await playerActions.playAtIndex(state.currentTrackIndex, state.isPlaying, state.currentTime);
+                 
+                 // Find the correct track index using the track ID for more reliable restoration
+                 let trackIndex = state.currentTrackIndex;
+                 if (state.currentTrackId) {
+                   const foundIndex = tracks.findIndex(t => t.id === state.currentTrackId);
+                   if (foundIndex >= 0) {
+                     // If we're in shuffle mode, find where this track is in the shuffle order
+                     if (state.shuffleEnabled && state.shuffleOrder && state.shuffleOrder.length === tracks.length) {
+                       const shuffleIndex = state.shuffleOrder.indexOf(foundIndex);
+                       if (shuffleIndex >= 0) {
+                         trackIndex = shuffleIndex;
+                       } else {
+                         // Track not in shuffle order, use found index
+                         trackIndex = foundIndex;
+                       }
+                     } else {
+                       trackIndex = foundIndex;
+                     }
+                   }
+                 }
+                 
+                 if (trackIndex >= 0 && trackIndex < tracks.length) {
+                     await playerActions.playAtIndex(trackIndex, state.isPlaying, state.currentTime);
                  }
              }
         }

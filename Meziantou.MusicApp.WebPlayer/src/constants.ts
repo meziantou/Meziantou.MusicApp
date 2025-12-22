@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export const DEFAULT_PLAYBACK_STATE: PlaybackState = {
   currentPlaylistId: null,
   currentTrackIndex: -1,
+  currentTrackId: null,
   currentTime: 0,
   isPlaying: false,
   volume: 1,

@@ -659,6 +659,7 @@ export class AudioPlayerService {
     const state: PlaybackState = {
       currentPlaylistId: this.currentPlaylistId,
       currentTrackIndex: this.currentIndex,
+      currentTrackId: this.currentTrack?.id ?? null,
       currentTime: this.audio.currentTime,
       isPlaying: !this.audio.paused,
       volume: this.masterVolume,
@@ -986,6 +987,7 @@ export class AudioPlayerService {
     return {
       currentPlaylistId: this.currentPlaylistId,
       currentTrackIndex: this.currentIndex,
+      currentTrackId: this.currentTrack?.id ?? null,
       currentTime: this.audio.currentTime,
       isPlaying: !this.audio.paused,
       volume: this.masterVolume,
