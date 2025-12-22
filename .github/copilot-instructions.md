@@ -7,6 +7,25 @@ Also, do not assume that tests pass just because you did not see any failures in
 
 You MUST follow all code-formatting and naming conventions defined in [`.editorconfig`](/.editorconfig).
 
+# Running Tests
+
+## C# Tests
+
+To run C# tests, use:
+
+```bash
+dotnet test
+```
+
+## TypeScript/JavaScript Tests
+
+To run TypeScript/JavaScript tests (in the WebPlayer project), use:
+
+```bash
+cd Meziantou.MusicApp.WebPlayer
+npm test
+```
+
 # C# guidelines
 
 In addition to the rules enforced by `.editorconfig`, you SHOULD:
