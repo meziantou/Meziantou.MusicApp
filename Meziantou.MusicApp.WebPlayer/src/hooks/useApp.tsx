@@ -473,6 +473,15 @@ export function AppProvider({ children }: AppProviderProps) {
         }
       } catch (scanError) {
         console.error('Failed to check scan status:', scanError);
+        // If we can't reach the server at all, return cached playlists
+        console.log('Server unreachable, returning cached playlists');
+        const cachedPlaylists = await storageService.getAllCachedPlaylists();
+        if (cachedPlaylists.length > 0) {
+          showToast('Server unavailable, showing cached data', 'info');
+          const sorted = cachedPlaylists.map(cp => cp.playlist).sort((a, b) => a.sortOrder - b.sortOrder);
+          setPlaylists(sorted);
+          return sorted;
+        }
       }
 
       return [];
@@ -543,6 +552,14 @@ export function AppProvider({ children }: AppProviderProps) {
         }
       } catch (scanError) {
         console.error('Failed to check scan status:', scanError);
+        // If we can't reach the server at all, return cached tracks
+        console.log('Server unreachable, returning cached tracks');
+        const cached = await storageService.getCachedPlaylist(playlistId);
+        if (cached) {
+          showToast('Server unavailable, showing cached playlist', 'info');
+          setCurrentPlaylistTracks(cached.tracks);
+          return cached.tracks;
+        }
       }
 
       showToast('Failed to load tracks', 'error');
