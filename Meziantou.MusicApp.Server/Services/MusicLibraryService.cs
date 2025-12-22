@@ -850,13 +850,12 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         // Create placeholder songs for missing items
         var items = missingItems.Select(missing =>
         {
-            var fileName = Path.GetFileNameWithoutExtension(missing.RelativePath);
             var extension = Path.GetExtension(missing.RelativePath).TrimStart('.').ToLowerInvariant();
 
             var placeholderSong = new Song
             {
                 Id = $"missing:{missing.RelativePath}",
-                Title = $"[Missing] {fileName}",
+                Title = $"[Missing] {missing.RelativePath}",
                 Path = missing.FullPath,
                 Album = $"From playlist: {missing.PlaylistName}",
                 Artist = "Missing File",
