@@ -4,6 +4,7 @@ public sealed class TrackInfo
 {
     public required string Id { get; set; }
     public required string Title { get; set; }
+    public required string Path { get; set; }
     public string? Artists { get; set; }
     public string? ArtistId { get; set; }
     public string? Album { get; set; }

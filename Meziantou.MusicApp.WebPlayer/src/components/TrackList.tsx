@@ -319,6 +319,14 @@ export function TrackList() {
                 }
               : undefined
           }
+          onCopyFilePath={() => {
+            navigator.clipboard.writeText(contextMenu.track.path).then(() => {
+              showToast(`Copied file path: ${contextMenu.track.path}`);
+            }).catch(() => {
+              showToast('Failed to copy file path');
+            });
+            setContextMenu(null);
+          }}
         />
       )}
     </div>
@@ -456,9 +464,10 @@ interface ContextMenuProps {
   onDownload: () => void;
   onDelete: () => void;
   onRemoveFromPlaylist?: () => void;
+  onCopyFilePath: () => void;
 }
 
-function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist }: ContextMenuProps) {
+function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist, onCopyFilePath }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x, y });
 
@@ -527,6 +536,12 @@ function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelet
           Remove Download
         </button>
       )}
+      <button className="context-menu-item" onClick={onCopyFilePath}>
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+        </svg>
+        Copy File Path
+      </button>
     </div>
   );
 }

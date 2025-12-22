@@ -17,6 +17,7 @@ export interface PlaylistsResponse {
 export interface TrackInfo {
   id: string;
   title: string;
+  path: string;
   artists: string | null;
   artistId: string | null;
   album: string | null;

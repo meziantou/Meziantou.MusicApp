@@ -163,6 +163,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         {
             Id = song.Id,
             Title = song.Title,
+            Path = song.Path,
             Artists = song.Artist,
             ArtistId = song.ArtistId,
             Album = song.Album,
