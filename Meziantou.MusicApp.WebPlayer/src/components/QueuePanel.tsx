@@ -30,12 +30,17 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
   };
 
   const handlePlayItem = async (queueIndex: number) => {
-    // Remove all items before this one
-    for (let i = 0; i < queueIndex; i++) {
+    if (queueIndex < 0 || queueIndex >= queue.length) return;
+    
+    const itemToPlay = queue[queueIndex];
+    
+    // Remove all items up to and including the selected one
+    for (let i = 0; i <= queueIndex; i++) {
       playerActions.removeFromQueue(0);
     }
-    // Skip the current track to play the next one in queue
-    await playerActions.next();
+    
+    // Play the selected track directly
+    await playerActions.playTrack(itemToPlay.track, itemToPlay.playlistId);
   };
 
   return (
