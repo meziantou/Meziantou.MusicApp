@@ -132,4 +132,62 @@ describe('AudioPlayerService Queue Logic', () => {
       expect(player.getCurrentTrack()?.id).toBe(expectedNextTrack.id);
     });
   });
+
+  describe('Queue Removal', () => {
+    it('should not restore manually removed items when advancing to next track', async () => {
+      // Start playing from first track
+      await player.playAtIndex(0, false);
+      expect(player.getCurrentIndex()).toBe(0);
+      
+      // Get the queue and verify it has tracks
+      let queue = player.getQueue();
+      const initialQueueLength = queue.length;
+      expect(initialQueueLength).toBeGreaterThan(0);
+      
+      // Find Track 2 in the queue (index 1)
+      const track2Index = queue.findIndex(item => item.track.id === '2');
+      expect(track2Index).toBeGreaterThanOrEqual(0);
+      
+      // Remove Track 2 from the queue
+      player.removeFromQueue(track2Index);
+      
+      // Verify Track 2 is removed
+      queue = player.getQueue();
+      expect(queue.find(item => item.track.id === '2')).toBeUndefined();
+      
+      // Advance to next track
+      await player.next();
+      expect(player.getCurrentIndex()).toBe(1);
+      
+      // Verify Track 2 is still not in the queue after advancing
+      queue = player.getQueue();
+      expect(queue.find(item => item.track.id === '2')).toBeUndefined();
+    });
+
+    it('should clear removed items tracking when changing playlist', async () => {
+      // Start playing from first track
+      await player.playAtIndex(0, false);
+      
+      // Get the queue and remove Track 2
+      let queue = player.getQueue();
+      const track2Index = queue.findIndex(item => item.track.id === '2');
+      if (track2Index >= 0) {
+        player.removeFromQueue(track2Index);
+      }
+      
+      // Verify Track 2 is removed
+      queue = player.getQueue();
+      expect(queue.find(item => item.track.id === '2')).toBeUndefined();
+      
+      // Change to a new playlist (same tracks)
+      player.setPlaylist('playlist-2', mockTracks);
+      
+      // Start playing again
+      await player.playAtIndex(0, false);
+      
+      // Track 2 should now be in the queue again since we changed playlists
+      queue = player.getQueue();
+      expect(queue.find(item => item.track.id === '2')).toBeDefined();
+    });
+  });
 });

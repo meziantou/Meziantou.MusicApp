@@ -605,7 +605,7 @@ export class AudioPlayerService {
     
     // Replenish queue if needed (keep it at ~200 items for repeat mode)
     if (this.repeatMode !== 'off' || this.queue.filter(i => i.source === 'playlist').length < 10) {
-      this.rebuildPlaylistQueue();
+      this.replenishPlaylistQueue();
     } else {
       this.scheduleStateSave();
     }
@@ -714,8 +714,9 @@ export class AudioPlayerService {
     const actualIndex = this.getActualIndex(index);
     const track = this.playlist[actualIndex];
     
-    // Rebuild the queue with upcoming playlist tracks
-    this.rebuildPlaylistQueue();
+    // Clear and rebuild the queue with upcoming playlist tracks
+    this.queue = this.queue.filter(item => item.source === 'manual');
+    this.replenishPlaylistQueue();
     
     await this.loadTrack(track, autoPlay, startTime);
   }
@@ -742,8 +743,9 @@ export class AudioPlayerService {
     
     this.currentPlaylistId = playlistId;
     
-    // Rebuild the queue with upcoming playlist tracks
-    this.rebuildPlaylistQueue();
+    // Clear and rebuild the queue with upcoming playlist tracks
+    this.queue = this.queue.filter(item => item.source === 'manual');
+    this.replenishPlaylistQueue();
     
     await this.loadTrack(track, true);
   }
@@ -799,7 +801,7 @@ export class AudioPlayerService {
       }
       
       await this.loadTrack(item!.track, true);
-      this.rebuildPlaylistQueue();
+      this.replenishPlaylistQueue();
       return;
     }
 
@@ -887,7 +889,8 @@ export class AudioPlayerService {
       this.generateShuffleOrder();
     }
     // Rebuild queue with new shuffle order
-    this.rebuildPlaylistQueue();
+    this.queue = this.queue.filter(item => item.source === 'manual');
+    this.replenishPlaylistQueue();
     this.scheduleStateSave();
   }
 
@@ -897,8 +900,8 @@ export class AudioPlayerService {
 
   setRepeatMode(mode: RepeatMode): void {
     this.repeatMode = mode;
-    // Rebuild queue (may need more items in repeat mode)
-    this.rebuildPlaylistQueue();
+    // Replenish queue (may need more items in repeat mode)
+    this.replenishPlaylistQueue();
     this.scheduleStateSave();
   }
 
@@ -910,8 +913,8 @@ export class AudioPlayerService {
     const modes: RepeatMode[] = ['off', 'all', 'one'];
     const currentIdx = modes.indexOf(this.repeatMode);
     this.repeatMode = modes[(currentIdx + 1) % modes.length];
-    // Rebuild queue (may need more items in repeat mode)
-    this.rebuildPlaylistQueue();
+    // Replenish queue (may need more items in repeat mode)
+    this.replenishPlaylistQueue();
     this.scheduleStateSave();
     return this.repeatMode;
   }
@@ -1020,28 +1023,46 @@ export class AudioPlayerService {
   // Queue management methods
 
   /**
-   * Rebuilds the playlist portion of the queue based on current position.
-   * Keeps manual items and adds upcoming playlist tracks.
-   * Ensures at least 200 playlist items in queue when repeat mode is on.
+   * Ensures the queue has enough playlist items.
+   * Only adds new items if needed - doesn't rebuild existing queue.
    */
-  private rebuildPlaylistQueue(): void {
+  private replenishPlaylistQueue(): void {
     if (!this.currentPlaylistId || this.playlist.length === 0) return;
     
-    // Keep only manually added items
-    const manualItems = this.queue.filter(item => item.source === 'manual');
+    // Count existing playlist items in queue
+    const existingPlaylistItems = this.queue.filter(item => item.source === 'playlist').length;
     
-    // Calculate how many playlist items we need
+    // Calculate how many more we need
     const targetCount = this.repeatMode !== 'off' ? 200 : Math.min(200, this.playlist.length - this.currentIndex - 1);
+    const neededCount = targetCount - existingPlaylistItems;
     
-    // Generate playlist items starting from current position + 1
-    const playlistItems: QueueItem[] = [];
-    let addedCount = 0;
+    if (neededCount <= 0) return;
+    
+    // Find the last playlist item's index to know where to continue from
+    const lastPlaylistItem = [...this.queue].reverse().find(item => item.source === 'playlist');
+    let startIndex = this.currentIndex + 1;
     let loopOffset = 0;
     
+    if (lastPlaylistItem) {
+      const lastEffectiveIndex = lastPlaylistItem.indexInPlaylist;
+      loopOffset = Math.floor(lastEffectiveIndex / this.playlist.length);
+      const lastActualIndex = lastEffectiveIndex % this.playlist.length;
+      
+      // Find where this is in the current play order (shuffle or normal)
+      if (this.shuffleEnabled && this.shuffleOrder.length > 0) {
+        startIndex = this.shuffleOrder.indexOf(lastActualIndex) + 1;
+      } else {
+        startIndex = lastActualIndex + 1;
+      }
+    }
+    
+    // Generate new playlist items
+    const newItems: QueueItem[] = [];
+    let addedCount = 0;
     const shouldFilter = (!this.isOnline) || (this.networkType === 'low-data' && this.preventDownloadOnLowData);
 
-    while (addedCount < targetCount) {
-      for (let i = this.currentIndex + 1; i < this.playlist.length && addedCount < targetCount; i++) {
+    while (addedCount < neededCount) {
+      for (let i = startIndex; i < this.playlist.length && addedCount < neededCount; i++) {
         const actualIndex = this.shuffleEnabled && this.shuffleOrder.length > 0
           ? this.shuffleOrder[i]
           : i;
@@ -1051,10 +1072,9 @@ export class AudioPlayerService {
           continue;
         }
 
-        // For looping, adjust the index to show it's a repeated track
         const effectiveIndex = actualIndex + (loopOffset * this.playlist.length);
         
-        playlistItems.push({
+        newItems.push({
           track: track,
           playlistId: this.currentPlaylistId!,
           indexInPlaylist: effectiveIndex,
@@ -1064,37 +1084,17 @@ export class AudioPlayerService {
       }
       
       // If repeat mode is on and we need more, loop from the beginning
-      if (this.repeatMode === 'all' && addedCount < targetCount && this.playlist.length > 0) {
+      if (this.repeatMode === 'all' && addedCount < neededCount && this.playlist.length > 0) {
         loopOffset++;
-        if (loopOffset > 5) break; // Safety break to prevent infinite loops if all tracks are filtered
-        // Start from index 0 for looping
-        for (let i = 0; i <= this.currentIndex && addedCount < targetCount; i++) {
-          const actualIndex = this.shuffleEnabled && this.shuffleOrder.length > 0
-            ? this.shuffleOrder[i]
-            : i;
-          
-          const track = this.playlist[actualIndex];
-          if (shouldFilter && !this.cachedTrackIds.has(track.id)) {
-            continue;
-          }
-
-          const effectiveIndex = actualIndex + (loopOffset * this.playlist.length);
-          
-          playlistItems.push({
-            track: track,
-            playlistId: this.currentPlaylistId!,
-            indexInPlaylist: effectiveIndex,
-            source: 'playlist'
-          });
-          addedCount++;
-        }
+        if (loopOffset > 5) break; // Safety break
+        startIndex = 0;
       } else {
-        break; // No repeat, don't loop
+        break;
       }
     }
     
-    // Combine: manual items first, then playlist items
-    this.queue = [...manualItems, ...playlistItems];
+    // Append new items to the end of the queue
+    this.queue.push(...newItems);
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
