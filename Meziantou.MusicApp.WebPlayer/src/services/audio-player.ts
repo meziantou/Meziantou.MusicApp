@@ -1045,6 +1045,9 @@ export class AudioPlayerService {
     
     if (neededCount <= 0) return;
     
+    // Build a set of track IDs already in the queue to avoid duplicates
+    const queueTrackIds = new Set(this.queue.map(item => item.track.id));
+    
     // Find the last playlist item's index to know where to continue from
     const lastPlaylistItem = [...this.queue].reverse().find(item => item.source === 'playlist');
     let startIndex = this.currentIndex + 1;
@@ -1067,6 +1070,10 @@ export class AudioPlayerService {
     const newItems: QueueItem[] = [];
     let addedCount = 0;
     const shouldFilter = (!this.isOnline) || (this.networkType === 'low-data' && this.preventDownloadOnLowData);
+    
+    // Track items we've considered to detect when all playlist items are already queued
+    let consideredCount = 0;
+    let skippedDuplicates = 0;
 
     while (addedCount < neededCount) {
       for (let i = startIndex; i < this.playlist.length && addedCount < neededCount; i++) {
@@ -1075,11 +1082,26 @@ export class AudioPlayerService {
           : i;
         
         const track = this.playlist[actualIndex];
+        consideredCount++;
+        
         if (shouldFilter && !this.cachedTrackIds.has(track.id)) {
           continue;
         }
 
         const effectiveIndex = actualIndex + (loopOffset * this.playlist.length);
+        
+        // Skip if track is already in queue, unless all tracks are already queued
+        if (queueTrackIds.has(track.id)) {
+          skippedDuplicates++;
+          // If we've considered many tracks and they're all duplicates, allow adding duplicates
+          if (skippedDuplicates >= 50) {
+            // Reset the duplicate detection and allow duplicates from now on
+            queueTrackIds.clear();
+            skippedDuplicates = 0;
+          } else {
+            continue;
+          }
+        }
         
         newItems.push({
           track: track,
@@ -1087,6 +1109,7 @@ export class AudioPlayerService {
           indexInPlaylist: effectiveIndex,
           source: 'playlist'
         });
+        queueTrackIds.add(track.id);
         addedCount++;
       }
       
