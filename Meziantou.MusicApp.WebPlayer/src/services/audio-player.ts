@@ -108,7 +108,7 @@ export class AudioPlayerService {
     this.audioContext = new AudioContext();
     this.masterGainNode = this.audioContext.createGain();
     this.masterGainNode.connect(this.audioContext.destination);
-    this.masterGainNode.gain.value = this.masterVolume;
+    this.masterGainNode.gain.value = this.linearToLogarithmic(this.masterVolume);
     
     // Connect audio element to the audio context
     this.connectAudioInstance(this.audioInstance);
@@ -850,13 +850,20 @@ export class AudioPlayerService {
     this.updatePositionState();
   }
 
+  private linearToLogarithmic(linear: number): number {
+    // Convert linear slider value (0-2) to logarithmic gain value
+    // Using exponential curve: gain = linear^2 for smoother control at lower volumes
+    return linear * linear;
+  }
+
   setVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(2, volume));
+    const gainValue = this.linearToLogarithmic(this.masterVolume);
     if (this.masterGainNode) {
-      this.masterGainNode.gain.value = this.isMuted ? 0 : this.masterVolume;
+      this.masterGainNode.gain.value = this.isMuted ? 0 : gainValue;
     } else {
       // Fallback if no audio context
-      this.audioInstance.audio.volume = this.isMuted ? 0 : Math.min(1, this.masterVolume);
+      this.audioInstance.audio.volume = this.isMuted ? 0 : Math.min(1, gainValue);
     }
     this.emit('volumechange', { volume: this.masterVolume });
   }
@@ -868,7 +875,7 @@ export class AudioPlayerService {
   setMuted(muted: boolean): void {
     this.isMuted = muted;
     if (this.masterGainNode) {
-      this.masterGainNode.gain.value = muted ? 0 : this.masterVolume;
+      this.masterGainNode.gain.value = muted ? 0 : this.linearToLogarithmic(this.masterVolume);
     } else {
       this.audioInstance.audio.muted = muted;
     }
