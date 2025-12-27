@@ -22,6 +22,7 @@ public sealed class Song
     public string? ParentId { get; set; }
     public CoverArt? CoverArt { get; set; }
     public Lyrics? Lyrics { get; init; }
+    public string? Isrc { get; init; }
 
     // ReplayGain values (in dB for gain, linear for peak)
     public double? ReplayGainTrackGain { get; init; }

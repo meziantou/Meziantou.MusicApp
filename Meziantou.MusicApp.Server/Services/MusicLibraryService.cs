@@ -292,6 +292,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     BitRate = cachedSong.BitRate,
                     Lyrics = cachedSong.Lyrics,
                     HasEmbeddedCover = cachedSong.HasEmbeddedCover,
+                    Isrc = cachedSong.Isrc,
                     ReplayGainTrackGain = cachedSong.ReplayGainTrackGain,
                     ReplayGainTrackPeak = cachedSong.ReplayGainTrackPeak,
                     ReplayGainAlbumGain = cachedSong.ReplayGainAlbumGain,
@@ -355,6 +356,9 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 newSong.Duration = file.Properties.Duration;
                 newSong.BitRate = file.Properties.AudioBitrate;
                 newSong.Lyrics = file.Tag.Lyrics;
+
+                // Read ISRC from different tag formats
+                ReadIsrcTag(file, newSong);
 
                 if (file.Tag.Pictures.Length > 0)
                 {
@@ -459,6 +463,51 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             ParseReplayGainTag("REPLAYGAIN_TRACK_PEAK", trackPeakItem, song);
             ParseReplayGainTag("REPLAYGAIN_ALBUM_GAIN", albumGainItem, song);
             ParseReplayGainTag("REPLAYGAIN_ALBUM_PEAK", albumPeakItem, song);
+        }
+    }
+
+    private static void ReadIsrcTag(TagLib.File file, SerializableSong song)
+    {
+        // Try to read ISRC from different tag formats
+        // ID3v2 tags (MP3) - TSRC frame
+        if (file.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3v2Tag)
+        {
+            // Look for TSRC frame (official ISRC frame in ID3v2)
+            foreach (var frame in id3v2Tag.GetFrames<TagLib.Id3v2.TextInformationFrame>())
+            {
+                if (frame.FrameId.ToString() == "TSRC")
+                {
+                    var isrc = frame.Text.FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(isrc))
+                    {
+                        song.Isrc = isrc;
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Xiph Comment (Vorbis/FLAC/Opus) - ISRC field
+        if (file.GetTag(TagLib.TagTypes.Xiph) is TagLib.Ogg.XiphComment xiphTag)
+        {
+            var isrc = xiphTag.GetFirstField("ISRC");
+            if (!string.IsNullOrWhiteSpace(isrc))
+            {
+                song.Isrc = isrc;
+                return;
+            }
+        }
+
+        // Apple tags (M4A/AAC)
+        if (file.GetTag(TagLib.TagTypes.Apple) is TagLib.Mpeg4.AppleTag appleTag)
+        {
+            // Try to get ISRC from standard atom
+            var isrcItem = appleTag.GetDashBox("com.apple.iTunes", "ISRC");
+            if (!string.IsNullOrWhiteSpace(isrcItem))
+            {
+                song.Isrc = isrcItem;
+                return;
+            }
         }
     }
 

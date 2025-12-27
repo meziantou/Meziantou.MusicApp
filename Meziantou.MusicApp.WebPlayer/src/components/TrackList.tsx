@@ -44,7 +44,8 @@ export function TrackList() {
       tracks = tracks.filter(track =>
         matchesSearch(track.title, searchQuery) ||
         matchesSearch(track.artists, searchQuery) ||
-        matchesSearch(track.album, searchQuery)
+        matchesSearch(track.album, searchQuery) ||
+        matchesSearch(track.isrc, searchQuery)
       );
     }
 

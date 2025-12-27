@@ -186,7 +186,7 @@ public class MusicLibraryServiceTests
     public async Task StartAsync_InitiatesLibraryScan()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", "Test Song", "Test Artist", "Test Artist", "Test Album", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", title: "Test Song", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -215,7 +215,7 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         var lyrics = "This is a test song\nWith multiple lines\nOf lyrics";
-        testContext.MusicLibrary.CreateTestMp3File("test-with-lyrics.mp3", "Song With Lyrics", "Test Artist", "Test Artist", "Test Album", "Pop", 2024, 1, lyrics);
+        testContext.MusicLibrary.CreateTestMp3File("test-with-lyrics.mp3", title: "Song With Lyrics", lyrics: lyrics);
 
         var service = await testContext.ScanCatalog();
 
@@ -232,7 +232,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_HandlesFilesWithoutLyrics()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("test-no-lyrics.mp3", "Song Without Lyrics", "Test Artist", "Test Artist", "Test Album", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("test-no-lyrics.mp3", title: "Song Without Lyrics");
 
         var service = await testContext.ScanCatalog();
 
@@ -247,7 +247,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_ReadsLrcFileWhenPresent()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song-with-lrc.mp3", "Song With LRC", "Test Artist", "Test Artist", "Test Album", "Pop", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song-with-lrc.mp3", title: "Song With LRC");
 
         var lrcContent = """
             [ar:Test Artist]
@@ -279,7 +279,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_LrcFileOverridesEmbeddedLyrics()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song-override.mp3", "Song Override", "Test Artist", "Test Artist", "Test Album", "Pop", 2024, 1, "Embedded lyrics");
+        testContext.MusicLibrary.CreateTestMp3File("song-override.mp3", title: "Song Override", lyrics: "Embedded lyrics");
 
         var lrcContent = """
             [00:00.00]LRC file lyrics
@@ -304,7 +304,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_HandlesLrcFileWithPlainText()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("plain-lrc.mp3", "Plain LRC", "Test Artist", "Test Artist", "Test Album", "Pop", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("plain-lrc.mp3", title: "Plain LRC");
 
         var lrcContent = """
             Just plain lyrics
@@ -344,11 +344,11 @@ public class MusicLibraryServiceTests
         for (var i = 0; i < 10; i++)
         {
             testContext.MusicLibrary.CreateTestMp3File($"test-song-{i.ToString(CultureInfo.InvariantCulture)}.mp3",
-                $"Song {i.ToString(CultureInfo.InvariantCulture)}",
-                $"Artist {i.ToString(CultureInfo.InvariantCulture)}",
-                $"Artist {i.ToString(CultureInfo.InvariantCulture)}",
-                $"Album {(i % 3).ToString(CultureInfo.InvariantCulture)}",
-                "Rock", 2024, (uint)(i + 1));
+                title: $"Song {i.ToString(CultureInfo.InvariantCulture)}",
+                artist: $"Artist {i.ToString(CultureInfo.InvariantCulture)}",
+                albumArtist: $"Artist {i.ToString(CultureInfo.InvariantCulture)}",
+                album: $"Album {(i % 3).ToString(CultureInfo.InvariantCulture)}",
+                genre: "Rock", year: 2024, track: (uint)(i + 1));
         }
 
         using var barrier = new Barrier(5);
@@ -370,9 +370,9 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_CalculatesPlaylistDuration()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", "Song 3", "Artist 3", "Artist 3", "Album 3", "Jazz", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", title: "Song 3", artist: "Artist 3", albumArtist: "Artist 3", album: "Album 3", genre: "Jazz", year: 2024, track: 1);
 
         var playlistContent = """
             #EXTM3U
@@ -408,7 +408,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_ConvertsM3uToXspf_WithAddedDateMetadata()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.m3u", "song1.mp3");
 
@@ -436,7 +436,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_PreservesExistingXspfFiles()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var existingAddedDate = new DateTime(2023, 1, 15, 10, 30, 0, DateTimeKind.Utc);
         var xspfContent = $"""
@@ -471,7 +471,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_DoesNotConvertM3u_WhenXspfAlreadyExists()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.m3u", "song1.mp3");
 
@@ -503,7 +503,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_IncrementalScan_ReusesUnchangedFileMetadata()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", "Test Song", "Test Artist", "Test Artist", "Test Album", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", title: "Test Song", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -530,7 +530,7 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         var mp3FilePath = Path.Combine(testContext.MusicLibrary.RootPath, "TestSong.mp3");
-        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", "Original Title", "Original Artist", "Original Artist", "Original Album", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", title: "Original Title", artist: "Original Artist", albumArtist: "Original Artist", album: "Original Album", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -572,14 +572,14 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_IncrementalScan_DetectsNewFiles()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("Song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
         var songs = service.GetAllSongs().ToList();
         Assert.Single(songs);
 
-        testContext.MusicLibrary.CreateTestMp3File("Song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("Song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
 
         await service.ScanMusicLibrary();
 
@@ -594,8 +594,8 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         var mp3FilePath2 = Path.Combine(testContext.MusicLibrary.RootPath, "Song2.mp3");
-        testContext.MusicLibrary.CreateTestMp3File("Song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("Song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("Song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -615,8 +615,8 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_IncludesAllSongsVirtualPlaylist()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -633,9 +633,9 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylist_AllSongsVirtualPlaylist_ReturnsAllSongs()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", "Song 3", "Artist 3", "Artist 3", "Album 3", "Jazz", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", title: "Song 3", artist: "Artist 3", albumArtist: "Artist 3", album: "Album 3", genre: "Jazz", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -655,7 +655,7 @@ public class MusicLibraryServiceTests
     public async Task UpdatePlaylist_VirtualPlaylist_ThrowsInvalidOperationException()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -667,7 +667,7 @@ public class MusicLibraryServiceTests
     public async Task DeletePlaylist_VirtualPlaylist_ThrowsInvalidOperationException()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -679,7 +679,7 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_IncludesMissingTracksVirtualPlaylist_WhenMissingItemsExist()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         // Create a playlist that references both an existing and a non-existing song
         var xspfContent = """
@@ -712,7 +712,7 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_DoesNotIncludeMissingTracksPlaylist_WhenNoMissingItems()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         // Create a playlist that references only existing songs
         var xspfContent = """
@@ -740,7 +740,7 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylist_MissingTracksVirtualPlaylist_ReturnsAllMissingItems()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         // Create playlists that reference non-existing songs
         var xspfContent1 = """
@@ -788,7 +788,7 @@ public class MusicLibraryServiceTests
     public async Task GetMissingPlaylistItems_ReturnsMissingItemsWithPlaylistInfo()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var xspfContent = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -851,7 +851,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_M3uConversion_IncludesMissingTracksInXspf()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         // Create an M3U playlist with a missing song
         var playlistContent = """
@@ -928,8 +928,8 @@ public class MusicLibraryServiceTests
     {
         // Arrange
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", "Song 2", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 2);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 2);
 
         // Create a playlist with custom addedAt dates and unknown extension data
         var customAddedAt1 = "2023-06-15T10:30:00.0000000Z";
@@ -1017,9 +1017,9 @@ public class MusicLibraryServiceTests
     {
         // Arrange
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", "Song 2", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 2);
-        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", "Song 3", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 3);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 2);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", title: "Song 3", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 3);
 
         var customAddedAt1 = "2023-01-10T08:00:00.0000000Z";
         var customAddedAt2 = "2023-02-15T12:30:00.0000000Z";
@@ -1097,8 +1097,8 @@ public class MusicLibraryServiceTests
     {
         // Arrange
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", "Song 2", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 2);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 2);
 
         var customAddedAt1 = "2023-01-01T00:00:00.0000000Z";
         var xspfContent = $"""
@@ -1160,8 +1160,8 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_IncludesNoReplayGainVirtualPlaylist_WhenSongsWithoutReplayGainExist()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 2, -8.5, 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 2, replayGainTrackGain: -8.5, replayGainTrackPeak: 0.95);
 
         var service = await testContext.ScanCatalog();
 
@@ -1178,8 +1178,8 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_DoesNotIncludeNoReplayGainVirtualPlaylist_WhenAllSongsHaveReplayGain()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1, -7.2, 0.88);
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1, -8.5, 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1, replayGainTrackGain: -7.2, replayGainTrackPeak: 0.88);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1, replayGainTrackGain: -8.5, replayGainTrackPeak: 0.95);
 
         var service = await testContext.ScanCatalog();
 
@@ -1193,9 +1193,9 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylist_NoReplayGainVirtualPlaylist_ReturnsOnlySongsWithoutReplayGain()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist A", "Artist A", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist B", "Artist B", "Album 2", "Pop", 2024, 1, -8.5, 0.95);
-        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", "Song 3", "Artist C", "Artist C", "Album 3", "Jazz", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist A", albumArtist: "Artist A", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist B", albumArtist: "Artist B", album: "Album 2", genre: "Pop", year: 2024, track: 1, replayGainTrackGain: -8.5, replayGainTrackPeak: 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", title: "Song 3", artist: "Artist C", albumArtist: "Artist C", album: "Album 3", genre: "Jazz", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -1215,7 +1215,7 @@ public class MusicLibraryServiceTests
     public async Task UpdatePlaylist_NoReplayGainVirtualPlaylist_ThrowsInvalidOperationException()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -1227,7 +1227,7 @@ public class MusicLibraryServiceTests
     public async Task DeletePlaylist_NoReplayGainVirtualPlaylist_ThrowsInvalidOperationException()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -1240,8 +1240,8 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         testContext.MusicLibrary.AddFolder("subfolder");
-        testContext.MusicLibrary.CreateTestMp3File("subfolder/song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3File("subfolder/song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("subfolder/song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("subfolder/song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
 
         var playlistContent = """
             song1.mp3
@@ -1263,6 +1263,35 @@ public class MusicLibraryServiceTests
         // Paths should NOT be relative to the music library root
         Assert.DoesNotContain("<location>subfolder/song1.mp3</location>", xspfContent, StringComparison.Ordinal);
         Assert.DoesNotContain("<location>subfolder/song2.mp3</location>", xspfContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ScanMusicLibrary_ExtractsIsrcFromMetadata()
+    {
+        await using var testContext = AppTestContext.Create();
+        var isrc = "USRC17607839";
+        testContext.MusicLibrary.CreateTestMp3File("test-with-isrc.mp3", title: "Song With ISRC", isrc: isrc);
+
+        var service = await testContext.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        var song = Assert.Single(songs);
+        Assert.Equal("Song With ISRC", song.Title);
+        Assert.Equal(isrc, song.Isrc);
+    }
+
+    [Fact]
+    public async Task ScanMusicLibrary_HandlesFilesWithoutIsrc()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("test-no-isrc.mp3", title: "Song Without ISRC");
+
+        var service = await testContext.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        var song = Assert.Single(songs);
+        Assert.Equal("Song Without ISRC", song.Title);
+        Assert.Null(song.Isrc);
     }
 }
 

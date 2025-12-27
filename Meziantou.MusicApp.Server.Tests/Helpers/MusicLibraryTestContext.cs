@@ -16,7 +16,19 @@ internal sealed class MusicLibraryTestContext(FullPath root)
         File.WriteAllBytes(root / relativePath, content);
     }
 
-    public void CreateTestMp3File(string relativePath, string title, string? artist, string? albumArtist, string album, string genre, int year, uint track, string? lyrics = null)
+    public void CreateTestMp3File(
+        string relativePath,
+        string? title = null,
+        string? artist = null,
+        string? albumArtist = null,
+        string? album = null,
+        string? genre = null,
+        int? year = null,
+        uint? track = null,
+        string? lyrics = null,
+        string? isrc = null,
+        double? replayGainTrackGain = null,
+        double? replayGainTrackPeak = null)
     {
         // Create a minimal valid MP3 file
         ReadOnlySpan<byte> mp3Data =
@@ -36,11 +48,31 @@ internal sealed class MusicLibraryTestContext(FullPath root)
 
         // Use TagLibSharp to add ID3 tags
         using var tagFile = TagLib.File.Create(fullPath);
-        tagFile.Tag.Title = title;
-        tagFile.Tag.Album = album;
-        tagFile.Tag.Genres = [genre];
-        tagFile.Tag.Year = (uint)year;
-        tagFile.Tag.Track = track;
+        
+        if (title != null)
+        {
+            tagFile.Tag.Title = title;
+        }
+
+        if (album != null)
+        {
+            tagFile.Tag.Album = album;
+        }
+
+        if (genre != null)
+        {
+            tagFile.Tag.Genres = [genre];
+        }
+
+        if (year.HasValue)
+        {
+            tagFile.Tag.Year = (uint)year.Value;
+        }
+
+        if (track.HasValue)
+        {
+            tagFile.Tag.Track = track.Value;
+        }
 
         if (artist != null)
         {
@@ -57,32 +89,36 @@ internal sealed class MusicLibraryTestContext(FullPath root)
             tagFile.Tag.Lyrics = lyrics;
         }
 
-        tagFile.Save();
-    }
-
-    public void CreateTestMp3FileWithReplayGain(string relativePath, string title, string? artist, string? albumArtist, string album, string genre, int year, uint track, double trackGain, double trackPeak)
-    {
-        CreateTestMp3File(relativePath, title, artist, albumArtist, album, genre, year, track);
-
-        var fullPath = root / relativePath;
-        using var tagFile = TagLib.File.Create(fullPath);
-
-        var trackGainStr = $"{trackGain:F2} dB";
-        var trackPeakStr = $"{trackPeak:F6}";
-
-        if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+        // Add ISRC if provided
+        if (isrc != null)
         {
-            var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
+            if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
             {
-                Text = [trackGainStr]
-            };
-            id3v2Tag.AddFrame(trackGainFrame);
+                var tsrcFrame = TagLib.Id3v2.TextInformationFrame.Get(id3v2Tag, "TSRC", true);
+                tsrcFrame.Text = [isrc];
+            }
+        }
 
-            var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
+        // Add ReplayGain if provided
+        if (replayGainTrackGain.HasValue && replayGainTrackPeak.HasValue)
+        {
+            var trackGainStr = $"{replayGainTrackGain.Value:F2} dB";
+            var trackPeakStr = $"{replayGainTrackPeak.Value:F6}";
+
+            if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
             {
-                Text = [trackPeakStr]
-            };
-            id3v2Tag.AddFrame(trackPeakFrame);
+                var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
+                {
+                    Text = [trackGainStr]
+                };
+                id3v2Tag.AddFrame(trackGainFrame);
+
+                var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
+                {
+                    Text = [trackPeakStr]
+                };
+                id3v2Tag.AddFrame(trackPeakFrame);
+            }
         }
 
         tagFile.Save();

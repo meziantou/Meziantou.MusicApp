@@ -30,6 +30,7 @@ export interface TrackInfo {
   size: number;
   contentType: string | null;
   addedDate: string | null;
+  isrc: string | null;
   replayGainTrackGain: number | null;
   replayGainTrackPeak: number | null;
   replayGainAlbumGain: number | null;

@@ -118,6 +118,7 @@ public sealed class MusicCatalog
                 ContentType = GetContentType(Path.GetExtension(serializableSong.RelativePath)),
                 Lyrics = lyrics,
                 CoverArt = coverArt,
+                Isrc = serializableSong.Isrc,
                 ReplayGainTrackGain = serializableSong.ReplayGainTrackGain,
                 ReplayGainTrackPeak = serializableSong.ReplayGainTrackPeak,
                 ReplayGainAlbumGain = serializableSong.ReplayGainAlbumGain,
