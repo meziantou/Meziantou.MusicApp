@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Meziantou.Framework;
 using Meziantou.MusicApp.Server.Models;
 using Meziantou.MusicApp.Server.Services;
 using Meziantou.MusicApp.Server.Tests.Helpers;
@@ -5,7 +8,7 @@ using Xunit.Sdk;
 
 namespace Meziantou.MusicApp.Server.Tests.Unit;
 
-public class MusicLibraryServiceTests
+public partial class MusicLibraryServiceTests
 {
     [Fact]
     public async Task GetAllArtists_ReturnsEmptyList_WhenNoMusicScanned()
@@ -1293,5 +1296,103 @@ public class MusicLibraryServiceTests
         Assert.Equal("Song Without ISRC", song.Title);
         Assert.Null(song.Isrc);
     }
-}
 
+    [Fact]
+    public async Task ScanMusicLibrary_InvalidatesCacheOnVersionMismatch()
+    {
+        // Create a temp directory that will outlive the test context
+        using var tempDir = TemporaryDirectory.Create();
+        var musicPath = tempDir / "music";
+        var cachePath = tempDir / "cache";
+        Directory.CreateDirectory(musicPath);
+
+        // Create test music file
+        var musicLibrary = new MusicLibraryTestContext(musicPath);
+        musicLibrary.CreateTestMp3File("TestSong.mp3", title: "Test Song", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
+
+        // First scan with first context
+        {
+            await using var testContext = AppTestContext.Create();
+            testContext.Configure<MusicServerSettings>(settings =>
+            {
+                settings.CachePath = cachePath;
+                settings.MusicFolderPath = musicPath;
+            });
+
+            var service = await testContext.ScanCatalog();
+
+            var songs = service.GetAllSongs().ToList();
+            Assert.Single(songs);
+            Assert.Equal("Test Song", songs[0].Title);
+        }
+
+        var musicCachePath = cachePath / "cache.json";
+        Assert.True(File.Exists(musicCachePath));
+
+        // Read the cache to find the current version
+        var cacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
+        var cacheJson = JsonNode.Parse(cacheContent);
+        Assert.NotNull(cacheJson);
+        var currentVersion = (int?)cacheJson["Version"];
+        Assert.NotNull(currentVersion);
+
+        // Modify cache to have an old version using JsonNode
+        cacheJson["Version"] = 0;
+        await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
+
+        // Second scan with new context
+        {
+            await using var testContext2 = AppTestContext.Create();
+            testContext2.Configure<MusicServerSettings>(settings =>
+            {
+                settings.CachePath = cachePath;
+                settings.MusicFolderPath = musicPath;
+            });
+
+            var service2 = await testContext2.ScanCatalog();
+
+            // Service should still work and rescan the library
+            var songs = service2.GetAllSongs().ToList();
+            Assert.Single(songs);
+            Assert.Equal("Test Song", songs[0].Title);
+
+            // Cache should be updated with new version
+            var newCacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
+            Assert.Contains($"\"Version\":{currentVersion}", newCacheContent, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task ScanMusicLibrary_ReusesCacheOnMatchingVersion()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", title: "Test Song", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
+
+        var service = await testContext.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        Assert.Single(songs);
+        Assert.Equal("Test Song", songs[0].Title);
+
+        Assert.True(File.Exists(testContext.MusicCachePath));
+        var cacheContent1 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
+
+        // Read the cache to find the current version
+        var cacheJson = JsonNode.Parse(cacheContent1);
+        Assert.NotNull(cacheJson);
+        var currentVersion = (int?)cacheJson["Version"];
+        Assert.NotNull(currentVersion);
+
+        // Create a new service instance to reload the cache
+        var service2 = await testContext.ScanCatalog();
+
+        // Service should reuse the cache
+        songs = service2.GetAllSongs().ToList();
+        Assert.Single(songs);
+        Assert.Equal("Test Song", songs[0].Title);
+
+        // Cache should contain the correct version
+        var cacheContent2 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
+        Assert.Contains($"\"Version\":{currentVersion}", cacheContent2, StringComparison.Ordinal);
+    }
+}

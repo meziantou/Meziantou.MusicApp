@@ -100,6 +100,14 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             var content = JsonSerializer.Deserialize<SerializableMusicCatalog>(json, JsonOptions);
             if (content is not null)
             {
+                // Check if cache version matches current version
+                if (content.Version != SerializableMusicCatalog.CacheVersion)
+                {
+                    logger.LogWarning("Cache version mismatch. Expected {ExpectedVersion}, found {ActualVersion}. Cache will be invalidated and library will be rescanned.",
+                        SerializableMusicCatalog.CacheVersion, content.Version);
+                    return;
+                }
+
                 _cachedSerializableCatalog = content;
                 _catalog = await CreateCatalog(content);
                 logger.LogInformation("Loaded cached library");
