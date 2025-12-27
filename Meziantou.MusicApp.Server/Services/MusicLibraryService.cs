@@ -506,6 +506,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             if (!string.IsNullOrWhiteSpace(isrcItem))
             {
                 song.Isrc = isrcItem;
+                return;
             }
         }
     }
