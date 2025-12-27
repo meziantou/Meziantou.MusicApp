@@ -215,7 +215,7 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         var lyrics = "This is a test song\nWith multiple lines\nOf lyrics";
-        testContext.MusicLibrary.CreateTestMp3File("test-with-lyrics.mp3", title: "Song With Lyrics", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Pop", year: 2024, track: 1, lyrics: lyrics);
+        testContext.MusicLibrary.CreateTestMp3File("test-with-lyrics.mp3", title: "Song With Lyrics", lyrics: lyrics);
 
         var service = await testContext.ScanCatalog();
 
@@ -232,7 +232,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_HandlesFilesWithoutLyrics()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("test-no-lyrics.mp3", title: "Song Without Lyrics", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("test-no-lyrics.mp3", title: "Song Without Lyrics");
 
         var service = await testContext.ScanCatalog();
 
@@ -247,7 +247,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_ReadsLrcFileWhenPresent()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song-with-lrc.mp3", title: "Song With LRC", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Pop", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song-with-lrc.mp3", title: "Song With LRC");
 
         var lrcContent = """
             [ar:Test Artist]
@@ -279,7 +279,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_LrcFileOverridesEmbeddedLyrics()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song-override.mp3", title: "Song Override", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Pop", year: 2024, track: 1, lyrics: "Embedded lyrics");
+        testContext.MusicLibrary.CreateTestMp3File("song-override.mp3", title: "Song Override", lyrics: "Embedded lyrics");
 
         var lrcContent = """
             [00:00.00]LRC file lyrics
@@ -304,7 +304,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_HandlesLrcFileWithPlainText()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("plain-lrc.mp3", title: "Plain LRC", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Pop", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("plain-lrc.mp3", title: "Plain LRC");
 
         var lrcContent = """
             Just plain lyrics
@@ -1270,7 +1270,7 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         var isrc = "USRC17607839";
-        testContext.MusicLibrary.CreateTestMp3File("test-with-isrc.mp3", title: "Song With ISRC", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Pop", year: 2024, track: 1, isrc: isrc);
+        testContext.MusicLibrary.CreateTestMp3File("test-with-isrc.mp3", title: "Song With ISRC", isrc: isrc);
 
         var service = await testContext.ScanCatalog();
 
@@ -1284,7 +1284,7 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_HandlesFilesWithoutIsrc()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("test-no-isrc.mp3", title: "Song Without ISRC", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("test-no-isrc.mp3", title: "Song Without ISRC");
 
         var service = await testContext.ScanCatalog();
 
