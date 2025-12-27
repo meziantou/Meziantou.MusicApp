@@ -1,4 +1,5 @@
-using System.Text.RegularExpressions;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Meziantou.Framework;
 using Meziantou.MusicApp.Server.Models;
 using Meziantou.MusicApp.Server.Services;
@@ -1330,13 +1331,14 @@ public partial class MusicLibraryServiceTests
 
         // Read the cache to find the current version
         var cacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
-        var versionMatch = VersionRegex().Match(cacheContent);
-        Assert.True(versionMatch.Success, "Cache should contain a Version property");
-        var currentVersion = int.Parse(versionMatch.Groups["version"].Value, CultureInfo.InvariantCulture);
+        var cacheJson = JsonNode.Parse(cacheContent);
+        Assert.NotNull(cacheJson);
+        var currentVersion = (int?)cacheJson["Version"];
+        Assert.NotNull(currentVersion);
 
-        // Modify cache to have an old version
-        var oldVersionCache = cacheContent.Replace($"\"Version\":{currentVersion}", "\"Version\":0", StringComparison.Ordinal);
-        await File.WriteAllTextAsync(musicCachePath, oldVersionCache, TestContext.Current.CancellationToken);
+        // Modify cache to have an old version using JsonNode
+        cacheJson["Version"] = 0;
+        await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
 
         // Second scan with new context
         {
@@ -1376,9 +1378,10 @@ public partial class MusicLibraryServiceTests
         var cacheContent1 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
 
         // Read the cache to find the current version
-        var versionMatch = VersionRegex().Match(cacheContent1);
-        Assert.True(versionMatch.Success, "Cache should contain a Version property");
-        var currentVersion = int.Parse(versionMatch.Groups["version"].Value, CultureInfo.InvariantCulture);
+        var cacheJson = JsonNode.Parse(cacheContent1);
+        Assert.NotNull(cacheJson);
+        var currentVersion = (int?)cacheJson["Version"];
+        Assert.NotNull(currentVersion);
 
         // Create a new service instance to reload the cache
         var service2 = await testContext.ScanCatalog();
@@ -1392,7 +1395,4 @@ public partial class MusicLibraryServiceTests
         var cacheContent2 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
         Assert.Contains($"\"Version\":{currentVersion}", cacheContent2, StringComparison.Ordinal);
     }
-
-    [GeneratedRegex(@"""Version"":(?<version>\d+)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
-    private static partial Regex VersionRegex();
 }
