@@ -1160,8 +1160,8 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_IncludesNoReplayGainVirtualPlaylist_WhenSongsWithoutReplayGainExist()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 2, -8.5, 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 2, replayGainTrackGain: -8.5, replayGainTrackPeak: 0.95);
 
         var service = await testContext.ScanCatalog();
 
@@ -1178,8 +1178,8 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylists_DoesNotIncludeNoReplayGainVirtualPlaylist_WhenAllSongsHaveReplayGain()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song1.mp3", "Song 1", "Artist 1", "Artist 1", "Album 1", "Rock", 2024, 1, -7.2, 0.88);
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist 2", "Artist 2", "Album 2", "Pop", 2024, 1, -8.5, 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1, replayGainTrackGain: -7.2, replayGainTrackPeak: 0.88);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1, replayGainTrackGain: -8.5, replayGainTrackPeak: 0.95);
 
         var service = await testContext.ScanCatalog();
 
@@ -1193,9 +1193,9 @@ public class MusicLibraryServiceTests
     public async Task GetPlaylist_NoReplayGainVirtualPlaylist_ReturnsOnlySongsWithoutReplayGain()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", "Song 1", "Artist A", "Artist A", "Album 1", "Rock", 2024, 1);
-        testContext.MusicLibrary.CreateTestMp3FileWithReplayGain("song2.mp3", "Song 2", "Artist B", "Artist B", "Album 2", "Pop", 2024, 1, -8.5, 0.95);
-        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", "Song 3", "Artist C", "Artist C", "Album 3", "Jazz", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist A", albumArtist: "Artist A", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist B", albumArtist: "Artist B", album: "Album 2", genre: "Pop", year: 2024, track: 1, replayGainTrackGain: -8.5, replayGainTrackPeak: 0.95);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", title: "Song 3", artist: "Artist C", albumArtist: "Artist C", album: "Album 3", genre: "Jazz", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
@@ -1270,13 +1270,12 @@ public class MusicLibraryServiceTests
     {
         await using var testContext = AppTestContext.Create();
         var isrc = "USRC17607839";
-        testContext.MusicLibrary.CreateTestMp3FileWithIsrc("test-with-isrc.mp3", "Song With ISRC", "Test Artist", "Test Artist", "Test Album", "Pop", 2024, 1, isrc);
+        testContext.MusicLibrary.CreateTestMp3File("test-with-isrc.mp3", title: "Song With ISRC", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Pop", year: 2024, track: 1, isrc: isrc);
 
         var service = await testContext.ScanCatalog();
 
         var songs = service.GetAllSongs().ToList();
-        Assert.Single(songs);
-        var song = songs[0];
+        var song = Assert.Single(songs);
         Assert.Equal("Song With ISRC", song.Title);
         Assert.Equal(isrc, song.Isrc);
     }
@@ -1285,13 +1284,12 @@ public class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_HandlesFilesWithoutIsrc()
     {
         await using var testContext = AppTestContext.Create();
-        testContext.MusicLibrary.CreateTestMp3File("test-no-isrc.mp3", "Song Without ISRC", "Test Artist", "Test Artist", "Test Album", "Rock", 2024, 1);
+        testContext.MusicLibrary.CreateTestMp3File("test-no-isrc.mp3", title: "Song Without ISRC", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
 
         var songs = service.GetAllSongs().ToList();
-        Assert.Single(songs);
-        var song = songs[0];
+        var song = Assert.Single(songs);
         Assert.Equal("Song Without ISRC", song.Title);
         Assert.Null(song.Isrc);
     }
