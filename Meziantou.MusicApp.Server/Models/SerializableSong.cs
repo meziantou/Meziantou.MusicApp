@@ -19,6 +19,7 @@ internal sealed class SerializableSong
     public string? ExternalLyricsPath { get; set; }
     public bool HasEmbeddedCover { get; set; }
     public string? ExternalCoverArtPath { get; set; }
+    public string? Isrc { get; set; }
 
     // ReplayGain values
     public double? ReplayGainTrackGain { get; set; }

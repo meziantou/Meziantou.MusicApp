@@ -17,6 +17,7 @@ public sealed class TrackInfo
     public long Size { get; set; }
     public string? ContentType { get; set; }
     public DateTime? AddedDate { get; set; }
+    public string? Isrc { get; set; }
 
     // ReplayGain values (in dB for gain, linear for peak)
     public double? ReplayGainTrackGain { get; set; }

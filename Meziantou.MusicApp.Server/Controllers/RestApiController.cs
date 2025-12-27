@@ -176,6 +176,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
             Size = song.Size,
             ContentType = song.ContentType,
             AddedDate = addedDate,
+            Isrc = song.Isrc,
             ReplayGainTrackGain = song.ReplayGainTrackGain,
             ReplayGainTrackPeak = song.ReplayGainTrackPeak,
             ReplayGainAlbumGain = song.ReplayGainAlbumGain,
