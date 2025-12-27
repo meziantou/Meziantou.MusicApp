@@ -88,6 +88,23 @@ internal sealed class MusicLibraryTestContext(FullPath root)
         tagFile.Save();
     }
 
+    public void CreateTestMp3FileWithIsrc(string relativePath, string title, string? artist, string? albumArtist, string album, string genre, int year, uint track, string isrc)
+    {
+        CreateTestMp3File(relativePath, title, artist, albumArtist, album, genre, year, track);
+
+        var fullPath = root / relativePath;
+        using var tagFile = TagLib.File.Create(fullPath);
+
+        // Add ISRC to ID3v2 tag using TSRC frame
+        if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+        {
+            var tsrcFrame = TagLib.Id3v2.TextInformationFrame.Get(id3v2Tag, "TSRC", true);
+            tsrcFrame.Text = [isrc];
+        }
+
+        tagFile.Save();
+    }
+
     public async Task CreateLrcFile(string relativePath, string content)
     {
         var fullPath = root / relativePath;

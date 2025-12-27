@@ -1264,5 +1264,36 @@ public class MusicLibraryServiceTests
         Assert.DoesNotContain("<location>subfolder/song1.mp3</location>", xspfContent, StringComparison.Ordinal);
         Assert.DoesNotContain("<location>subfolder/song2.mp3</location>", xspfContent, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task ScanMusicLibrary_ExtractsIsrcFromMetadata()
+    {
+        await using var testContext = AppTestContext.Create();
+        var isrc = "USRC17607839";
+        testContext.MusicLibrary.CreateTestMp3FileWithIsrc("test-with-isrc.mp3", "Song With ISRC", "Test Artist", "Test Artist", "Test Album", "Pop", 2024, 1, isrc);
+
+        var service = await testContext.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        Assert.Single(songs);
+        var song = songs[0];
+        Assert.Equal("Song With ISRC", song.Title);
+        Assert.Equal(isrc, song.Isrc);
+    }
+
+    [Fact]
+    public async Task ScanMusicLibrary_HandlesFilesWithoutIsrc()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("test-no-isrc.mp3", "Song Without ISRC", "Test Artist", "Test Artist", "Test Album", "Rock", 2024, 1);
+
+        var service = await testContext.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        Assert.Single(songs);
+        var song = songs[0];
+        Assert.Equal("Song Without ISRC", song.Title);
+        Assert.Null(song.Isrc);
+    }
 }
 
