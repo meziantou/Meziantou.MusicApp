@@ -97,6 +97,8 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
           ...prev, 
           currentTrack: detail.track ?? null, 
           currentQuality: detail.quality ?? null,
+          currentTime: 0,
+          duration: 0,
           isLoading: false 
         })),
       },

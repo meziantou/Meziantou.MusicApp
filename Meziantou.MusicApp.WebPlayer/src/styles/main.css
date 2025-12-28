@@ -954,7 +954,6 @@ body {
   height: 100%;
   background: var(--accent-gradient);
   border-radius: 2px;
-  transition: width 0.1s linear;
 }
 
 .progress-bar-handle {
