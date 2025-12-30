@@ -4,5 +4,6 @@ export { PlayerBar } from './PlayerBar';
 export { QueuePanel } from './QueuePanel';
 export { SettingsDialog } from './SettingsDialog';
 export { CacheDiagnosticsDialog } from './CacheDiagnosticsDialog';
+export { SongDetailsDialog } from './SongDetailsDialog';
 export { PlayingIndicator } from './PlayingIndicator';
 export { CoverImage } from './CoverImage';

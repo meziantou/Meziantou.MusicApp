@@ -139,7 +139,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         }
     }
 
-    private static PlaylistTracksResponse CreatePlaylistTracksResponse(Playlist playlist)
+    private PlaylistTracksResponse CreatePlaylistTracksResponse(Playlist playlist)
     {
         var tracks = playlist.Items
             .Select(item => CreateTrackInfo(item.Song, item.AddedDate))
@@ -157,13 +157,15 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         };
     }
 
-    private static TrackInfo CreateTrackInfo(Song song, DateTime? addedDate = null)
+    private TrackInfo CreateTrackInfo(Song song, DateTime? addedDate = null)
     {
+        var relativePath = Path.GetRelativePath(library.Catalog.RootPath.Value, song.Path).Replace('\\', '/');
+
         return new TrackInfo
         {
             Id = song.Id,
             Title = song.Title,
-            Path = song.Path,
+            Path = relativePath,
             Artists = song.Artist,
             ArtistId = song.ArtistId,
             Album = song.Album,

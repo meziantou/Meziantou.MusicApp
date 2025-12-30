@@ -4,7 +4,8 @@ import type {
   ScanStatusResponse,
   StreamingQuality,
   CreatePlaylistRequest,
-  UpdatePlaylistRequest
+  UpdatePlaylistRequest,
+  LyricsResponse
 } from '../types';
 
 export class ApiService {
@@ -154,6 +155,10 @@ export class ApiService {
     } catch {
       return false;
     }
+  }
+
+  async getSongLyrics(songId: string): Promise<LyricsResponse> {
+    return this.fetch<LyricsResponse>(`/api/songs/${encodeURIComponent(songId)}/lyrics.json`);
   }
 }
 

@@ -328,6 +328,10 @@ export function TrackList() {
             });
             setContextMenu(null);
           }}
+          onViewDetails={() => {
+            window.dispatchEvent(new CustomEvent('viewSongDetails', { detail: contextMenu.track }));
+            setContextMenu(null);
+          }}
         />
       )}
     </div>
@@ -466,9 +470,10 @@ interface ContextMenuProps {
   onDelete: () => void;
   onRemoveFromPlaylist?: () => void;
   onCopyFilePath: () => void;
+  onViewDetails: () => void;
 }
 
-function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist, onCopyFilePath }: ContextMenuProps) {
+function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist, onCopyFilePath, onViewDetails }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x, y });
 
@@ -542,6 +547,12 @@ function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelet
           <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
         </svg>
         Copy File Path
+      </button>
+      <button className="context-menu-item" onClick={onViewDetails}>
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+        </svg>
+        View Details
       </button>
     </div>
   );

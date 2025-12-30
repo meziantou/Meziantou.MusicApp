@@ -1691,3 +1691,158 @@ body {
     border-top-right-radius: var(--border-radius-lg);
   }
 }
+
+/* Song Details Dialog */
+.song-details-dialog {
+  max-width: 600px;
+  max-height: 85vh;
+}
+
+.song-details-header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: flex-start;
+}
+
+.song-details-cover {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--border-radius);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.song-details-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-details-track-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.song-details-artist {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 4px 0;
+}
+
+.song-details-album {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.song-details-section {
+  margin-bottom: 20px;
+}
+
+.song-details-section:last-child {
+  margin-bottom: 0;
+}
+
+.song-details-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.song-details-list {
+  margin: 0;
+  padding: 0;
+}
+
+.song-details-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 0;
+  gap: 16px;
+}
+
+.song-details-item dt {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.song-details-item dd {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin: 0;
+  text-align: right;
+  word-break: break-word;
+}
+
+.song-details-path {
+  font-family: monospace;
+  font-size: 12px !important;
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: var(--border-radius);
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.song-details-lyrics-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.song-details-lyrics {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  padding: 16px;
+  border-radius: var(--border-radius);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.song-details-lyrics-loading,
+.song-details-lyrics-error,
+.song-details-lyrics-empty {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  padding: 16px;
+  text-align: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+}
+
+.song-details-lyrics-error {
+  color: var(--error);
+}
+
+@media (max-width: 480px) {
+  .song-details-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .song-details-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .song-details-item dd {
+    text-align: left;
+  }
+}

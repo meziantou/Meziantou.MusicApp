@@ -101,3 +101,7 @@ export interface ErrorResponse {
 export interface ComputeReplayGainRequest {
   id: string;
 }
+
+export interface LyricsResponse {
+  lyrics: string | null;
+}

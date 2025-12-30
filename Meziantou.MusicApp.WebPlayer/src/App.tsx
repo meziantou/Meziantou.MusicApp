@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './hooks';
 import { audioPlayer } from './services';
+import type { TrackInfo } from './types';
 import {
   PlaylistSidebar,
   TrackList,
@@ -8,6 +9,7 @@ import {
   QueuePanel,
   SettingsDialog,
   CacheDiagnosticsDialog,
+  SongDetailsDialog,
 } from './components';
 import './styles/main.css';
 
@@ -16,6 +18,7 @@ function AppContent() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [songDetailsTrack, setSongDetailsTrack] = useState<TrackInfo | null>(null);
 
   // Show settings on first load if not configured (only after initialization)
   useEffect(() => {
@@ -23,6 +26,16 @@ function AppContent() {
       setSettingsOpen(true);
     }
   }, [isInitialized, settings.serverUrl]);
+
+  // Listen for view song details events
+  useEffect(() => {
+    const handleViewDetails = (e: CustomEvent<TrackInfo>) => {
+      setSongDetailsTrack(e.detail);
+    };
+
+    window.addEventListener('viewSongDetails', handleViewDetails as EventListener);
+    return () => window.removeEventListener('viewSongDetails', handleViewDetails as EventListener);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -70,6 +83,7 @@ function AppContent() {
         case 'Escape':
           setQueueOpen(false);
           setSettingsOpen(false);
+          setSongDetailsTrack(null);
           break;
       }
     };
@@ -112,6 +126,11 @@ function AppContent() {
       <CacheDiagnosticsDialog 
         isOpen={diagnosticsOpen} 
         onClose={() => setDiagnosticsOpen(false)} 
+      />
+
+      <SongDetailsDialog
+        track={songDetailsTrack}
+        onClose={() => setSongDetailsTrack(null)}
       />
 
       {isLoading && (
