@@ -487,7 +487,9 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         }
 
         var lyrics = library.Catalog.GetLyrics(id);
-        return Ok(new LyricsResponse { Lyrics = lyrics });
+        // Normalize line endings to \n for consistency across platforms
+        var normalizedLyrics = lyrics?.ReplaceLineEndings("\n");
+        return Ok(new LyricsResponse { Lyrics = normalizedLyrics });
     }
 
     /// <summary>Scrobble a track to Last.fm</summary>

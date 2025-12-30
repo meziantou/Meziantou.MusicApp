@@ -144,7 +144,7 @@ public class RestApiIntegrationTests
                 Content-Type: application/json; charset=utf-8
               Value:
                 {
-                  "lyrics": "First line\r\nSecond line"
+                  "lyrics": "First line\nSecond line"
                 }
             """);
     }
