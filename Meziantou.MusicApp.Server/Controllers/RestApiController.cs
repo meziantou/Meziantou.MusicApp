@@ -474,6 +474,22 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         });
     }
 
+    /// <summary>Get lyrics for a song</summary>
+    [HttpGet("songs/{id}/lyrics.json")]
+    [ProducesResponseType<LyricsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
+    public ActionResult<LyricsResponse> GetSongLyrics(string id)
+    {
+        var song = library.GetSong(id);
+        if (song is null)
+        {
+            return NotFound(new ErrorResponse { Error = "Song not found" });
+        }
+
+        var lyrics = library.Catalog.GetLyrics(id);
+        return Ok(new LyricsResponse { Lyrics = lyrics });
+    }
+
     /// <summary>Scrobble a track to Last.fm</summary>
     /// <remarks>
     /// Sends track play information to Last.fm. 
