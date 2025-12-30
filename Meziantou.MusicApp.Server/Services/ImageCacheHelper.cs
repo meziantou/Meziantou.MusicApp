@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Http;
-
 namespace Meziantou.MusicApp.Server.Services;
 
 /// <summary>Helper class providing common functionality for serving cached images</summary>

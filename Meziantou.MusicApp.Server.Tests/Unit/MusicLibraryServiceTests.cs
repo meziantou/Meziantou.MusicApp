@@ -1,10 +1,8 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Meziantou.Framework;
 using Meziantou.MusicApp.Server.Models;
 using Meziantou.MusicApp.Server.Services;
 using Meziantou.MusicApp.Server.Tests.Helpers;
-using Xunit.Sdk;
 
 namespace Meziantou.MusicApp.Server.Tests.Unit;
 

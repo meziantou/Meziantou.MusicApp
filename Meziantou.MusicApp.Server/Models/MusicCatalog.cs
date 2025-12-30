@@ -1,6 +1,9 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using Meziantou.Framework;
+using Meziantou.MusicApp.Server.Telemetry;
 
 namespace Meziantou.MusicApp.Server.Models;
 
@@ -30,108 +33,118 @@ public sealed class MusicCatalog
 
     internal static async Task<MusicCatalog> Create(SerializableMusicCatalog serializableCatalog, FullPath rootPath, FullPath coverArtCachePath)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("MusicCatalog.Create");
+        activity?.SetTag("music.catalog.total_songs", serializableCatalog.Songs.Count);
+        activity?.SetTag("music.catalog.total_playlists", serializableCatalog.Playlist.Count);
+        activity?.SetTag("music.catalog.root_path", rootPath.Value);
+        
         var result = new MusicCatalog(rootPath);
         var songsBuilder = ImmutableList.CreateBuilder<Song>();
 
         // Create songs
-        foreach (var serializableSong in serializableCatalog.Songs)
+        using (var songsActivity = MusicLibraryActivitySource.Instance.StartActivity("CreateSongs"))
         {
-            var fullPath = Path.Combine(rootPath, serializableSong.RelativePath);
-            var songId = CreateId("song", serializableSong.RelativePath);
-
-            // Create Lyrics object if available
-            // External LRC files take precedence over embedded lyrics
-            Lyrics? lyrics = null;
-            if (!string.IsNullOrEmpty(serializableSong.ExternalLyricsPath))
+            songsActivity?.SetTag("music.catalog.song_count", serializableCatalog.Songs.Count);
+            
+            foreach (var serializableSong in serializableCatalog.Songs)
             {
-                lyrics = new Lyrics
+                var fullPath = Path.Combine(rootPath, serializableSong.RelativePath);
+                var songId = CreateId("song", serializableSong.RelativePath);
+
+                // Create Lyrics object if available
+                // External LRC files take precedence over embedded lyrics
+                Lyrics? lyrics = null;
+                if (!string.IsNullOrEmpty(serializableSong.ExternalLyricsPath))
                 {
-                    Id = CreateId("lyrics", serializableSong.ExternalLyricsPath),
-                    FilePath = Path.Combine(rootPath, serializableSong.ExternalLyricsPath),
-                    IsMetadata = false,
-                };
-            }
-            else if (!string.IsNullOrEmpty(serializableSong.Lyrics))
-            {
-                lyrics = new Lyrics
+                    lyrics = new Lyrics
+                    {
+                        Id = CreateId("lyrics", serializableSong.ExternalLyricsPath),
+                        FilePath = Path.Combine(rootPath, serializableSong.ExternalLyricsPath),
+                        IsMetadata = false,
+                    };
+                }
+                else if (!string.IsNullOrEmpty(serializableSong.Lyrics))
                 {
-                    Id = CreateId("lyrics", serializableSong.RelativePath),
-                    FilePath = fullPath,
-                    IsMetadata = true,
-                };
-            }
+                    lyrics = new Lyrics
+                    {
+                        Id = CreateId("lyrics", serializableSong.RelativePath),
+                        FilePath = fullPath,
+                        IsMetadata = true,
+                    };
+                }
 
-            // Create CoverArt object if available
-            CoverArt? coverArt = null;
-            var sourceLastWriteTimeUtc = serializableSong.FileLastWriteTime;
+                // Create CoverArt object if available
+                CoverArt? coverArt = null;
+                var sourceLastWriteTimeUtc = serializableSong.FileLastWriteTime;
 
-            if (serializableSong.HasEmbeddedCover)
-            {
-                var coverId = CreateId("cover", serializableSong.RelativePath);
-                coverArt = new CoverArt
+                if (serializableSong.HasEmbeddedCover)
                 {
-                    Id = coverId,
-                    FilePath = fullPath,
-                    IsMetadata = true,
-                    SourceLastWriteTimeUtc = sourceLastWriteTimeUtc,
-                    CachedFilePath = GetCachedCoverArtPath(coverArtCachePath, coverId),
-                };
-            }
-            else if (!string.IsNullOrEmpty(serializableSong.ExternalCoverArtPath))
-            {
-                var externalCoverPath = Path.Combine(rootPath, serializableSong.ExternalCoverArtPath);
-                var coverId = CreateId("cover", serializableSong.ExternalCoverArtPath);
-                var externalLastWriteTimeUtc = File.Exists(externalCoverPath) ? File.GetLastWriteTimeUtc(externalCoverPath) : DateTime.MinValue;
-
-                coverArt = new CoverArt
+                    var coverId = CreateId("cover", serializableSong.RelativePath);
+                    coverArt = new CoverArt
+                    {
+                        Id = coverId,
+                        FilePath = fullPath,
+                        IsMetadata = true,
+                        SourceLastWriteTimeUtc = sourceLastWriteTimeUtc,
+                        CachedFilePath = GetCachedCoverArtPath(coverArtCachePath, coverId),
+                    };
+                }
+                else if (!string.IsNullOrEmpty(serializableSong.ExternalCoverArtPath))
                 {
-                    Id = coverId,
-                    FilePath = externalCoverPath,
-                    IsMetadata = false,
-                    SourceLastWriteTimeUtc = externalLastWriteTimeUtc,
-                    CachedFilePath = GetCachedCoverArtPath(coverArtCachePath, coverId),
+                    var externalCoverPath = Path.Combine(rootPath, serializableSong.ExternalCoverArtPath);
+                    var coverId = CreateId("cover", serializableSong.ExternalCoverArtPath);
+                    var externalLastWriteTimeUtc = File.Exists(externalCoverPath) ? File.GetLastWriteTimeUtc(externalCoverPath) : DateTime.MinValue;
+
+                    coverArt = new CoverArt
+                    {
+                        Id = coverId,
+                        FilePath = externalCoverPath,
+                        IsMetadata = false,
+                        SourceLastWriteTimeUtc = externalLastWriteTimeUtc,
+                        CachedFilePath = GetCachedCoverArtPath(coverArtCachePath, coverId),
+                    };
+                }
+
+                // Cache cover art if configured and needed
+                if (coverArt is not null && !string.IsNullOrEmpty(coverArt.CachedFilePath))
+                {
+                    await EnsureCoverArtCached(coverArt);
+                }
+
+                var song = new Song
+                {
+                    Id = songId,
+                    Title = serializableSong.Title ?? Path.GetFileNameWithoutExtension(serializableSong.RelativePath),
+                    Path = fullPath,
+                    Album = serializableSong.AlbumName ?? string.Empty,
+                    Artist = serializableSong.Artist ?? string.Empty,
+                    AlbumArtist = serializableSong.AlbumArtist ?? serializableSong.Artist ?? string.Empty,
+                    Genre = serializableSong.Genre ?? string.Empty,
+                    Year = serializableSong.Year == 0 ? null : serializableSong.Year,
+                    Track = serializableSong.Track == 0 ? null : serializableSong.Track,
+                    Duration = (int)serializableSong.Duration.TotalSeconds,
+                    BitRate = serializableSong.BitRate == 0 ? null : serializableSong.BitRate,
+                    Size = serializableSong.FileSize,
+                    Created = serializableSong.FileCreatedAt,
+                    Suffix = Path.GetExtension(serializableSong.RelativePath).TrimStart('.').ToLowerInvariant(),
+                    ContentType = GetContentType(Path.GetExtension(serializableSong.RelativePath)),
+                    Lyrics = lyrics,
+                    CoverArt = coverArt,
+                    Isrc = serializableSong.Isrc,
+                    ReplayGainTrackGain = serializableSong.ReplayGainTrackGain,
+                    ReplayGainTrackPeak = serializableSong.ReplayGainTrackPeak,
+                    ReplayGainAlbumGain = serializableSong.ReplayGainAlbumGain,
+                    ReplayGainAlbumPeak = serializableSong.ReplayGainAlbumPeak,
                 };
-            }
 
-            // Cache cover art if configured and needed
-            if (coverArt is not null && !string.IsNullOrEmpty(coverArt.CachedFilePath))
-            {
-                await EnsureCoverArtCached(coverArt);
-            }
+                songsBuilder.Add(song);
+                result._songsById[song.Id] = song;
 
-            var song = new Song
-            {
-                Id = songId,
-                Title = serializableSong.Title ?? Path.GetFileNameWithoutExtension(serializableSong.RelativePath),
-                Path = fullPath,
-                Album = serializableSong.AlbumName ?? string.Empty,
-                Artist = serializableSong.Artist ?? string.Empty,
-                AlbumArtist = serializableSong.AlbumArtist ?? serializableSong.Artist ?? string.Empty,
-                Genre = serializableSong.Genre ?? string.Empty,
-                Year = serializableSong.Year == 0 ? null : serializableSong.Year,
-                Track = serializableSong.Track == 0 ? null : serializableSong.Track,
-                Duration = (int)serializableSong.Duration.TotalSeconds,
-                BitRate = serializableSong.BitRate == 0 ? null : serializableSong.BitRate,
-                Size = serializableSong.FileSize,
-                Created = serializableSong.FileCreatedAt,
-                Suffix = Path.GetExtension(serializableSong.RelativePath).TrimStart('.').ToLowerInvariant(),
-                ContentType = GetContentType(Path.GetExtension(serializableSong.RelativePath)),
-                Lyrics = lyrics,
-                CoverArt = coverArt,
-                Isrc = serializableSong.Isrc,
-                ReplayGainTrackGain = serializableSong.ReplayGainTrackGain,
-                ReplayGainTrackPeak = serializableSong.ReplayGainTrackPeak,
-                ReplayGainAlbumGain = serializableSong.ReplayGainAlbumGain,
-                ReplayGainAlbumPeak = serializableSong.ReplayGainAlbumPeak,
-            };
-
-            songsBuilder.Add(song);
-            result._songsById[song.Id] = song;
-
-            // Add cover art to cache
-            if (coverArt is not null)
-            {
-                result._coverArtsById[coverArt.Id] = coverArt;
+                // Add cover art to cache
+                if (coverArt is not null)
+                {
+                    result._coverArtsById[coverArt.Id] = coverArt;
+                }
             }
         }
 
@@ -154,11 +167,18 @@ public sealed class MusicCatalog
 
         result.LastScanDate = DateTime.UtcNow;
 
+        activity?.SetTag("music.catalog.final_songs", result.Songs.Count);
+        activity?.SetTag("music.catalog.final_artists", result.Artists.Count);
+        activity?.SetTag("music.catalog.final_albums", result.Albums.Count);
+        activity?.SetTag("music.catalog.final_playlists", result.Playlists.Count);
+
         return result;
     }
 
     private async Task BuildAlbumsAndArtists()
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildAlbumsAndArtists");
+        
         var albumDict = new Dictionary<string, List<Song>>(StringComparer.OrdinalIgnoreCase);
         var artistDict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
@@ -257,11 +277,17 @@ public sealed class MusicCatalog
 
         Artists = artistsBuilder.ToImmutable();
 
+        activity?.SetTag("music.catalog.albums_built", Albums.Count);
+        activity?.SetTag("music.catalog.artists_built", Artists.Count);
+
         await Task.CompletedTask;
     }
 
     private async Task BuildPlaylists(List<SerializablePlaylist> serializablePlaylists)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildPlaylists");
+        activity?.SetTag("music.catalog.playlist_count", serializablePlaylists.Count);
+        
         var playlistsBuilder = ImmutableDictionary.CreateBuilder<string, Playlist>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var serializablePlaylist in serializablePlaylists)
@@ -307,6 +333,7 @@ public sealed class MusicCatalog
         }
 
         Playlists = playlistsBuilder.ToImmutable();
+        activity?.SetTag("music.catalog.playlists_built", Playlists.Count);
         await Task.CompletedTask;
     }
 
@@ -351,6 +378,8 @@ public sealed class MusicCatalog
 
     private void BuildDirectoryStructure()
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildDirectoryStructure");
+        
         var directoriesBuilder = ImmutableList.CreateBuilder<MusicDirectory>();
         var directoryDict = new Dictionary<string, MusicDirectory>(StringComparer.Ordinal);
 
@@ -408,6 +437,8 @@ public sealed class MusicCatalog
         {
             _directoriesById[dir.Id] = dir;
         }
+        
+        activity?.SetTag("music.catalog.directories_built", Directories.Count);
     }
 
     private static string CreateId(string context, string id)
@@ -512,8 +543,14 @@ public sealed class MusicCatalog
 
     public CoverArtData? GetCoverArt(string? id)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("GetCoverArt");
+        activity?.SetTag("music.coverart.id", id);
+        
         if (string.IsNullOrEmpty(id))
+        {
+            activity?.SetTag("music.coverart.result", "null_id");
             return null;
+        }
 
         // First, try to find cover art by ID directly using the cache
         if (!_coverArtsById.TryGetValue(id, out var coverArt))
@@ -532,7 +569,13 @@ public sealed class MusicCatalog
         }
 
         if (coverArt is null)
+        {
+            activity?.SetTag("music.coverart.result", "not_found");
             return null;
+        }
+
+        activity?.SetTag("music.coverart.is_metadata", coverArt.IsMetadata);
+        activity?.SetTag("music.coverart.has_cache", !string.IsNullOrEmpty(coverArt.CachedFilePath));
 
         // Try to read from cached file first
         if (!string.IsNullOrEmpty(coverArt.CachedFilePath) && File.Exists(coverArt.CachedFilePath))
@@ -540,21 +583,28 @@ public sealed class MusicCatalog
             try
             {
                 var cachedLastModified = new DateTimeOffset(File.GetLastWriteTimeUtc(coverArt.CachedFilePath), TimeSpan.Zero);
+                var data = File.ReadAllBytes(coverArt.CachedFilePath);
+                activity?.SetTag("music.coverart.result", "from_cache");
+                activity?.SetTag("music.coverart.size_bytes", data.Length);
                 return new CoverArtData
                 {
-                    Data = File.ReadAllBytes(coverArt.CachedFilePath),
+                    Data = data,
                     LastModified = cachedLastModified,
                 };
             }
             catch
             {
+                activity?.SetTag("music.coverart.cache_read_failed", true);
                 // Fall through to read from source
             }
         }
 
         // Read the cover art from source file
         if (!File.Exists(coverArt.FilePath))
+        {
+            activity?.SetTag("music.coverart.result", "source_not_found");
             return null;
+        }
 
         try
         {
@@ -567,6 +617,8 @@ public sealed class MusicCatalog
                 var pictures = tagFile.Tag.Pictures;
                 if (pictures.Length > 0)
                 {
+                    activity?.SetTag("music.coverart.result", "from_metadata");
+                    activity?.SetTag("music.coverart.size_bytes", pictures[0].Data.Data.Length);
                     return new CoverArtData
                     {
                         Data = pictures[0].Data.Data,
@@ -577,26 +629,39 @@ public sealed class MusicCatalog
             else
             {
                 // Read from external file
+                var data = File.ReadAllBytes(coverArt.FilePath);
+                activity?.SetTag("music.coverart.result", "from_external_file");
+                activity?.SetTag("music.coverart.size_bytes", data.Length);
                 return new CoverArtData
                 {
-                    Data = File.ReadAllBytes(coverArt.FilePath),
+                    Data = data,
                     LastModified = lastModified,
                 };
             }
         }
         catch
         {
+            activity?.SetTag("music.coverart.result", "read_error");
             // Ignore errors reading cover art
         }
 
+        activity?.SetTag("music.coverart.result", "failed");
         return null;
     }
 
     public string? GetLyrics(string songId)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("GetLyrics");
+        activity?.SetTag("music.lyrics.song_id", songId);
+        
         var song = GetSong(songId);
         if (song?.Lyrics is null)
+        {
+            activity?.SetTag("music.lyrics.result", "not_found");
             return null;
+        }
+
+        activity?.SetTag("music.lyrics.is_metadata", song.Lyrics.IsMetadata);
 
         try
         {
@@ -604,7 +669,13 @@ public sealed class MusicCatalog
             {
                 // Read from embedded metadata
                 using var tagFile = TagLib.File.Create(song.Lyrics.FilePath);
-                return tagFile.Tag.Lyrics;
+                var lyrics = tagFile.Tag.Lyrics;
+                activity?.SetTag("music.lyrics.result", "from_metadata");
+                if (lyrics is not null)
+                {
+                    activity?.SetTag("music.lyrics.length", lyrics.Length);
+                }
+                return lyrics;
             }
             else
             {
@@ -614,17 +685,24 @@ public sealed class MusicCatalog
                 // If it's an LRC file, parse it
                 if (song.Lyrics.FilePath.EndsWith(".lrc", StringComparison.OrdinalIgnoreCase))
                 {
-                    return ParseLrcFile(lyricsText);
+                    var parsed = ParseLrcFile(lyricsText);
+                    activity?.SetTag("music.lyrics.result", "from_lrc_file");
+                    activity?.SetTag("music.lyrics.length", parsed.Length);
+                    return parsed;
                 }
 
+                activity?.SetTag("music.lyrics.result", "from_text_file");
+                activity?.SetTag("music.lyrics.length", lyricsText.Length);
                 return lyricsText;
             }
         }
         catch
         {
+            activity?.SetTag("music.lyrics.result", "read_error");
             // Ignore errors reading lyrics
         }
 
+        activity?.SetTag("music.lyrics.result", "failed");
         return null;
     }
 
@@ -679,8 +757,14 @@ public sealed class MusicCatalog
 
     private static async Task EnsureCoverArtCached(CoverArt coverArt)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("EnsureCoverArtCached");
+        activity?.SetTag("music.coverart.id", coverArt.Id);
+        
         if (coverArt.CachedFilePath.IsEmpty)
+        {
+            activity?.SetTag("music.coverart.cache_result", "no_cache_path");
             return;
+        }
 
         // Check if cached file exists and is up to date
         if (File.Exists(coverArt.CachedFilePath))
@@ -688,6 +772,7 @@ public sealed class MusicCatalog
             var cachedLastWriteTime = File.GetLastWriteTimeUtc(coverArt.CachedFilePath);
             if (cachedLastWriteTime >= coverArt.SourceLastWriteTimeUtc)
             {
+                activity?.SetTag("music.coverart.cache_result", "up_to_date");
                 // Cache is up to date
                 return;
             }
@@ -722,10 +807,13 @@ public sealed class MusicCatalog
                 await File.WriteAllBytesAsync(coverArt.CachedFilePath, imageData);
                 // Update the cached file's last write time to match the source
                 File.SetLastWriteTimeUtc(coverArt.CachedFilePath, coverArt.SourceLastWriteTimeUtc);
+                activity?.SetTag("music.coverart.cache_result", "cached");
+                activity?.SetTag("music.coverart.size_bytes", imageData.Length);
             }
         }
         catch
         {
+            activity?.SetTag("music.coverart.cache_result", "error");
             // Ignore errors caching cover art
         }
     }

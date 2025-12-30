@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Meziantou.MusicApp.Server.Models;
 
 /// <summary>Represents the data and metadata for a cover art image.</summary>

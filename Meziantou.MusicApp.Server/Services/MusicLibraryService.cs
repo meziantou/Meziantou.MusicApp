@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
-using System.Security.Cryptography;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Xml.Linq;
 using Meziantou.MusicApp.Server.Models;
+using Meziantou.MusicApp.Server.Telemetry;
 using Meziantou.Framework;
 using Microsoft.Extensions.Options;
 
@@ -143,19 +144,24 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     public async Task ScanMusicLibrary()
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicLibrary");
         var rootFolder = RootFolder;
+        activity?.SetTag("music.library.root_path", rootFolder.Value);
+        
         var lockAcquired = false;
         try
         {
             if (!Directory.Exists(rootFolder))
             {
                 logger.LogWarning("Music folder path does not exist: {Path}", rootFolder);
+                activity?.SetStatus(ActivityStatusCode.Error, "Music folder path does not exist");
                 return;
             }
 
             if (!_scanSemaphore.Wait(0, _cancellationToken))
             {
                 logger.LogInformation("Library scan already in progress, skipping concurrent scan request");
+                activity?.SetStatus(ActivityStatusCode.Error, "Library scan already in progress");
                 return;
             }
 
@@ -166,22 +172,30 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 .Select(FullPath.FromPath)
                 .ToArray();
 
+            activity?.SetTag("music.library.total_files", files.Length);
+
             var audioFiles = files.Where(f => AudioExtensions.Contains(f.Extension, StringComparer.OrdinalIgnoreCase)).ToArray();
 
             _totalFilesToScan = audioFiles.Length;
             _processedFilesCount = 0;
             _scanStartTime = DateTime.UtcNow;
 
+            activity?.SetTag("music.library.audio_files", audioFiles.Length);
+
             // Build a lookup dictionary from cached songs for incremental scanning
             var cachedSongsByPath = _cachedSerializableCatalog?.Songs
                 .ToImmutableDictionary(s => s.RelativePath, s => s, StringComparer.Ordinal)
                 ?? [];
+
+            activity?.SetTag("music.library.cached_songs", cachedSongsByPath.Count);
 
             IndexerContext CreateContext(FullPath path) => new IndexerContext(rootFolder, path, library, cachedSongsByPath);
 
             var maxDegreeOfParallelism = options.Value.MaxDegreeOfParallelismForScan > 0
                 ? options.Value.MaxDegreeOfParallelismForScan
                 : Environment.ProcessorCount;
+
+            activity?.SetTag("music.library.max_degree_of_parallelism", maxDegreeOfParallelism);
 
             await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism, CancellationToken = _cancellationToken }, async (file, cancellationToken) =>
             {
@@ -191,37 +205,54 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             });
 
             // Scan existing XSPF playlists
-            foreach (var file in files)
+            using (var playlistActivity = MusicLibraryActivitySource.Instance.StartActivity("ScanXspfPlaylists"))
             {
-                if (XspfPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+                var xspfCount = 0;
+                foreach (var file in files)
                 {
-                    logger.LogInformation("Scanning XSPF playlist: {Path}", file);
-                    await ScanXspfPlaylist(CreateContext(file));
+                    if (XspfPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+                    {
+                        logger.LogInformation("Scanning XSPF playlist: {Path}", file);
+                        await ScanXspfPlaylist(CreateContext(file));
+                        xspfCount++;
+                    }
                 }
+                playlistActivity?.SetTag("music.library.xspf_playlists", xspfCount);
             }
 
             // Convert M3U/M3U8 files to XSPF format and scan them
-            foreach (var file in files)
+            using (var m3uActivity = MusicLibraryActivitySource.Instance.StartActivity("ConvertM3uPlaylists"))
             {
-                if (M3uPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+                var m3uCount = 0;
+                foreach (var file in files)
                 {
-                    logger.LogInformation("Converting and scanning M3U playlist: {Path}", file);
-                    var xspfPath = await ConvertM3uToXspf(CreateContext(file));
-                    if (xspfPath != null)
+                    if (M3uPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
                     {
-                        await ScanXspfPlaylist(CreateContext(xspfPath.Value));
+                        logger.LogInformation("Converting and scanning M3U playlist: {Path}", file);
+                        var xspfPath = await ConvertM3uToXspf(CreateContext(file));
+                        if (xspfPath != null)
+                        {
+                            await ScanXspfPlaylist(CreateContext(xspfPath.Value));
+                        }
+                        m3uCount++;
                     }
                 }
+                m3uActivity?.SetTag("music.library.m3u_playlists", m3uCount);
             }
 
             var cachePath = GetCacheJsonPath();
             if (!cachePath.IsEmpty)
             {
+                using var cacheActivity = MusicLibraryActivitySource.Instance.StartActivity("CacheLibrary");
+                cacheActivity?.SetTag("music.library.cache_path", cachePath.Value);
+                
                 var tempCachePath = FullPath.FromPath(cachePath.Value + ".tmp");
                 try
                 {
                     logger.LogInformation("Caching music library to {Path}", cachePath);
                     var json = JsonSerializer.Serialize(library, JsonOptions);
+                    cacheActivity?.SetTag("music.library.cache_size_bytes", json.Length);
+                    
                     tempCachePath.CreateParentDirectory();
                     cachePath.CreateParentDirectory();
                     await File.WriteAllTextAsync(tempCachePath, json, CancellationToken.None);
@@ -231,6 +262,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Error caching music library to {Path}", cachePath);
+                    cacheActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
                     try
                     {
@@ -248,6 +280,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             _catalog = await CreateCatalog(library);
             _scanCount = _catalog.Songs.Count;
 
+            activity?.SetTag("music.library.songs_count", _catalog.Songs.Count);
+            activity?.SetTag("music.library.artists_count", _catalog.Artists.Count);
+            activity?.SetTag("music.library.albums_count", _catalog.Albums.Count);
+            activity?.SetTag("music.library.playlists_count", _catalog.Playlists.Count);
+
             logger.LogInformation("Music library scan complete. Found {FileCount} files, {ArtistCount} artists, {AlbumCount} albums, {PlaylistCount} playlists",
                 _catalog.Songs.Count, _catalog.Artists.Count, _catalog.Albums.Count, _catalog.Playlists.Count);
         }
@@ -255,6 +292,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             _initialScanCompleted.TrySetException(ex);
             logger.LogError(ex, "Error scanning music library at {Path}", rootFolder);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
         finally
@@ -270,17 +308,25 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     private async Task ScanMusicFile(IndexerContext context)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicFile");
+        activity?.SetTag("music.file.path", context.RelativePath);
+        
         try
         {
             var fileInfo = new FileInfo(context.Path);
             var relativePath = context.RelativePath;
             var fileLastWriteTime = fileInfo.LastWriteTimeUtc;
 
+            activity?.SetTag("music.file.size_bytes", fileInfo.Length);
+            activity?.SetTag("music.file.extension", context.Path.Extension);
+
             // Check if we have a cached version of this song and if the file hasn't changed
             if (context.CachedSongsByPath.TryGetValue(relativePath, out var cachedSong) &&
                 TruncateMilliseconds(cachedSong.FileLastWriteTime) >= TruncateMilliseconds(fileLastWriteTime) &&
                 cachedSong.FileSize == fileInfo.Length)
             {
+                activity?.SetTag("music.file.from_cache", true);
+                
                 // File hasn't changed, reuse cached metadata
                 // Check if external files (LRC, cover art) still exist
                 var song = new SerializableSong
@@ -342,6 +388,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             }
 
             // File is new or has changed, read metadata from file
+            activity?.SetTag("music.file.from_cache", false);
+            
             var newSong = new SerializableSong
             {
                 RelativePath = relativePath,
@@ -555,6 +603,9 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     private async Task ComputeReplayGainAsync(FullPath filePath, SerializableSong song)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("ComputeReplayGain");
+        activity?.SetTag("music.file.path", filePath.Value);
+        
         try
         {
             var result = await replayGainService.AnalyzeTrackAsync(filePath);
@@ -562,20 +613,37 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             {
                 song.ReplayGainTrackGain = result.TrackGain;
                 song.ReplayGainTrackPeak = result.TrackPeak;
+                
+                activity?.SetTag("music.replaygain.track_gain", result.TrackGain);
+                activity?.SetTag("music.replaygain.track_peak", result.TrackPeak);
+                
                 logger.LogInformation("Computed ReplayGain for {Path}: Gain={Gain:F2}dB, Peak={Peak:F6}", filePath, result.TrackGain, result.TrackPeak);
 
                 // Write ReplayGain tags back to the file
                 WriteReplayGainTags(filePath, result.TrackGain, result.TrackPeak);
             }
+            else
+            {
+                activity?.SetTag("music.replaygain.computed", false);
+            }
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to compute ReplayGain for {Path}", filePath);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
         }
     }
 
     private void WriteReplayGainTags(FullPath filePath, double trackGain, double? trackPeak)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("WriteReplayGainTags");
+        activity?.SetTag("music.file.path", filePath.Value);
+        activity?.SetTag("music.replaygain.track_gain", trackGain);
+        if (trackPeak.HasValue)
+        {
+            activity?.SetTag("music.replaygain.track_peak", trackPeak.Value);
+        }
+        
         FullPath tempFilePath = FullPath.FromPath(filePath.Value + ".tmp");
 
         try
@@ -886,7 +954,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             Id = Playlist.AllSongsPlaylistId,
             Name = "All Songs",
-            Path = string.Empty, // Virtual playlists don't have a file path
+            Path = string.Empty,
             SongCount = items.Count,
             Duration = items.Sum(i => i.Song.Duration),
             Created = DateTime.UtcNow,
@@ -936,7 +1004,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             Id = Playlist.MissingTracksPlaylistId,
             Name = "⚠️ Missing Tracks",
-            Path = string.Empty, // Virtual playlists don't have a file path
+            Path = string.Empty,
             SongCount = items.Count,
             Duration = 0,
             Created = DateTime.UtcNow,
@@ -1116,6 +1184,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     public async Task<Playlist> CreatePlaylist(string name, string? comment, List<string> songIds)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("CreatePlaylist");
+        activity?.SetTag("music.playlist.name", name);
+        activity?.SetTag("music.playlist.song_count", songIds.Count);
+        
         var rootFolder = RootFolder;
 
         // Generate a unique filename
@@ -1176,6 +1248,17 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     public async Task<Playlist> UpdatePlaylist(string playlistId, string? name, string? comment, List<string>? songIds)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("UpdatePlaylist");
+        activity?.SetTag("music.playlist.id", playlistId);
+        if (name is not null)
+        {
+            activity?.SetTag("music.playlist.new_name", name);
+        }
+        if (songIds is not null)
+        {
+            activity?.SetTag("music.playlist.song_count", songIds.Count);
+        }
+        
         // Prevent modification of virtual playlists
         if (Playlist.IsVirtualPlaylist(playlistId))
         {
@@ -1306,6 +1389,9 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     public async Task DeletePlaylist(string playlistId)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("DeletePlaylist");
+        activity?.SetTag("music.playlist.id", playlistId);
+        
         // Prevent deletion of virtual playlists
         if (Playlist.IsVirtualPlaylist(playlistId))
         {
@@ -1333,6 +1419,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     public async Task<Playlist> RenamePlaylist(string playlistId, string newName)
     {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("RenamePlaylist");
+        activity?.SetTag("music.playlist.id", playlistId);
+        activity?.SetTag("music.playlist.new_name", newName);
+        
         // Prevent renaming of virtual playlists
         if (Playlist.IsVirtualPlaylist(playlistId))
         {
