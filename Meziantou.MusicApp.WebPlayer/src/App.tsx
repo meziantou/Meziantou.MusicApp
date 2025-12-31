@@ -40,6 +40,13 @@ function AppContent() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+F to focus search (works even when in inputs)
+      if (e.ctrlKey && e.code === 'KeyF') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('focusSearchInput'));
+        return;
+      }
+
       // Ignore when typing in inputs
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;

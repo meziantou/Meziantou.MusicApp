@@ -33,6 +33,7 @@ export function TrackList() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackInfo; index: number } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastRestoredPlaylistId = useRef<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [sortOption, setSortOption] = useState<SortOption>('added');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -115,6 +116,23 @@ export function TrackList() {
     }
   }, [currentPlaylistId, filteredTracks]);
 
+  // Listen for focus search input requests
+  useEffect(() => {
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+
+    window.addEventListener('focusSearchInput', handleFocusSearch);
+    return () => window.removeEventListener('focusSearchInput', handleFocusSearch);
+  }, []);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      handleClearSearch();
+    }
+  };
+
   // Listen for scroll requests from PlayerBar
   useEffect(() => {
     const handleScrollRequest = () => {
@@ -149,8 +167,10 @@ export function TrackList() {
 
   const handleClearSearch = () => {
     setSearchQuery('');
-    const input = document.querySelector('.search-input') as HTMLInputElement;
-    if (input) input.value = '';
+    if (searchInputRef.current) {
+      searchInputRef.current.value = '';
+      searchInputRef.current.blur();
+    }
   };
 
   const handleTrackDoubleClick = (track: TrackInfo, index: number) => {
@@ -198,11 +218,13 @@ export function TrackList() {
             <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
           </svg>
           <input
+            ref={searchInputRef}
             type="search"
             className="search-input"
             placeholder="Search tracks..."
             aria-label="Search tracks"
             onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
           />
           <button
             className={`search-clear ${!searchQuery ? 'hidden' : ''}`}
