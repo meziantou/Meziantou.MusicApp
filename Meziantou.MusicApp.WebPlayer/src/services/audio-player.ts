@@ -76,6 +76,10 @@ export class AudioPlayerService {
   private saveStateDebounced: ReturnType<typeof setTimeout> | null = null;
   private lastSaveTime: number = 0;
 
+  // Recently played tracks for filtering out recently heard songs from the queue
+  private recentlyPlayedIds: Set<string> = new Set();
+  private static readonly RECENTLY_PLAYED_MAX_COUNT = 300;
+
   constructor() {
     this.audioInstance = this.createAudioInstance();
     this.setupAudioEvents(this.audioInstance);
@@ -557,6 +561,9 @@ export class AudioPlayerService {
     this.emit('trackchange', { track, quality: this.currentQuality ?? undefined });
     this.saveState();
 
+    // Record the track as recently played
+    this.recordRecentlyPlayed(track.id);
+
     if (autoPlay) {
       try {
         await this.play();
@@ -675,6 +682,25 @@ export class AudioPlayerService {
       queue: this.queue
     };
     await storageService.savePlaybackState(state);
+  }
+
+  private recordRecentlyPlayed(trackId: string): void {
+    // Add to local cache
+    this.recentlyPlayedIds.add(trackId);
+
+    // Persist to storage and cleanup old entries in the background
+    storageService.addRecentlyPlayed(trackId)
+      .then(() => storageService.cleanupOldRecentlyPlayed(AudioPlayerService.RECENTLY_PLAYED_MAX_COUNT))
+      .catch((err) => console.error('Failed to save recently played track:', err));
+  }
+
+  async loadRecentlyPlayed(): Promise<void> {
+    try {
+      this.recentlyPlayedIds = await storageService.getRecentlyPlayedIds(AudioPlayerService.RECENTLY_PLAYED_MAX_COUNT);
+    } catch (err) {
+      console.error('Failed to load recently played tracks:', err);
+      this.recentlyPlayedIds = new Set();
+    }
   }
 
   // Public methods
@@ -1079,6 +1105,8 @@ export class AudioPlayerService {
     // Track items we've considered to detect when all playlist items are already queued
     let consideredCount = 0;
     let skippedDuplicates = 0;
+    let skippedRecentlyPlayed = 0;
+    let allowRecentlyPlayed = false;
 
     while (addedCount < neededCount) {
       for (let i = startIndex; i < this.playlist.length && addedCount < neededCount; i++) {
@@ -1107,6 +1135,18 @@ export class AudioPlayerService {
             continue;
           }
         }
+
+        // Skip recently played tracks when possible (to reduce repetition)
+        if (!allowRecentlyPlayed && this.recentlyPlayedIds.has(track.id)) {
+          skippedRecentlyPlayed++;
+          // If we've skipped many recently played tracks, allow them to avoid empty queue
+          if (skippedRecentlyPlayed >= this.playlist.length) {
+            allowRecentlyPlayed = true;
+            // Don't skip this track since we're now allowing recently played
+          } else {
+            continue;
+          }
+        }
         
         newItems.push({
           track: track,
@@ -1123,6 +1163,10 @@ export class AudioPlayerService {
         loopOffset++;
         if (loopOffset > 5) break; // Safety break
         startIndex = 0;
+        // On subsequent loops, allow recently played tracks since we've gone through all
+        if (loopOffset > 1) {
+          allowRecentlyPlayed = true;
+        }
       } else {
         break;
       }

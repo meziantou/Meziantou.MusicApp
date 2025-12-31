@@ -165,6 +165,10 @@ export function AppProvider({ children }: AppProviderProps) {
         const offlinePlaylists = await storageService.getOfflinePlaylistIds();
         setOfflinePlaylistIds(offlinePlaylists);
 
+        // Load recently played tracks for queue filtering
+        await playerActions.loadRecentlyPlayed();
+        console.log('[useApp] Recently played tracks loaded');
+
         setIsInitialized(true);
         console.log('[useApp] Initialization complete');
       } catch (error) {

@@ -44,6 +44,7 @@ export interface AudioPlayerActions {
   restoreState: (state: PlaybackState) => Promise<void>;
   getCurrentPlaylistId: () => string | null;
   getCurrentIndex: () => number;
+  loadRecentlyPlayed: () => Promise<void>;
 }
 
 export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
@@ -214,6 +215,7 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     },
     getCurrentPlaylistId: () => audioPlayer.getCurrentPlaylistId(),
     getCurrentIndex: () => audioPlayer.getCurrentIndex(),
+    loadRecentlyPlayed: () => audioPlayer.loadRecentlyPlayed(),
   }), []);
 
   return [state, actions];

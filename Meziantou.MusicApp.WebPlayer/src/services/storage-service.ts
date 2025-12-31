@@ -61,10 +61,20 @@ interface MusicPlayerDB extends DBSchema {
       timestamp: number;
     };
   };
+  recentlyPlayed: {
+    key: string;
+    value: {
+      trackId: string;
+      playedAt: number;
+    };
+    indexes: {
+      'by-played-at': number;
+    };
+  };
 }
 
 const DB_NAME = 'meziantou-music-player';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 class StorageService {
   private db: IDBPDatabase<MusicPlayerDB> | null = null;
@@ -127,6 +137,12 @@ class StorageService {
         // Pending scrobbles store
         if (!db.objectStoreNames.contains('pendingScrobbles')) {
           db.createObjectStore('pendingScrobbles', { keyPath: 'id', autoIncrement: true });
+        }
+
+        // Recently played tracks store
+        if (!db.objectStoreNames.contains('recentlyPlayed')) {
+          const recentlyPlayedStore = db.createObjectStore('recentlyPlayed', { keyPath: 'trackId' });
+          recentlyPlayedStore.createIndex('by-played-at', 'playedAt');
         }
       }
     });
@@ -437,6 +453,55 @@ class StorageService {
       };
     }
     return null;
+  }
+
+  // Recently Played Tracks
+  async addRecentlyPlayed(trackId: string): Promise<void> {
+    const db = await this.init();
+    await db.put('recentlyPlayed', { trackId, playedAt: Date.now() });
+  }
+
+  async getRecentlyPlayedIds(maxCount: number = 100): Promise<Set<string>> {
+    const db = await this.init();
+    const tx = db.transaction('recentlyPlayed', 'readonly');
+    const index = tx.store.index('by-played-at');
+
+    const ids = new Set<string>();
+    let cursor = await index.openCursor(null, 'prev'); // Start from most recent
+
+    while (cursor && ids.size < maxCount) {
+      ids.add(cursor.value.trackId);
+      cursor = await cursor.continue();
+    }
+
+    return ids;
+  }
+
+  async clearRecentlyPlayed(): Promise<void> {
+    const db = await this.init();
+    await db.clear('recentlyPlayed');
+  }
+
+  async cleanupOldRecentlyPlayed(maxCount: number = 100): Promise<void> {
+    const db = await this.init();
+    const tx = db.transaction('recentlyPlayed', 'readwrite');
+    const index = tx.store.index('by-played-at');
+
+    // Get all entries sorted by playedAt (most recent first)
+    const entries: { trackId: string; playedAt: number }[] = [];
+    let cursor = await index.openCursor(null, 'prev');
+
+    while (cursor) {
+      entries.push(cursor.value);
+      cursor = await cursor.continue();
+    }
+
+    // Delete entries beyond maxCount
+    for (let i = maxCount; i < entries.length; i++) {
+      await tx.store.delete(entries[i].trackId);
+    }
+
+    await tx.done;
   }
 }
 

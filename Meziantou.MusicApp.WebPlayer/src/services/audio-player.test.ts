@@ -17,6 +17,9 @@ vi.mock('./storage-service', () => ({
     savePlaybackState: vi.fn(),
     saveSettings: vi.fn(),
     init: vi.fn(),
+    addRecentlyPlayed: vi.fn().mockResolvedValue(undefined),
+    getRecentlyPlayedIds: vi.fn().mockResolvedValue(new Set()),
+    cleanupOldRecentlyPlayed: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
