@@ -92,6 +92,15 @@ function AppContent() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [playerActions]);
 
+  // Show loading screen until initialized
+  if (!isInitialized) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="app-layout">

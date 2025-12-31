@@ -108,10 +108,15 @@ export class AudioPlayerService {
     this.audioContext = new AudioContext();
     this.masterGainNode = this.audioContext.createGain();
     this.masterGainNode.connect(this.audioContext.destination);
-    this.masterGainNode.gain.value = this.linearToLogarithmic(this.masterVolume);
+    // Apply volume respecting the muted state
+    this.masterGainNode.gain.value = this.isMuted ? 0 : this.linearToLogarithmic(this.masterVolume);
     
     // Connect audio element to the audio context
     this.connectAudioInstance(this.audioInstance);
+
+    // Emit volumechange to sync React state with actual audio player state
+    // This ensures the UI reflects the correct volume after AudioContext initialization
+    this.emit('volumechange', { volume: this.masterVolume });
   }
   
   private connectAudioInstance(instance: AudioInstance): void {
