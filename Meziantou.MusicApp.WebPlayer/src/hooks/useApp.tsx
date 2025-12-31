@@ -412,6 +412,11 @@ export function AppProvider({ children }: AppProviderProps) {
           // Remove from offline playlists if it was marked as offline
           if (currentOfflinePlaylists.has(cachedPlaylist.playlist.id)) {
             await storageService.setPlaylistOffline(cachedPlaylist.playlist.id, false);
+            setOfflinePlaylistIds(prev => {
+              const next = new Set(prev);
+              next.delete(cachedPlaylist.playlist.id);
+              return next;
+            });
           }
 
           // Remove from offline playlist tracks
@@ -1061,6 +1066,13 @@ export function AppProvider({ children }: AppProviderProps) {
 
   // Stop caching a playlist and optionally delete cached tracks
   const stopPlaylistCaching = useCallback(async (playlistId: string) => {
+    const playlist = playlists.find(p => p.id === playlistId);
+    const playlistName = playlist?.name ?? 'this playlist';
+    const confirmed = window.confirm(`Are you sure you want to remove "${playlistName}" from offline cache?`);
+    if (!confirmed) {
+      return;
+    }
+
     // Cancel pending downloads for this playlist
     downloadService.cancelPlaylistDownloads(playlistId);
 
@@ -1090,7 +1102,7 @@ export function AppProvider({ children }: AppProviderProps) {
     await storageService.cleanupOrphanedTracks();
 
     showToast('Removed offline playlist');
-  }, [showToast]);
+  }, [playlists, showToast]);
 
   const value: AppContextValue = {
     settings,
