@@ -615,7 +615,7 @@ export class AudioPlayerService {
     
     this.emit('queuechange', {});
     
-    // Replenish queue if needed (keep it at ~200 items for repeat mode)
+    // Replenish queue if needed (triggers at <100 items, adds 100 items to reach ~200)
     if (this.repeatMode !== 'off' || this.queue.filter(i => i.source === 'playlist').length < 10) {
       this.replenishPlaylistQueue();
     } else {
@@ -1063,6 +1063,7 @@ export class AudioPlayerService {
   /**
    * Ensures the queue has enough playlist items.
    * Only adds new items if needed - doesn't rebuild existing queue.
+   * Replenishment triggers when queue drops below 100 items, then adds 100 items to reach ~200.
    */
   private replenishPlaylistQueue(): void {
     if (!this.currentPlaylistId || this.playlist.length === 0) return;
@@ -1070,11 +1071,14 @@ export class AudioPlayerService {
     // Count existing playlist items in queue
     const existingPlaylistItems = this.queue.filter(item => item.source === 'playlist').length;
     
-    // Calculate how many more we need
-    const targetCount = this.repeatMode !== 'off' ? 200 : Math.min(200, this.playlist.length - this.currentIndex - 1);
-    const neededCount = targetCount - existingPlaylistItems;
+    // Only replenish when queue drops below threshold (100 items)
+    const replenishThreshold = 100;
+    if (existingPlaylistItems >= replenishThreshold) return;
     
-    if (neededCount <= 0) return;
+    // When replenishing, add 100 new items to bring total back to ~200
+    const itemsToAdd = this.repeatMode !== 'off' ? 100 : Math.min(100, this.playlist.length - this.currentIndex - 1 - existingPlaylistItems);
+    
+    if (itemsToAdd <= 0) return;
     
     // Build a set of track IDs already in the queue to avoid duplicates
     const queueTrackIds = new Set(this.queue.map(item => item.track.id));
@@ -1108,8 +1112,8 @@ export class AudioPlayerService {
     let skippedRecentlyPlayed = 0;
     let allowRecentlyPlayed = false;
 
-    while (addedCount < neededCount) {
-      for (let i = startIndex; i < this.playlist.length && addedCount < neededCount; i++) {
+    while (addedCount < itemsToAdd) {
+      for (let i = startIndex; i < this.playlist.length && addedCount < itemsToAdd; i++) {
         const actualIndex = this.shuffleEnabled && this.shuffleOrder.length > 0
           ? this.shuffleOrder[i]
           : i;
@@ -1159,7 +1163,7 @@ export class AudioPlayerService {
       }
       
       // If repeat mode is on and we need more, loop from the beginning
-      if (this.repeatMode === 'all' && addedCount < neededCount && this.playlist.length > 0) {
+      if (this.repeatMode === 'all' && addedCount < itemsToAdd && this.playlist.length > 0) {
         loopOffset++;
         if (loopOffset > 5) break; // Safety break
         startIndex = 0;
