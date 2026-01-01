@@ -40,6 +40,38 @@ export default defineConfig({
             type: 'image/png',
             purpose: 'any maskable'
           }
+        ],
+        shortcuts: [
+          {
+            name: 'Play',
+            url: '/?action=play',
+            description: 'Resume playback'
+          },
+          {
+            name: 'Pause',
+            url: '/?action=pause',
+            description: 'Pause playback'
+          },
+          {
+            name: 'Next',
+            url: '/?action=next',
+            description: 'Skip to next track'
+          },
+          {
+            name: 'Previous',
+            url: '/?action=previous',
+            description: 'Go to previous track'
+          },
+          {
+            name: 'Volume Up',
+            url: '/?action=volumeup',
+            description: 'Increase volume'
+          },
+          {
+            name: 'Volume Down',
+            url: '/?action=volumedown',
+            description: 'Decrease volume'
+          }
         ]
       },
       workbox: {

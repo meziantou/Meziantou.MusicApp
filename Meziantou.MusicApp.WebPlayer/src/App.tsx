@@ -27,6 +27,40 @@ function AppContent() {
     }
   }, [isInitialized, settings.serverUrl]);
 
+  // Handle PWA shortcut actions from URL parameters
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const action = url.searchParams.get('action');
+    
+    if (action) {
+      // Remove the action parameter from URL to avoid repeated execution
+      url.searchParams.delete('action');
+      window.history.replaceState({}, '', url.toString());
+      
+      // Execute the shortcut action
+      switch (action) {
+        case 'play':
+          playerActions.play();
+          break;
+        case 'pause':
+          playerActions.pause();
+          break;
+        case 'next':
+          playerActions.next();
+          break;
+        case 'previous':
+          playerActions.previous();
+          break;
+        case 'volumeup':
+          playerActions.setVolume(Math.min(2, audioPlayer.getVolume() + 0.1));
+          break;
+        case 'volumedown':
+          playerActions.setVolume(Math.max(0, audioPlayer.getVolume() - 0.1));
+          break;
+      }
+    }
+  }, [playerActions]);
+
   // Listen for view song details events
   useEffect(() => {
     const handleViewDetails = (e: CustomEvent<TrackInfo>) => {
