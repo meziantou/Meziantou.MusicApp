@@ -13,7 +13,7 @@ import {
 } from './components';
 import './styles/main.css';
 
-const VOLUME_STEP = 0.1;
+const VOLUME_STEP = 0.05;
 
 function AppContent() {
   const { isLoading, settings, isInitialized, playerActions } = useApp();
