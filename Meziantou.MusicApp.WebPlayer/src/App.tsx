@@ -13,6 +13,8 @@ import {
 } from './components';
 import './styles/main.css';
 
+const VOLUME_STEP = 0.1;
+
 function AppContent() {
   const { isLoading, settings, isInitialized, playerActions } = useApp();
   const [queueOpen, setQueueOpen] = useState(false);
@@ -52,10 +54,10 @@ function AppContent() {
           playerActions.previous();
           break;
         case 'volumeup':
-          playerActions.setVolume(Math.min(2, audioPlayer.getVolume() + 0.1));
+          playerActions.setVolume(Math.min(2, audioPlayer.getVolume() + VOLUME_STEP));
           break;
         case 'volumedown':
-          playerActions.setVolume(Math.max(0, audioPlayer.getVolume() - 0.1));
+          playerActions.setVolume(Math.max(0, audioPlayer.getVolume() - VOLUME_STEP));
           break;
       }
     }
