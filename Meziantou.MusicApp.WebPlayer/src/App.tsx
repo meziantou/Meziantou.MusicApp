@@ -10,6 +10,7 @@ import {
   SettingsDialog,
   CacheDiagnosticsDialog,
   SongDetailsDialog,
+  UpdateNotification,
 } from './components';
 import './styles/main.css';
 
@@ -184,6 +185,8 @@ function AppContent() {
         track={songDetailsTrack}
         onClose={() => setSongDetailsTrack(null)}
       />
+
+      <UpdateNotification />
 
       {isLoading && (
         <div className="loading-overlay">

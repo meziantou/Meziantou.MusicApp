@@ -7,3 +7,4 @@ export { CacheDiagnosticsDialog } from './CacheDiagnosticsDialog';
 export { SongDetailsDialog } from './SongDetailsDialog';
 export { PlayingIndicator } from './PlayingIndicator';
 export { CoverImage } from './CoverImage';
+export { UpdateNotification } from './UpdateNotification';

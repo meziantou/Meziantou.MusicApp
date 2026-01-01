@@ -3,31 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles/main.css';
 
-// Register service worker for PWA (production only).
-// In dev, ensure no lingering service worker interferes with Vite HMR.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    if (import.meta.env.DEV) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map(r => r.unregister()));
-      } catch {
-        // Ignore cleanup errors in dev
-      }
-      return;
-    }
-
-    try {
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
-      });
-      console.log('Service Worker registered:', registration.scope);
-    } catch (error) {
-      console.log('Service Worker registration failed:', error);
-    }
-  });
-}
-
 // PWA install prompt
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
