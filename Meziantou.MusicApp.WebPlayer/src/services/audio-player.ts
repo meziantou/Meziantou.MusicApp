@@ -300,10 +300,16 @@ export class AudioPlayerService {
         await getApiService().scrobble(trackId, submission);
       } catch (error) {
         console.error('Scrobble failed, saving for later', error);
-        await storageService.addPendingScrobble(trackId, submission);
+        // Only save submissions (actual scrobbles) to pending, not "now playing" notifications
+        if (submission) {
+          await storageService.addPendingScrobble(trackId, submission);
+        }
       }
     } else {
-      await storageService.addPendingScrobble(trackId, submission);
+      // Only save submissions (actual scrobbles) to pending when offline, not "now playing" notifications
+      if (submission) {
+        await storageService.addPendingScrobble(trackId, submission);
+      }
     }
   }
 
