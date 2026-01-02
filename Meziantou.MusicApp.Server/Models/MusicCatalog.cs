@@ -38,7 +38,7 @@ public sealed class MusicCatalog
         activity?.SetTag("music.catalog.total_songs", serializableCatalog.Songs.Count);
         activity?.SetTag("music.catalog.total_playlists", serializableCatalog.Playlist.Count);
         activity?.SetTag("music.catalog.root_path", rootPath.Value);
-        
+
         var result = new MusicCatalog(rootPath);
         var songsBuilder = ImmutableList.CreateBuilder<Song>();
 
@@ -46,7 +46,7 @@ public sealed class MusicCatalog
         using (var songsActivity = MusicLibraryActivitySource.Instance.StartActivity("CreateSongs"))
         {
             songsActivity?.SetTag("music.catalog.song_count", serializableCatalog.Songs.Count);
-            
+
             foreach (var serializableSong in serializableCatalog.Songs)
             {
                 var fullPath = Path.Combine(rootPath, serializableSong.RelativePath);
@@ -182,7 +182,7 @@ public sealed class MusicCatalog
     private async Task BuildAlbumsAndArtists()
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildAlbumsAndArtists");
-        
+
         var albumDict = new Dictionary<string, List<Song>>(StringComparer.OrdinalIgnoreCase);
         var artistDict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
@@ -291,7 +291,7 @@ public sealed class MusicCatalog
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildPlaylists");
         activity?.SetTag("music.catalog.playlist_count", serializablePlaylists.Count);
-        
+
         var playlistsBuilder = ImmutableDictionary.CreateBuilder<string, Playlist>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var serializablePlaylist in serializablePlaylists)
@@ -401,7 +401,7 @@ public sealed class MusicCatalog
     private void BuildDirectoryStructure()
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildDirectoryStructure");
-        
+
         var directoriesBuilder = ImmutableList.CreateBuilder<MusicDirectory>();
         var directoryDict = new Dictionary<string, MusicDirectory>(StringComparer.Ordinal);
 
@@ -459,7 +459,7 @@ public sealed class MusicCatalog
         {
             _directoriesById[dir.Id] = dir;
         }
-        
+
         activity?.SetTag("music.catalog.directories_built", Directories.Count);
     }
 
@@ -565,14 +565,11 @@ public sealed class MusicCatalog
 
     public CoverArtData? GetCoverArt(string? id)
     {
+        if (string.IsNullOrEmpty(id))
+            return null;
+
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("GetCoverArt");
         activity?.SetTag("music.coverart.id", id);
-        
-        if (string.IsNullOrEmpty(id))
-        {
-            activity?.SetTag("music.coverart.result", "null_id");
-            return null;
-        }
 
         // First, try to find cover art by ID directly using the cache
         if (!_coverArtsById.TryGetValue(id, out var coverArt))
@@ -673,18 +670,13 @@ public sealed class MusicCatalog
 
     public string? GetLyrics(string songId)
     {
-        using var activity = MusicLibraryActivitySource.Instance.StartActivity("GetLyrics");
-        activity?.SetTag("music.lyrics.song_id", songId);
-        
         var song = GetSong(songId);
         if (song?.Lyrics is null)
-        {
-            activity?.SetTag("music.lyrics.result", "not_found");
             return null;
-        }
 
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("GetLyrics");
+        activity?.SetTag("music.lyrics.song_id", songId);
         activity?.SetTag("music.lyrics.is_metadata", song.Lyrics.IsMetadata);
-
         try
         {
             if (song.Lyrics.IsMetadata)
@@ -697,6 +689,7 @@ public sealed class MusicCatalog
                 {
                     activity?.SetTag("music.lyrics.length", lyrics.Length);
                 }
+
                 return lyrics;
             }
             else
@@ -779,15 +772,11 @@ public sealed class MusicCatalog
 
     private static async Task EnsureCoverArtCached(CoverArt coverArt)
     {
+        if (coverArt.CachedFilePath.IsEmpty)
+            return;
+
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("EnsureCoverArtCached");
         activity?.SetTag("music.coverart.id", coverArt.Id);
-        
-        if (coverArt.CachedFilePath.IsEmpty)
-        {
-            activity?.SetTag("music.coverart.cache_result", "no_cache_path");
-            return;
-        }
-
         // Check if cached file exists and is up to date
         if (File.Exists(coverArt.CachedFilePath))
         {
