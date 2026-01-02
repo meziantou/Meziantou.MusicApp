@@ -168,6 +168,14 @@ export function AppProvider({ children }: AppProviderProps) {
         const offlinePlaylists = await storageService.getOfflinePlaylistIds();
         setOfflinePlaylistIds(offlinePlaylists);
 
+        // Verify offline playlists integrity and clean up orphans
+        const integrity = await storageService.verifyOfflinePlaylistsIntegrity();
+        if (integrity.removed.length > 0) {
+          console.log(`[useApp] Cleaned up ${integrity.removed.length} orphaned offline playlist entries`);
+          const updatedOfflinePlaylists = await storageService.getOfflinePlaylistIds();
+          setOfflinePlaylistIds(updatedOfflinePlaylists);
+        }
+
         // Load recently played tracks for queue filtering
         await playerActions.loadRecentlyPlayed();
         console.log('[useApp] Recently played tracks loaded');
@@ -719,10 +727,13 @@ export function AppProvider({ children }: AppProviderProps) {
   }, [showToast]);
 
   const clearAllCachedTracks = useCallback(async () => {
-    await storageService.clearCachedTracks();
+    await storageService.clearAll();
     setCachedTrackIds(new Set());
     playerActions.setCachedTrackIds(new Set());
-    showToast('All downloaded songs cleared');
+    setOfflinePlaylistIds(new Set());
+    setOfflinePlaylistTracks(new Map());
+    downloadService.clearQueue();
+    showToast('All cached data cleared');
   }, [playerActions, showToast]);
 
   const addTrackToPlaylist = useCallback(async (playlist: PlaylistSummary, trackId: string) => {

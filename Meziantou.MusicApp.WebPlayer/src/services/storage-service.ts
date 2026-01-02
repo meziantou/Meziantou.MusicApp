@@ -117,6 +117,12 @@ class StorageService {
         // Cached playlists store
         if (!db.objectStoreNames.contains('cachedPlaylists')) {
           db.createObjectStore('cachedPlaylists', { keyPath: 'playlist.id' });
+        } else {
+          if (oldVersion < 5) {
+            // Clear cached playlists to match cleared tracks
+            const playlistsStore = transaction.objectStore('cachedPlaylists');
+            await playlistsStore.clear();
+          }
         }
 
         // Cover art store
@@ -132,6 +138,12 @@ class StorageService {
         // Offline playlists store (tracks which playlists are marked for offline)
         if (!db.objectStoreNames.contains('offlinePlaylists')) {
           db.createObjectStore('offlinePlaylists', { keyPath: 'playlistId' });
+        } else {
+          if (oldVersion < 5) {
+            // Clear offline playlists to prevent orphaned references
+            const offlineStore = transaction.objectStore('offlinePlaylists');
+            await offlineStore.clear();
+          }
         }
 
         // Pending scrobbles store
@@ -439,8 +451,30 @@ class StorageService {
       db.clear('cachedTracks'),
       db.clear('cachedPlaylists'),
       db.clear('coverArt'),
-      db.clear('missingCovers')
+      db.clear('missingCovers'),
+      db.clear('offlinePlaylists')
     ]);
+  }
+
+  // Verify data integrity for offline playlists
+  async verifyOfflinePlaylistsIntegrity(): Promise<{ removed: string[]; total: number }> {
+    const db = await this.init();
+    const offlinePlaylists = await db.getAll('offlinePlaylists');
+    const cachedPlaylists = await this.getAllCachedPlaylists();
+    const cachedPlaylistIds = new Set(cachedPlaylists.map(cp => cp.playlist.id));
+    
+    const orphanedIds: string[] = [];
+    const tx = db.transaction('offlinePlaylists', 'readwrite');
+    
+    for (const entry of offlinePlaylists) {
+      if (!cachedPlaylistIds.has(entry.playlistId)) {
+        orphanedIds.push(entry.playlistId);
+        await tx.store.delete(entry.playlistId);
+      }
+    }
+    
+    await tx.done;
+    return { removed: orphanedIds, total: offlinePlaylists.length };
   }
 
   // Get storage usage estimate
