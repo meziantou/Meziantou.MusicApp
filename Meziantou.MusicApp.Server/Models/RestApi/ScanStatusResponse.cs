@@ -8,4 +8,5 @@ public class ScanStatusResponse
     public DateTime? LastScanDate { get; set; }
     public double? Percentage { get; set; }
     public TimeSpan? EstimatedCompletionTime { get; set; }
+    public List<InvalidPlaylistInfo> InvalidPlaylists { get; set; } = [];
 }

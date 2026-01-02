@@ -477,6 +477,69 @@ body {
   flex-shrink: 0;
 }
 
+/* Invalid Playlists */
+.invalid-playlists-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.invalid-playlists-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  padding: 0 12px 8px;
+  margin: 0;
+}
+
+.invalid-playlist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 2px 0;
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--danger-color, #e74c3c);
+  cursor: help;
+  transition: background var(--transition-fast);
+}
+
+.invalid-playlist-item:hover {
+  background: var(--bg-hover);
+}
+
+.invalid-playlist-item .error-icon {
+  color: var(--danger-color, #e74c3c);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.invalid-playlist-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.invalid-playlist-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invalid-playlist-error {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
 /* Track List */
 .track-list-wrapper {
   flex: 1;

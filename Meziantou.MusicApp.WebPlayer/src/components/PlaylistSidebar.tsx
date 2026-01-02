@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import type { PlaylistSummary } from '../types';
+import type { PlaylistSummary, InvalidPlaylistInfo } from '../types';
 import { formatDuration } from '../utils';
 import { useApp } from '../hooks';
 
@@ -22,6 +22,7 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
     networkType,
     createPlaylist,
     deletePlaylist,
+    invalidPlaylists,
   } = useApp();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -158,6 +159,23 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
             })
           )}
         </div>
+
+        {invalidPlaylists.length > 0 && (
+          <div className="invalid-playlists-section">
+            <h3 className="invalid-playlists-title">Invalid Playlists</h3>
+            {invalidPlaylists.map((invalid, index) => (
+              <div key={index} className="invalid-playlist-item" title={invalid.errorMessage}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" className="error-icon">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+                <div className="invalid-playlist-content">
+                  <span className="invalid-playlist-name">{invalid.path.split(/[\\/]/).pop() || invalid.path}</span>
+                  <span className="invalid-playlist-error">{invalid.errorMessage}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="sidebar-footer">

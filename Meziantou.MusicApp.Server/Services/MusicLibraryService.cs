@@ -874,6 +874,13 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         catch (Exception ex)
         {
             logger.LogError(ex, "Error scanning XSPF playlist file: {Path}", context.Path);
+            
+            // Add to invalid playlists list
+            context.Catalog.InvalidPlaylists.Add(new SerializableInvalidPlaylist
+            {
+                RelativePath = context.RelativePath,
+                ErrorMessage = ex.Message,
+            });
         }
     }
 

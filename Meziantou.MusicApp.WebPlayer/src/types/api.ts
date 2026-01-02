@@ -85,6 +85,11 @@ export interface ArtistsResponse {
   artists: ArtistInfo[];
 }
 
+export interface InvalidPlaylistInfo {
+  path: string;
+  errorMessage: string;
+}
+
 export interface ScanStatusResponse {
   isScanning: boolean;
   isInitialScanCompleted: boolean;
@@ -92,6 +97,7 @@ export interface ScanStatusResponse {
   lastScanDate: string | null;
   percentage: number | null;
   estimatedCompletionTime: string | null;
+  invalidPlaylists: InvalidPlaylistInfo[];
 }
 
 export interface ErrorResponse {

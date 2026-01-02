@@ -22,7 +22,8 @@ public class RestApiIntegrationTests
                     {
                       "isScanning": "[redacted]",
                       "isInitialScanCompleted": true,
-                      "scanCount": 0
+                      "scanCount": 0,
+                      "invalidPlaylists": []
                     }
                 """);
     }
@@ -44,7 +45,8 @@ public class RestApiIntegrationTests
                     {
                       "isScanning": "[redacted]",
                       "isInitialScanCompleted": true,
-                      "scanCount": 0
+                      "scanCount": 0,
+                      "invalidPlaylists": []
                     }
                 """);
     }

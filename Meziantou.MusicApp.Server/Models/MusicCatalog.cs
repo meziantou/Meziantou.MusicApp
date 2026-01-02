@@ -24,6 +24,7 @@ public sealed class MusicCatalog
     public ImmutableList<Album> Albums { get; private set; } = [];
     public ImmutableList<MusicDirectory> Directories { get; private set; } = [];
     public ImmutableList<MissingPlaylistItem> MissingPlaylistItems { get; private set; } = [];
+    public ImmutableList<InvalidPlaylist> InvalidPlaylists { get; private set; } = [];
     public DateTime? LastScanDate { get; private set; }
 
     internal MusicCatalog(FullPath rootPath)
@@ -158,6 +159,9 @@ public sealed class MusicCatalog
 
         // Build missing playlist items
         result.BuildMissingPlaylistItems(serializableCatalog.MissingPlaylistItems);
+
+        // Build invalid playlists
+        result.BuildInvalidPlaylists(serializableCatalog.InvalidPlaylists);
 
         // Build genre index
         result.BuildGenreIndex();
@@ -357,6 +361,24 @@ public sealed class MusicCatalog
         }
 
         MissingPlaylistItems = missingItemsBuilder.ToImmutable();
+    }
+
+    private void BuildInvalidPlaylists(List<SerializableInvalidPlaylist> serializableInvalidPlaylists)
+    {
+        var invalidPlaylistsBuilder = ImmutableList.CreateBuilder<InvalidPlaylist>();
+
+        foreach (var item in serializableInvalidPlaylists)
+        {
+            var fullPath = Path.Combine(RootPath, item.RelativePath);
+
+            invalidPlaylistsBuilder.Add(new InvalidPlaylist
+            {
+                Path = fullPath,
+                ErrorMessage = item.ErrorMessage,
+            });
+        }
+
+        InvalidPlaylists = invalidPlaylistsBuilder.ToImmutable();
     }
 
     private void BuildGenreIndex()

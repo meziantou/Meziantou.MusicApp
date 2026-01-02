@@ -3,6 +3,7 @@ import type {
   AppSettings,
   PlaylistSummary,
   TrackInfo,
+  InvalidPlaylistInfo,
 } from '../types';
 import { DEFAULT_SETTINGS, DEFAULT_PLAYBACK_STATE } from '../constants';
 import {
@@ -28,6 +29,7 @@ interface AppContextValue {
   syncPlaylists: () => Promise<void>;
   createPlaylist: (name: string) => Promise<PlaylistSummary | null>;
   deletePlaylist: (playlistId: string) => Promise<boolean>;
+  invalidPlaylists: InvalidPlaylistInfo[];
 
   // Network status
   isOnline: boolean;
@@ -86,6 +88,7 @@ export function AppProvider({ children }: AppProviderProps) {
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
   const [currentPlaylistTracks, setCurrentPlaylistTracks] = useState<TrackInfo[]>([]);
+  const [invalidPlaylists, setInvalidPlaylists] = useState<InvalidPlaylistInfo[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [networkType, setNetworkType] = useState(getNetworkType());
   const [cachedTrackIds, setCachedTrackIds] = useState<Set<string>>(new Set());
@@ -284,6 +287,19 @@ export function AppProvider({ children }: AppProviderProps) {
                      await playerActions.playAtIndex(trackIndex, state.isPlaying, state.currentTime);
                  }
              }
+        }
+        
+        // Check for invalid playlists after initial load
+        if (isOnline) {
+          try {
+            const api = getApiService();
+            const status = await api.getScanStatus();
+            if (status.invalidPlaylists && status.invalidPlaylists.length > 0) {
+              setInvalidPlaylists(status.invalidPlaylists);
+            }
+          } catch (error) {
+            console.error('Failed to check for invalid playlists:', error);
+          }
         }
       } catch (error) {
         console.error('Failed to load initial data:', error);
@@ -879,6 +895,18 @@ export function AppProvider({ children }: AppProviderProps) {
       const api = getApiService();
       await api.triggerScan();
       showToast('Library scan started', 'success');
+      
+      // Check for invalid playlists after a short delay to allow scan to complete
+      setTimeout(async () => {
+        try {
+          const status = await api.getScanStatus();
+          if (status.invalidPlaylists) {
+            setInvalidPlaylists(status.invalidPlaylists);
+          }
+        } catch (error) {
+          console.error('Failed to check for invalid playlists:', error);
+        }
+      }, 3000);
     } catch (error) {
       console.error('Failed to trigger library scan:', error);
       showToast('Failed to trigger library scan', 'error');
@@ -1118,6 +1146,7 @@ export function AppProvider({ children }: AppProviderProps) {
     syncPlaylists,
     createPlaylist,
     deletePlaylist,
+    invalidPlaylists,
     isOnline,
     networkType,
     cachedTrackIds,

@@ -473,6 +473,11 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
             LastScanDate = library.LastScanDate,
             Percentage = library.ScanProgress,
             EstimatedCompletionTime = library.ScanEta,
+            InvalidPlaylists = library.Catalog.InvalidPlaylists.Select(p => new InvalidPlaylistInfo
+            {
+                Path = p.Path,
+                ErrorMessage = p.ErrorMessage,
+            }).ToList(),
         });
     }
 
