@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import type { PlaylistSummary, InvalidPlaylistInfo } from '../types';
+import type { PlaylistSummary } from '../types';
 import { formatDuration } from '../utils';
 import { useApp } from '../hooks';
 
