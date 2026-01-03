@@ -100,6 +100,19 @@ export function TrackList() {
     handleScroll();
   }, [filteredTracks, handleScroll]);
 
+  // Handle window resize to recalculate visible range
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleScroll();
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [handleScroll]);
+
   // Restore scroll position
   useEffect(() => {
     if (currentPlaylistId && scrollContainerRef.current && filteredTracks.length > 0) {
