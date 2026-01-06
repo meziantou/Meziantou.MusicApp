@@ -2,7 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>meziantou/renovate-config",
-    ":automergeAll",
-    ":automergeBranch"
+    "github>meziantou/renovate-config:default-automerge"
   ]
 }
