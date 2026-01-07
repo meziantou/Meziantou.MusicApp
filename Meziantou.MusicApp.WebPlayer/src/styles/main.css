@@ -215,6 +215,13 @@ body {
   color: var(--text-primary);
 }
 
+.app-version {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
 .sidebar-section-title {
   font-size: 12px;
   font-weight: 600;

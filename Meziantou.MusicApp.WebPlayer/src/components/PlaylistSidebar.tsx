@@ -208,6 +208,9 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
           </svg>
           Settings
         </button>
+        <div className="app-version">
+          Version: {__COMMIT_HASH__}
+        </div>
       </div>
     </aside>
   );

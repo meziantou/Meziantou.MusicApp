@@ -2,13 +2,15 @@
 
 FROM node:24-alpine AS build
 
+ARG VITE_COMMIT_HASH=unknown
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN VITE_COMMIT_HASH=${VITE_COMMIT_HASH} npm run build
 
 FROM nginx:1.29-alpine
 

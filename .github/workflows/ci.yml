@@ -63,6 +63,12 @@ jobs:
         working-directory: Meziantou.MusicApp.WebPlayer
         run: npm test
 
+      - name: Build application
+        working-directory: Meziantou.MusicApp.WebPlayer
+        run: npm run build
+        env:
+          VITE_COMMIT_HASH: ${{ github.sha }}
+
       - name: Log in to Docker
         uses: docker/login-action@v3
         with:
@@ -79,6 +85,8 @@ jobs:
           context: Meziantou.MusicApp.WebPlayer
           file: Meziantou.MusicApp.WebPlayer/Dockerfile
           push: true
+          build-args: |
+            VITE_COMMIT_HASH=${{ github.sha }}
           tags: |
             ghcr.io/meziantou/meziantou-music-app-web-player:1.0.${{ github.run_number }}
             ghcr.io/meziantou/meziantou-music-app-web-player:latest

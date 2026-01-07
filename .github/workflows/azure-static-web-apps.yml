@@ -50,6 +50,8 @@ jobs:
       - name: Build Application
         working-directory: Meziantou.MusicApp.WebPlayer
         run: npm run build
+        env:
+          VITE_COMMIT_HASH: ${{ github.sha }}
 
       - name: Deploy to Azure Static Web Apps
         id: builddeploy
