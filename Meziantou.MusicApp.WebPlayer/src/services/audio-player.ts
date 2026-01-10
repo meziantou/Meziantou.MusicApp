@@ -1,6 +1,7 @@
 import type { TrackInfo, StreamingQuality, ReplayGainMode, PlaybackState, RepeatMode, QueueItem } from '../types';
 import { getApiService } from './api-service';
 import { storageService } from './storage-service';
+import { PlayQueueService } from './play-queue-service';
 
 export type PlayerEventType = 
   | 'play' 
@@ -48,7 +49,7 @@ export class AudioPlayerService {
   private shuffleOrder: number[] = [];
   private shuffleEnabled: boolean = false;
   private repeatMode: RepeatMode = 'off';
-  private queue: QueueItem[] = [];
+  private queueService: PlayQueueService;
   
   private quality: StreamingQuality = { format: 'raw' };
   private replayGainMode: ReplayGainMode = 'off';
@@ -84,6 +85,19 @@ export class AudioPlayerService {
     this.audioInstance = this.createAudioInstance();
     this.setupAudioEvents(this.audioInstance);
     this.setupMediaSession();
+    this.queueService = new PlayQueueService({
+      currentIndex: this.currentIndex,
+      currentPlaylistId: this.currentPlaylistId,
+      playlist: this.playlist,
+      shuffleOrder: this.shuffleOrder,
+      shuffleEnabled: this.shuffleEnabled,
+      repeatMode: this.repeatMode,
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
   }
   
   private createAudioInstance(): AudioInstance {
@@ -342,38 +356,6 @@ export class AudioPlayerService {
   
   // Preloading methods
   
-  private getNextTrack(): { track: TrackInfo; playlistId: string; indexInPlaylist: number } | null {
-    // Check queue first
-    if (this.queue.length > 0) {
-      const queueItem = this.queue[0];
-      return { track: queueItem.track, playlistId: queueItem.playlistId, indexInPlaylist: queueItem.indexInPlaylist };
-    }
-    
-    // Check playlist
-    if (this.repeatMode === 'one') {
-      return null; // Don't preload for repeat one mode
-    }
-    
-    let nextIndex = this.currentIndex + 1;
-    if (nextIndex >= this.playlist.length) {
-      if (this.repeatMode === 'all') {
-        nextIndex = 0;
-      } else {
-        return null;
-      }
-    }
-    
-    const actualIndex = this.shuffleEnabled && this.shuffleOrder.length > 0
-      ? this.shuffleOrder[nextIndex]
-      : nextIndex;
-    
-    return {
-      track: this.playlist[actualIndex],
-      playlistId: this.currentPlaylistId!,
-      indexInPlaylist: actualIndex
-    };
-  }
-  
   private checkForPreload(): void {
     if (this.isPreloading || this.preloadedTrack) return;
     
@@ -385,7 +367,7 @@ export class AudioPlayerService {
   }
   
   private async preloadNextTrack(): Promise<void> {
-    const nextTrackInfo = this.getNextTrack();
+    const nextTrackInfo = this.queueService.getNextTrack();
     if (!nextTrackInfo) return;
     
     const { track } = nextTrackInfo;
@@ -590,7 +572,7 @@ export class AudioPlayerService {
     }
 
     // Always play from queue - it should contain upcoming tracks
-    if (this.queue.length > 0) {
+    if (this.queueService.getQueueLength() > 0) {
       await this.playFromQueue();
       return;
     }
@@ -600,30 +582,21 @@ export class AudioPlayerService {
   }
 
   private async playFromQueue(): Promise<void> {
-    if (this.queue.length === 0) return;
+    if (this.queueService.getQueueLength() === 0) return;
     
-    const queueItem = this.queue.shift()!;
+    const queueItem = this.queueService.shiftQueue()!;
     
     // Update current index if this is a playlist track from the current playlist
-    if (queueItem.source === 'playlist' && queueItem.playlistId === this.currentPlaylistId) {
-      // The indexInPlaylist might be offset for looping, so use modulo
-      const actualIndex = queueItem.indexInPlaylist % this.playlist.length;
-      // Find the shuffle index if shuffling
-      if (this.shuffleEnabled && this.shuffleOrder.length > 0) {
-        const shuffleIndex = this.shuffleOrder.indexOf(actualIndex);
-        if (shuffleIndex >= 0) {
-          this.currentIndex = shuffleIndex;
-        }
-      } else {
-        this.currentIndex = actualIndex;
-      }
-    }
+    this.queueService.updateIndexFromQueueItem(queueItem);
+    this.syncConfigFromQueueService();
     
     this.emit('queuechange', {});
     
     // Replenish queue if needed (triggers at <100 items, adds 100 items to reach ~200)
-    if (this.repeatMode !== 'off' || this.queue.filter(i => i.source === 'playlist').length < 10) {
-      this.replenishPlaylistQueue();
+    const playlistItemsCount = this.queueService.getQueue().filter(i => i.source === 'playlist').length;
+    if (this.repeatMode !== 'off' || playlistItemsCount < 10) {
+      this.syncConfigToQueueService();
+      this.queueService.replenishPlaylistQueue();
     } else {
       this.scheduleStateSave();
     }
@@ -632,30 +605,12 @@ export class AudioPlayerService {
   }
 
   private getActualIndex(index: number): number {
-    if (this.shuffleEnabled && this.shuffleOrder.length > 0) {
-      return this.shuffleOrder[index];
-    }
-    return index;
+    return this.queueService.getActualIndex(index);
   }
 
   private generateShuffleOrder(): void {
-    this.shuffleOrder = [...Array(this.playlist.length).keys()];
-    
-    // Fisher-Yates shuffle
-    for (let i = this.shuffleOrder.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [this.shuffleOrder[i], this.shuffleOrder[j]] = [this.shuffleOrder[j], this.shuffleOrder[i]];
-    }
-
-    // If currently playing, move current track to front
-    if (this.currentIndex >= 0) {
-      const currentActualIndex = this.currentIndex;
-      const shufflePosition = this.shuffleOrder.indexOf(currentActualIndex);
-      if (shufflePosition > 0) {
-        [this.shuffleOrder[0], this.shuffleOrder[shufflePosition]] = 
-          [this.shuffleOrder[shufflePosition], this.shuffleOrder[0]];
-      }
-    }
+    this.syncConfigToQueueService();
+    this.shuffleOrder = this.queueService.generateShuffleOrder();
   }
 
   private scheduleStateSave(): void {
@@ -685,7 +640,7 @@ export class AudioPlayerService {
       shuffleEnabled: this.shuffleEnabled,
       repeatMode: this.repeatMode,
       shuffleOrder: this.shuffleOrder,
-      queue: this.queue
+      queue: this.queueService.getQueue()
     };
     await storageService.savePlaybackState(state);
   }
@@ -707,6 +662,29 @@ export class AudioPlayerService {
       console.error('Failed to load recently played tracks:', err);
       this.recentlyPlayedIds = new Set();
     }
+  }
+
+  // Helper methods to sync config with queue service
+
+  private syncConfigToQueueService(): void {
+    this.queueService.updateConfig({
+      currentIndex: this.currentIndex,
+      currentPlaylistId: this.currentPlaylistId,
+      playlist: this.playlist,
+      shuffleOrder: this.shuffleOrder,
+      shuffleEnabled: this.shuffleEnabled,
+      repeatMode: this.repeatMode,
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
+  }
+
+  private syncConfigFromQueueService(): void {
+    const config = this.queueService.getConfig();
+    this.currentIndex = config.currentIndex;
   }
 
   // Public methods
@@ -740,7 +718,7 @@ export class AudioPlayerService {
     }
     
     // Clear playlist items from queue when changing playlist
-    this.queue = this.queue.filter(item => item.source === 'manual');
+    this.queueService.clearPlaylistQueue();
     this.emit('queuechange', {});
   }
 
@@ -752,8 +730,9 @@ export class AudioPlayerService {
     const track = this.playlist[actualIndex];
     
     // Clear and rebuild the queue with upcoming playlist tracks
-    this.queue = this.queue.filter(item => item.source === 'manual');
-    this.replenishPlaylistQueue();
+    this.queueService.clearPlaylistQueue();
+    this.syncConfigToQueueService();
+    this.queueService.replenishPlaylistQueue();
     
     await this.loadTrack(track, autoPlay, startTime);
   }
@@ -762,27 +741,16 @@ export class AudioPlayerService {
     const index = this.playlist.findIndex(t => t.id === track.id);
     if (index >= 0) {
       // Find the shuffle index if shuffling
-      if (this.shuffleEnabled) {
-        // When playing a specific track in shuffle mode, we want to play THAT track.
-        // But currentIndex refers to the index in the shuffleOrder array.
-        // So we need to find where the track's original index is located in the shuffleOrder.
-        const shuffleIndex = this.shuffleOrder.indexOf(index);
-        if (shuffleIndex >= 0) {
-          this.currentIndex = shuffleIndex;
-        } else {
-          // Fallback if something is wrong with shuffle order
-          this.currentIndex = index;
-        }
-      } else {
-        this.currentIndex = index;
-      }
+      this.syncConfigToQueueService();
+      this.currentIndex = this.queueService.findShuffleIndex(index);
     }
     
     this.currentPlaylistId = playlistId;
     
     // Clear and rebuild the queue with upcoming playlist tracks
-    this.queue = this.queue.filter(item => item.source === 'manual');
-    this.replenishPlaylistQueue();
+    this.queueService.clearPlaylistQueue();
+    this.syncConfigToQueueService();
+    this.queueService.replenishPlaylistQueue();
     
     await this.loadTrack(track, true);
   }
@@ -822,34 +790,26 @@ export class AudioPlayerService {
 
   async next(): Promise<void> {
     // Check queue first
-    if (this.queue.length > 0) {
-      const item = this.queue.shift();
+    if (this.queueService.getQueueLength() > 0) {
+      const item = this.queueService.shiftQueue();
       this.emit('queuechange', {});
       
       // If it's a playlist item, update the current index
       if (item?.source === 'playlist' && item.playlistId === this.currentPlaylistId) {
-        let nextIndex = this.currentIndex + 1;
-        if (nextIndex >= this.playlist.length) {
-          if (this.repeatMode === 'all') {
-            nextIndex = 0;
-          }
-        }
-        this.currentIndex = nextIndex;
+        this.syncConfigToQueueService();
+        this.currentIndex = this.queueService.calculateNextIndex();
       }
       
       await this.loadTrack(item!.track, true);
-      this.replenishPlaylistQueue();
+      this.syncConfigToQueueService();
+      this.queueService.replenishPlaylistQueue();
       return;
     }
 
     if (!this.hasNext()) return;
     
-    let nextIndex = this.currentIndex + 1;
-    if (nextIndex >= this.playlist.length) {
-      if (this.repeatMode !== 'off') {
-        nextIndex = 0;
-      }
-    }
+    this.syncConfigToQueueService();
+    const nextIndex = this.queueService.calculateNextIndex();
     await this.playAtIndex(nextIndex);
   }
 
@@ -862,24 +822,19 @@ export class AudioPlayerService {
 
     if (!this.hasPrevious()) return;
     
-    let prevIndex = this.currentIndex - 1;
-    if (prevIndex < 0) {
-      if (this.repeatMode !== 'off') {
-        prevIndex = this.playlist.length - 1;
-      }
-    }
+    this.syncConfigToQueueService();
+    const prevIndex = this.queueService.calculatePreviousIndex();
     await this.playAtIndex(prevIndex);
   }
 
   hasNext(): boolean {
-    if (this.queue.length > 0) return true;
-    if (this.repeatMode !== 'off') return this.playlist.length > 0;
-    return this.currentIndex < this.playlist.length - 1;
+    this.syncConfigToQueueService();
+    return this.queueService.hasNext();
   }
 
   hasPrevious(): boolean {
-    if (this.repeatMode !== 'off') return this.playlist.length > 0;
-    return this.currentIndex > 0;
+    this.syncConfigToQueueService();
+    return this.queueService.hasPrevious();
   }
 
   seek(time: number): void {
@@ -933,8 +888,9 @@ export class AudioPlayerService {
       this.generateShuffleOrder();
     }
     // Rebuild queue with new shuffle order
-    this.queue = this.queue.filter(item => item.source === 'manual');
-    this.replenishPlaylistQueue();
+    this.queueService.clearPlaylistQueue();
+    this.syncConfigToQueueService();
+    this.queueService.replenishPlaylistQueue();
     this.scheduleStateSave();
   }
 
@@ -945,7 +901,8 @@ export class AudioPlayerService {
   setRepeatMode(mode: RepeatMode): void {
     this.repeatMode = mode;
     // Replenish queue (may need more items in repeat mode)
-    this.replenishPlaylistQueue();
+    this.syncConfigToQueueService();
+    this.queueService.replenishPlaylistQueue();
     this.scheduleStateSave();
   }
 
@@ -958,7 +915,8 @@ export class AudioPlayerService {
     const currentIdx = modes.indexOf(this.repeatMode);
     this.repeatMode = modes[(currentIdx + 1) % modes.length];
     // Replenish queue (may need more items in repeat mode)
-    this.replenishPlaylistQueue();
+    this.syncConfigToQueueService();
+    this.queueService.replenishPlaylistQueue();
     this.scheduleStateSave();
     return this.repeatMode;
   }
@@ -991,6 +949,7 @@ export class AudioPlayerService {
 
   setCachedTrackIds(ids: Set<string>): void {
     this.cachedTrackIds = ids;
+    this.syncConfigToQueueService();
   }
 
   setIsOnline(isOnline: boolean): void {
@@ -1042,7 +1001,7 @@ export class AudioPlayerService {
       shuffleEnabled: this.shuffleEnabled,
       repeatMode: this.repeatMode,
       shuffleOrder: this.shuffleOrder,
-      queue: this.queue
+      queue: this.queueService.getQueue()
     };
   }
 
@@ -1056,194 +1015,57 @@ export class AudioPlayerService {
     this.currentIndex = state.currentTrackIndex;
     
     // Restore queue and ensure each item has a source field (for backwards compatibility)
-    this.queue = (state.queue ?? []).map(item => ({
+    const queue = (state.queue ?? []).map(item => ({
       ...item,
       source: item.source ?? 'manual' // Default to manual for old queue items without source
     }));
+    this.queueService.setQueue(queue);
 
     // The actual track loading will be handled by the app after playlists are loaded
   }
 
   // Queue management methods
 
-  /**
-   * Ensures the queue has enough playlist items.
-   * Only adds new items if needed - doesn't rebuild existing queue.
-   * Replenishment triggers when queue drops below 100 items, then adds 100 items to reach ~200.
-   */
-  private replenishPlaylistQueue(): void {
-    if (!this.currentPlaylistId || this.playlist.length === 0) return;
-    
-    // Count existing playlist items in queue
-    const existingPlaylistItems = this.queue.filter(item => item.source === 'playlist').length;
-    
-    // Only replenish when queue drops below threshold (100 items)
-    const replenishThreshold = 100;
-    if (existingPlaylistItems >= replenishThreshold) return;
-    
-    // When replenishing, add 100 new items to bring total back to ~200
-    const itemsToAdd = this.repeatMode !== 'off' ? 100 : Math.min(100, this.playlist.length - this.currentIndex - 1 - existingPlaylistItems);
-    
-    if (itemsToAdd <= 0) return;
-    
-    // Build a set of track IDs already in the queue to avoid duplicates
-    const queueTrackIds = new Set(this.queue.map(item => item.track.id));
-    
-    // Find the last playlist item's index to know where to continue from
-    const lastPlaylistItem = [...this.queue].reverse().find(item => item.source === 'playlist');
-    let startIndex = this.currentIndex + 1;
-    let loopOffset = 0;
-    
-    if (lastPlaylistItem) {
-      const lastEffectiveIndex = lastPlaylistItem.indexInPlaylist;
-      loopOffset = Math.floor(lastEffectiveIndex / this.playlist.length);
-      const lastActualIndex = lastEffectiveIndex % this.playlist.length;
-      
-      // Find where this is in the current play order (shuffle or normal)
-      if (this.shuffleEnabled && this.shuffleOrder.length > 0) {
-        startIndex = this.shuffleOrder.indexOf(lastActualIndex) + 1;
-      } else {
-        startIndex = lastActualIndex + 1;
-      }
-    }
-    
-    // Generate new playlist items
-    const newItems: QueueItem[] = [];
-    let addedCount = 0;
-    const shouldFilter = (!this.isOnline) || (this.networkType === 'low-data' && this.preventDownloadOnLowData);
-    
-    // Track items we've considered to detect when all playlist items are already queued
-    let consideredCount = 0;
-    let skippedDuplicates = 0;
-    let skippedRecentlyPlayed = 0;
-    let allowRecentlyPlayed = false;
-
-    while (addedCount < itemsToAdd) {
-      for (let i = startIndex; i < this.playlist.length && addedCount < itemsToAdd; i++) {
-        const actualIndex = this.shuffleEnabled && this.shuffleOrder.length > 0
-          ? this.shuffleOrder[i]
-          : i;
-        
-        const track = this.playlist[actualIndex];
-        consideredCount++;
-        
-        if (shouldFilter && !this.cachedTrackIds.has(track.id)) {
-          continue;
-        }
-
-        const effectiveIndex = actualIndex + (loopOffset * this.playlist.length);
-        
-        // Skip if track is already in queue, unless all tracks are already queued
-        if (queueTrackIds.has(track.id)) {
-          skippedDuplicates++;
-          // If we've considered many tracks and they're all duplicates, allow adding duplicates
-          if (skippedDuplicates >= 50) {
-            // Reset the duplicate detection and allow duplicates from now on
-            queueTrackIds.clear();
-            skippedDuplicates = 0;
-          } else {
-            continue;
-          }
-        }
-
-        // Skip recently played tracks when possible (to reduce repetition)
-        if (!allowRecentlyPlayed && this.recentlyPlayedIds.has(track.id)) {
-          skippedRecentlyPlayed++;
-          // If we've skipped many recently played tracks, allow them to avoid empty queue
-          if (skippedRecentlyPlayed >= this.playlist.length) {
-            allowRecentlyPlayed = true;
-            // Don't skip this track since we're now allowing recently played
-          } else {
-            continue;
-          }
-        }
-        
-        newItems.push({
-          track: track,
-          playlistId: this.currentPlaylistId!,
-          indexInPlaylist: effectiveIndex,
-          source: 'playlist'
-        });
-        queueTrackIds.add(track.id);
-        addedCount++;
-      }
-      
-      // If repeat mode is on and we need more, loop from the beginning
-      if (this.repeatMode === 'all' && addedCount < itemsToAdd && this.playlist.length > 0) {
-        loopOffset++;
-        if (loopOffset > 5) break; // Safety break
-        startIndex = 0;
-        // On subsequent loops, allow recently played tracks since we've gone through all
-        if (loopOffset > 1) {
-          allowRecentlyPlayed = true;
-        }
-      } else {
-        break;
-      }
-    }
-    
-    // Append new items to the end of the queue
-    this.queue.push(...newItems);
-    this.emit('queuechange', {});
-    this.scheduleStateSave();
-  }
-
   addToQueue(track: TrackInfo, playlistId: string, indexInPlaylist: number): void {
-    // Insert manual items before playlist items
-    const firstPlaylistIndex = this.queue.findIndex(item => item.source === 'playlist');
-    const insertIndex = firstPlaylistIndex === -1 ? this.queue.length : firstPlaylistIndex;
-    
-    this.queue.splice(insertIndex, 0, { track, playlistId, indexInPlaylist, source: 'manual' });
+    this.queueService.addToQueue(track, playlistId, indexInPlaylist);
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
 
   addTracksToQueue(items: QueueItem[]): void {
-    this.queue.push(...items);
+    this.queueService.addTracksToQueue(items);
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
 
   removeFromQueue(index: number): void {
-    if (index < 0 || index >= this.queue.length) return;
-    this.queue.splice(index, 1);
+    this.queueService.removeFromQueue(index);
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
 
   clearQueue(): void {
-    // Clear only manual items, keep playlist items
-    // Or clear all if there are no playlist items
-    const hasPlaylistItems = this.queue.some(item => item.source === 'playlist');
-    if (hasPlaylistItems) {
-      this.queue = this.queue.filter(item => item.source === 'playlist');
-    } else {
-      this.queue = [];
-    }
+    this.queueService.clearQueue();
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
 
   clearAllQueue(): void {
-    this.queue = [];
+    this.queueService.clearAllQueue();
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
 
   getQueue(): QueueItem[] {
-    return [...this.queue];
+    return this.queueService.getQueue();
   }
 
   getQueueLength(): number {
-    return this.queue.length;
+    return this.queueService.getQueueLength();
   }
 
   moveQueueItem(fromIndex: number, toIndex: number): void {
-    if (fromIndex < 0 || fromIndex >= this.queue.length) return;
-    if (toIndex < 0 || toIndex >= this.queue.length) return;
-    
-    const [item] = this.queue.splice(fromIndex, 1);
-    this.queue.splice(toIndex, 0, item);
+    this.queueService.moveQueueItem(fromIndex, toIndex);
     this.emit('queuechange', {});
     this.scheduleStateSave();
   }
