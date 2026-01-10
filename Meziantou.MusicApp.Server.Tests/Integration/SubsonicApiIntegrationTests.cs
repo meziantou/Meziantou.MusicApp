@@ -17,6 +17,8 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/ping.view"), app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
@@ -31,6 +33,8 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync("/rest/ping.view?v=1.16.1&c=test", app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/xml
@@ -57,6 +61,8 @@ public class SubsonicApiIntegrationTests
         // Assert
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/xml
@@ -716,6 +722,8 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/getLyrics.view"), app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
@@ -809,6 +817,8 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/hls.m3u8?id=invalid-song-id"), app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
