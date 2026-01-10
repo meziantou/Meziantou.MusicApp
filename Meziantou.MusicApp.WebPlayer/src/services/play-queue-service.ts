@@ -26,16 +26,19 @@ export interface QueueConfig {
  * - Next/previous track calculation
  * - Queue replenishment based on playlist, shuffle, and repeat modes
  * - Smart filtering (recently played, cached tracks, duplicates)
+ * - Play history tracking for navigation in shuffle mode
  */
 export class PlayQueueService {
   private queue: QueueItem[] = [];
   private config: QueueConfig;
+  private playHistory: QueueItem[] = []; // Tracks that have been played (for going backwards)
 
   // Constants
   private static readonly REPLENISH_THRESHOLD = 100;
   private static readonly REPLENISH_AMOUNT = 100;
-  private static readonly MAX_LOOP_OFFSET = 5;
+  private static readonly MAX_LOOP_OFFSET = 10;
   private static readonly DUPLICATE_SKIP_THRESHOLD = 50;
+  private static readonly MAX_HISTORY_SIZE = 100; // Keep last 100 played tracks
 
   constructor(config: QueueConfig) {
     this.config = { ...config };
@@ -111,8 +114,7 @@ export class PlayQueueService {
    * Checks if there's a previous track available
    */
   hasPrevious(): boolean {
-    if (this.config.repeatMode !== 'off') return this.config.playlist.length > 0;
-    return this.config.currentIndex > 0;
+    return this.canGoToPrevious();
   }
 
   /**
@@ -134,6 +136,90 @@ export class PlayQueueService {
    */
   setQueue(queue: QueueItem[]): void {
     this.queue = [...queue];
+  }
+
+  /**
+   * Sets the play history
+   */
+  setPlayHistory(history: QueueItem[]): void {
+    this.playHistory = [...history];
+  }
+
+  /**
+   * Gets the play history
+   */
+  getPlayHistory(): QueueItem[] {
+    return [...this.playHistory];
+  }
+
+  /**
+   * Adds current track to play history (called when advancing to next track)
+   * In shuffle mode, this allows us to go back to previously played tracks
+   */
+  addToHistory(item: QueueItem): void {
+    this.playHistory.push(item);
+    // Keep history size manageable
+    if (this.playHistory.length > PlayQueueService.MAX_HISTORY_SIZE) {
+      this.playHistory.shift();
+    }
+  }
+
+  /**
+   * Clears the play history
+   */
+  clearHistory(): void {
+    this.playHistory = [];
+  }
+
+  /**
+   * Checks if we can go to a previous track (history exists or non-shuffle mode)
+   */
+  canGoToPrevious(): boolean {
+    // In shuffle mode, check if history exists
+    if (this.config.shuffleEnabled) {
+      return this.playHistory.length > 0;
+    }
+    // In sequential mode, check index or repeat mode
+    if (this.config.repeatMode !== 'off') return this.config.playlist.length > 0;
+    return this.config.currentIndex > 0;
+  }
+
+  /**
+   * Gets the previous track from history (shuffle) or calculates it (sequential)
+   * Returns null if no previous track available
+   */
+  getPreviousTrack(): QueueItem | null {
+    // In shuffle mode, pop from history
+    if (this.config.shuffleEnabled && this.playHistory.length > 0) {
+      return this.playHistory.pop() ?? null;
+    }
+
+    // In sequential mode, calculate previous index
+    let prevIndex = this.config.currentIndex - 1;
+    if (prevIndex < 0) {
+      if (this.config.repeatMode === 'off') {
+        return null;
+      }
+      prevIndex = this.config.playlist.length - 1;
+    }
+
+    if (prevIndex < 0 || prevIndex >= this.config.playlist.length) {
+      return null;
+    }
+
+    const actualIndex = this.getActualIndex(prevIndex);
+    const track = this.config.playlist[actualIndex];
+
+    if (!track || !this.config.currentPlaylistId) {
+      return null;
+    }
+
+    return {
+      track,
+      playlistId: this.config.currentPlaylistId,
+      indexInPlaylist: actualIndex,
+      source: 'playlist' as const
+    };
   }
 
   /**

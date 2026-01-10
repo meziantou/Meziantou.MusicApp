@@ -3,12 +3,12 @@ import { getApiService } from './api-service';
 import { storageService } from './storage-service';
 import { PlayQueueService } from './play-queue-service';
 
-export type PlayerEventType = 
-  | 'play' 
-  | 'pause' 
-  | 'timeupdate' 
-  | 'ended' 
-  | 'trackchange' 
+export type PlayerEventType =
+  | 'play'
+  | 'pause'
+  | 'timeupdate'
+  | 'ended'
+  | 'trackchange'
   | 'error'
   | 'volumechange'
   | 'durationchange'
@@ -37,10 +37,10 @@ interface AudioInstance {
 
 export class AudioPlayerService {
   private audioInstance: AudioInstance;
-  
+
   private audioContext: AudioContext | null = null;
   private masterGainNode: GainNode | null = null;
-  
+
   private currentTrack: TrackInfo | null = null;
   private currentQuality: StreamingQuality | null = null;
   private currentPlaylistId: string | null = null;
@@ -50,7 +50,7 @@ export class AudioPlayerService {
   private shuffleEnabled: boolean = false;
   private repeatMode: RepeatMode = 'off';
   private queueService: PlayQueueService;
-  
+
   private quality: StreamingQuality = { format: 'raw' };
   private replayGainMode: ReplayGainMode = 'off';
   private replayGainPreamp: number = 0;
@@ -59,17 +59,17 @@ export class AudioPlayerService {
   private networkType: 'normal' | 'low-data' | 'unknown' = 'unknown';
   private cachedTrackIds: Set<string> = new Set();
   private isOnline: boolean = true;
-  
+
   // Preloading state
   private preloadedTrack: TrackInfo | null = null;
   private isPreloading: boolean = false;
   private preloadBlobUrl: string | null = null;
   private preloadAbortController: AbortController | null = null;
-  
+
   // Volume state
   private masterVolume: number = 1;
   private isMuted: boolean = false;
-  
+
   private hasScrobbled: boolean = false;
   private hasSentNowPlaying: boolean = false;
 
@@ -99,7 +99,7 @@ export class AudioPlayerService {
       preventDownloadOnLowData: this.preventDownloadOnLowData
     });
   }
-  
+
   private createAudioInstance(): AudioInstance {
     const audio = new Audio();
     audio.preload = 'auto';
@@ -111,24 +111,24 @@ export class AudioPlayerService {
       quality: null
     };
   }
-  
+
   private get audio(): HTMLAudioElement {
     return this.audioInstance.audio;
   }
-  
+
   private get activeInstance(): AudioInstance {
     return this.audioInstance;
   }
 
   private async initAudioContext(): Promise<void> {
     if (this.audioContext) return;
-    
+
     this.audioContext = new AudioContext();
     this.masterGainNode = this.audioContext.createGain();
     this.masterGainNode.connect(this.audioContext.destination);
     // Apply volume respecting the muted state
     this.masterGainNode.gain.value = this.isMuted ? 0 : this.linearToLogarithmic(this.masterVolume);
-    
+
     // Connect audio element to the audio context
     this.connectAudioInstance(this.audioInstance);
 
@@ -136,10 +136,10 @@ export class AudioPlayerService {
     // This ensures the UI reflects the correct volume after AudioContext initialization
     this.emit('volumechange', { volume: this.masterVolume });
   }
-  
+
   private connectAudioInstance(instance: AudioInstance): void {
     if (!this.audioContext || !this.masterGainNode) return;
-    
+
     instance.gainNode = this.audioContext.createGain();
     instance.sourceNode = this.audioContext.createMediaElementSource(instance.audio);
     instance.sourceNode.connect(instance.gainNode);
@@ -148,7 +148,7 @@ export class AudioPlayerService {
 
   private setupAudioEvents(instance: AudioInstance): void {
     const audio = instance.audio;
-    
+
     audio.addEventListener('play', () => {
       this.emit('play', {});
       if (!this.hasSentNowPlaying && this.currentTrack) {
@@ -156,18 +156,18 @@ export class AudioPlayerService {
         this.handleScrobble(this.currentTrack.id, false).catch(console.error);
       }
     });
-    
+
     audio.addEventListener('pause', () => {
       this.emit('pause', {});
     });
-    
+
     audio.addEventListener('timeupdate', () => {
-      this.emit('timeupdate', { 
+      this.emit('timeupdate', {
         currentTime: audio.currentTime,
-        duration: audio.duration 
+        duration: audio.duration
       });
       this.saveStateThrottled();
-      
+
       if (!this.hasScrobbled && this.currentTrack && audio.duration > 0) {
         const progress = audio.currentTime / audio.duration;
         if (progress > 0.5 || audio.currentTime > 240) {
@@ -179,28 +179,28 @@ export class AudioPlayerService {
       // Check if we should start preload
       this.checkForPreload();
     });
-    
+
     audio.addEventListener('ended', () => {
       this.handleTrackEnded();
     });
-    
+
     audio.addEventListener('error', () => {
       const error = audio.error?.message ?? 'Unknown playback error';
       this.emit('error', { error });
     });
-    
+
     audio.addEventListener('volumechange', () => {
       this.emit('volumechange', { volume: this.masterVolume });
     });
-    
+
     audio.addEventListener('durationchange', () => {
       this.emit('durationchange', { duration: audio.duration });
     });
-    
+
     audio.addEventListener('loadstart', () => {
       this.emit('loadstart', {});
     });
-    
+
     audio.addEventListener('canplay', () => {
       this.emit('canplay', {});
     });
@@ -232,7 +232,7 @@ export class AudioPlayerService {
     if (!('mediaSession' in navigator) || !this.currentTrack) return;
 
     const api = getApiService();
-    
+
     navigator.mediaSession.metadata = new MediaMetadata({
       title: this.currentTrack.title,
       artist: this.currentTrack.artists ?? 'Unknown Artist',
@@ -267,7 +267,7 @@ export class AudioPlayerService {
   private applyReplayGain(instance: AudioInstance): void {
     const gainNode = instance.gainNode;
     const track = instance.track;
-    
+
     if (!gainNode || !track) {
       return;
     }
@@ -286,7 +286,7 @@ export class AudioPlayerService {
         // Convert dB to linear gain: 10^(dB/20)
         const preamp = Number.isFinite(this.replayGainPreamp) ? this.replayGainPreamp : 0;
         const linearGain = Math.pow(10, (gainDb + preamp) / 20);
-        
+
         if (Number.isFinite(linearGain)) {
           // Prevent clipping by limiting to reasonable values
           appliedGain = Math.min(linearGain, 2);
@@ -353,46 +353,46 @@ export class AudioPlayerService {
       console.error('Error processing pending scrobbles', error);
     }
   }
-  
+
   // Preloading methods
-  
+
   private checkForPreload(): void {
     if (this.isPreloading || this.preloadedTrack) return;
-    
+
     const duration = this.audio.duration;
-    
+
     if (!duration || isNaN(duration)) return;
-    
+
     this.preloadNextTrack();
   }
-  
+
   private async preloadNextTrack(): Promise<void> {
     const nextTrackInfo = this.queueService.getNextTrack();
     if (!nextTrackInfo) return;
-    
+
     const { track } = nextTrackInfo;
-    
+
     // Don't preload if already preloaded
     if (this.preloadedTrack?.id === track.id) return;
-    
+
     // Cancel any existing preload request
     if (this.preloadAbortController) {
       this.preloadAbortController.abort();
     }
     this.preloadAbortController = new AbortController();
-    
+
     this.isPreloading = true;
-    
+
     try {
       const api = getApiService();
       const cached = await storageService.getCachedTrack(track.id);
-      
+
       // Clean up old preload URL
       if (this.preloadBlobUrl) {
         URL.revokeObjectURL(this.preloadBlobUrl);
         this.preloadBlobUrl = null;
       }
-      
+
       if (cached && this.shouldUseCache(cached.quality, this.quality)) {
         this.preloadBlobUrl = URL.createObjectURL(cached.blob);
       } else {
@@ -407,15 +407,15 @@ export class AudioPlayerService {
           headers: api.getAuthHeaders(),
           signal: this.preloadAbortController.signal
         });
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        
+
         const blob = await response.blob();
         this.preloadBlobUrl = URL.createObjectURL(blob);
       }
-      
+
       this.preloadedTrack = track;
     } catch (error: any) {
       if (error.name !== 'AbortError') {
@@ -426,9 +426,9 @@ export class AudioPlayerService {
       this.preloadAbortController = null;
     }
   }
-  
+
   // Crossfade methods removed
-  
+
   private shouldUseCache(cachedQuality: StreamingQuality, desiredQuality: StreamingQuality): boolean {
     if (!this.isOnline) return true;
     if (cachedQuality.format === 'raw') return true;
@@ -447,31 +447,31 @@ export class AudioPlayerService {
       this.preloadAbortController.abort();
       this.preloadAbortController = null;
     }
-    
+
     // Clear preloaded state
     this.preloadedTrack = null;
     if (this.preloadBlobUrl) {
       URL.revokeObjectURL(this.preloadBlobUrl);
       this.preloadBlobUrl = null;
     }
-    
+
     this.currentTrack = track;
     const active = this.activeInstance;
     active.track = track;
-    
+
     this.hasScrobbled = false;
     this.hasSentNowPlaying = false;
 
     const api = getApiService();
-    
+
     // Try to use cached version first
     const cached = await storageService.getCachedTrack(track.id);
-    
+
     // Clean up old src
     if (active.audio.src) {
       URL.revokeObjectURL(active.audio.src);
     }
-    
+
     if (cached && this.shouldUseCache(cached.quality, this.quality)) {
       active.audio.src = URL.createObjectURL(cached.blob);
       active.quality = cached.quality;
@@ -485,17 +485,17 @@ export class AudioPlayerService {
 
       // Stream from server with auth header
       const url = api.getSongStreamUrl(track.id, this.quality);
-      
+
       // Fetch with auth and create blob URL
       try {
         const response = await fetch(url, {
           headers: api.getAuthHeaders()
         });
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        
+
         const blob = await response.blob();
         active.audio.src = URL.createObjectURL(blob);
         active.quality = this.quality;
@@ -508,13 +508,13 @@ export class AudioPlayerService {
     this.currentQuality = active.quality;
 
     this.applyReplayGain(active);
-    
+
     // Reset gain to full for active track
     if (active.gainNode) {
       const targetGain = active.gainNode.gain.value;
       active.gainNode.gain.value = targetGain > 0 ? targetGain : 1;
     }
-    
+
     // Set start time
     if (startTime > 0) {
       const setTime = () => {
@@ -564,7 +564,7 @@ export class AudioPlayerService {
 
   private async handleTrackEnded(): Promise<void> {
     this.emit('ended', {});
-    
+
     if (this.repeatMode === 'one') {
       this.audio.currentTime = 0;
       this.play();
@@ -583,15 +583,15 @@ export class AudioPlayerService {
 
   private async playFromQueue(): Promise<void> {
     if (this.queueService.getQueueLength() === 0) return;
-    
+
     const queueItem = this.queueService.shiftQueue()!;
-    
+
     // Update current index if this is a playlist track from the current playlist
     this.queueService.updateIndexFromQueueItem(queueItem);
     this.syncConfigFromQueueService();
-    
+
     this.emit('queuechange', {});
-    
+
     // Replenish queue if needed (triggers at <100 items, adds 100 items to reach ~200)
     const playlistItemsCount = this.queueService.getQueue().filter(i => i.source === 'playlist').length;
     if (this.repeatMode !== 'off' || playlistItemsCount < 10) {
@@ -600,7 +600,7 @@ export class AudioPlayerService {
     } else {
       this.scheduleStateSave();
     }
-    
+
     await this.loadTrack(queueItem.track, true);
   }
 
@@ -640,7 +640,8 @@ export class AudioPlayerService {
       shuffleEnabled: this.shuffleEnabled,
       repeatMode: this.repeatMode,
       shuffleOrder: this.shuffleOrder,
-      queue: this.queueService.getQueue()
+      queue: this.queueService.getQueue(),
+      playHistory: this.queueService.getPlayHistory()
     };
     await storageService.savePlaybackState(state);
   }
@@ -708,7 +709,7 @@ export class AudioPlayerService {
     this.currentPlaylistId = playlistId;
     this.playlist = tracks;
     this.currentIndex = -1;
-    
+
     if (this.shuffleEnabled) {
       if (initialShuffleOrder && initialShuffleOrder.length === tracks.length) {
         this.shuffleOrder = [...initialShuffleOrder];
@@ -716,24 +717,26 @@ export class AudioPlayerService {
         this.generateShuffleOrder();
       }
     }
-    
+
     // Clear playlist items from queue when changing playlist
     this.queueService.clearPlaylistQueue();
+    // Clear play history when changing playlist
+    this.queueService.clearHistory();
     this.emit('queuechange', {});
   }
 
   async playAtIndex(index: number, autoPlay: boolean = true, startTime: number = 0): Promise<void> {
     if (index < 0 || index >= this.playlist.length) return;
-    
+
     this.currentIndex = index;
     const actualIndex = this.getActualIndex(index);
     const track = this.playlist[actualIndex];
-    
+
     // Clear and rebuild the queue with upcoming playlist tracks
     this.queueService.clearPlaylistQueue();
     this.syncConfigToQueueService();
     this.queueService.replenishPlaylistQueue();
-    
+
     await this.loadTrack(track, autoPlay, startTime);
   }
 
@@ -744,14 +747,14 @@ export class AudioPlayerService {
       this.syncConfigToQueueService();
       this.currentIndex = this.queueService.findShuffleIndex(index);
     }
-    
+
     this.currentPlaylistId = playlistId;
-    
+
     // Clear and rebuild the queue with upcoming playlist tracks
     this.queueService.clearPlaylistQueue();
     this.syncConfigToQueueService();
     this.queueService.replenishPlaylistQueue();
-    
+
     await this.loadTrack(track, true);
   }
 
@@ -789,17 +792,28 @@ export class AudioPlayerService {
   }
 
   async next(): Promise<void> {
+    // Add current track to history before moving forward (for shuffle mode)
+    if (this.currentTrack && this.currentPlaylistId !== null && this.shuffleEnabled) {
+      const actualIndex = this.getActualIndex(this.currentIndex);
+      this.queueService.addToHistory({
+        track: this.currentTrack,
+        playlistId: this.currentPlaylistId,
+        indexInPlaylist: actualIndex,
+        source: 'playlist'
+      });
+    }
+
     // Check queue first
     if (this.queueService.getQueueLength() > 0) {
       const item = this.queueService.shiftQueue();
       this.emit('queuechange', {});
-      
+
       // If it's a playlist item, update the current index
       if (item?.source === 'playlist' && item.playlistId === this.currentPlaylistId) {
         this.syncConfigToQueueService();
         this.currentIndex = this.queueService.calculateNextIndex();
       }
-      
+
       await this.loadTrack(item!.track, true);
       this.syncConfigToQueueService();
       this.queueService.replenishPlaylistQueue();
@@ -807,7 +821,7 @@ export class AudioPlayerService {
     }
 
     if (!this.hasNext()) return;
-    
+
     this.syncConfigToQueueService();
     const nextIndex = this.queueService.calculateNextIndex();
     await this.playAtIndex(nextIndex);
@@ -821,8 +835,26 @@ export class AudioPlayerService {
     }
 
     if (!this.hasPrevious()) return;
-    
+
     this.syncConfigToQueueService();
+
+    // In shuffle mode, get from history; in sequential, calculate
+    if (this.shuffleEnabled) {
+      const prevItem = this.queueService.getPreviousTrack();
+      if (prevItem) {
+        // Update index to match the historical track
+        if (prevItem.playlistId === this.currentPlaylistId) {
+          const shuffleIndex = this.queueService.findShuffleIndex(prevItem.indexInPlaylist);
+          if (shuffleIndex >= 0) {
+            this.currentIndex = shuffleIndex;
+          }
+        }
+        await this.loadTrack(prevItem.track, true);
+        return;
+      }
+    }
+
+    // Sequential mode or no history available
     const prevIndex = this.queueService.calculatePreviousIndex();
     await this.playAtIndex(prevIndex);
   }
@@ -886,6 +918,9 @@ export class AudioPlayerService {
     this.shuffleEnabled = enabled;
     if (enabled) {
       this.generateShuffleOrder();
+    } else {
+      // Clear history when turning off shuffle
+      this.queueService.clearHistory();
     }
     // Rebuild queue with new shuffle order
     this.queueService.clearPlaylistQueue();
@@ -955,7 +990,7 @@ export class AudioPlayerService {
   setIsOnline(isOnline: boolean): void {
     const wasOffline = !this.isOnline;
     this.isOnline = isOnline;
-    
+
     if (wasOffline && isOnline) {
       this.processPendingScrobbles();
     }
@@ -1001,7 +1036,8 @@ export class AudioPlayerService {
       shuffleEnabled: this.shuffleEnabled,
       repeatMode: this.repeatMode,
       shuffleOrder: this.shuffleOrder,
-      queue: this.queueService.getQueue()
+      queue: this.queueService.getQueue(),
+      playHistory: this.queueService.getPlayHistory()
     };
   }
 
@@ -1013,13 +1049,18 @@ export class AudioPlayerService {
     this.shuffleOrder = state.shuffleOrder;
     this.currentPlaylistId = state.currentPlaylistId;
     this.currentIndex = state.currentTrackIndex;
-    
+
     // Restore queue and ensure each item has a source field (for backwards compatibility)
     const queue = (state.queue ?? []).map(item => ({
       ...item,
       source: item.source ?? 'manual' // Default to manual for old queue items without source
     }));
     this.queueService.setQueue(queue);
+
+    // Restore play history if available
+    if (state.playHistory) {
+      this.queueService.setPlayHistory(state.playHistory);
+    }
 
     // The actual track loading will be handled by the app after playlists are loaded
   }
