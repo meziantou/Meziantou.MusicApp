@@ -15,6 +15,8 @@ public class RestApiIntegrationTests
             .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
             .Validate(response, """
                 StatusCode: 200 (OK)
+                Headers:
+                  Cache-Control: no-store, must-revalidate, no-cache
                 Content:
                   Headers:
                     Content-Type: application/json; charset=utf-8
@@ -38,6 +40,8 @@ public class RestApiIntegrationTests
             .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
             .Validate(response, """
                 StatusCode: 200 (OK)
+                Headers:
+                  Cache-Control: no-store, must-revalidate, no-cache
                 Content:
                   Headers:
                     Content-Type: application/json; charset=utf-8
@@ -99,6 +103,8 @@ public class RestApiIntegrationTests
         using var response = await app.Client.GetAsync($"/api/songs/{song.Id}/lyrics.json", app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -121,6 +127,8 @@ public class RestApiIntegrationTests
         using var response = await app.Client.GetAsync($"/api/songs/{song.Id}/lyrics.json", app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -141,6 +149,8 @@ public class RestApiIntegrationTests
         using var response = await app.Client.GetAsync($"/api/songs/{song.Id}/lyrics.json", app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -159,6 +169,8 @@ public class RestApiIntegrationTests
         using var response = await app.Client.GetAsync("/api/songs/non-existent-id/lyrics.json", app.CancellationToken);
         InlineSnapshot.Validate(response, """
             StatusCode: 404 (NotFound)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
