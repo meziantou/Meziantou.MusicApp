@@ -59,6 +59,111 @@ export class PlayQueueService {
   }
 
   /**
+   * Gets the current track being played
+   */
+  getCurrentTrack(): TrackInfo | null {
+    if (this.config.currentIndex < 0 || this.config.currentIndex >= this.config.playlist.length) {
+      return null;
+    }
+    const actualIndex = this.getActualIndex(this.config.currentIndex);
+    return this.config.playlist[actualIndex] ?? null;
+  }
+
+  /**
+   * Gets the current playlist ID
+   */
+  getPlaylistId(): string | null {
+    return this.config.currentPlaylistId;
+  }
+
+  /**
+   * Gets the current index
+   */
+  getCurrentIndex(): number {
+    return this.config.currentIndex;
+  }
+
+  /**
+   * Sets the current index
+   */
+  setCurrentIndex(index: number): void {
+    this.config.currentIndex = index;
+  }
+
+  /**
+   * Gets the current playlist
+   */
+  getPlaylist(): TrackInfo[] {
+    return [...this.config.playlist];
+  }
+
+  /**
+   * Gets the shuffle order
+   */
+  getShuffleOrder(): number[] {
+    return [...this.config.shuffleOrder];
+  }
+
+  /**
+   * Gets whether shuffle is enabled
+   */
+  isShuffleEnabled(): boolean {
+    return this.config.shuffleEnabled;
+  }
+
+  /**
+   * Gets the repeat mode
+   */
+  getRepeatMode(): RepeatMode {
+    return this.config.repeatMode;
+  }
+
+  /**
+   * Sets the playlist and related state
+   */
+  setPlaylist(playlistId: string, tracks: TrackInfo[], initialShuffleOrder?: number[]): void {
+    this.config.currentPlaylistId = playlistId;
+    this.config.playlist = [...tracks];
+    this.config.currentIndex = -1;
+
+    if (this.config.shuffleEnabled) {
+      if (initialShuffleOrder && initialShuffleOrder.length === tracks.length) {
+        this.config.shuffleOrder = [...initialShuffleOrder];
+      } else {
+        this.config.shuffleOrder = this.generateShuffleOrder();
+      }
+    }
+  }
+
+  /**
+   * Sets the current index (for playAtIndex)
+   */
+  playAtIndex(index: number): boolean {
+    if (index < 0 || index >= this.config.playlist.length) {
+      return false;
+    }
+    this.config.currentIndex = index;
+    return true;
+  }
+
+  /**
+   * Sets shuffle enabled/disabled
+   */
+  setShuffle(enabled: boolean): void {
+    this.config.shuffleEnabled = enabled;
+    if (enabled) {
+      this.config.shuffleOrder = this.generateShuffleOrder();
+    }
+  }
+
+  /**
+   * Sets the repeat mode
+   */
+  setRepeatMode(mode: RepeatMode): void {
+    this.config.repeatMode = mode;
+  }
+
+  /**
    * Gets the next track from the queue or playlist
    */
   getNextTrack(): NextTrackResult | null {
@@ -175,9 +280,10 @@ export class PlayQueueService {
    * Checks if we can go to a previous track (history exists or non-shuffle mode)
    */
   canGoToPrevious(): boolean {
-    // In shuffle mode, check if history exists
+    // In shuffle mode, always allow previous if playlist has tracks
+    // Will use history if available, otherwise generate random track
     if (this.config.shuffleEnabled) {
-      return this.playHistory.length > 0;
+      return this.config.playlist.length > 1; // Need at least 2 tracks to go to different one
     }
     // In sequential mode, check index or repeat mode
     if (this.config.repeatMode !== 'off') return this.config.playlist.length > 0;
@@ -189,9 +295,14 @@ export class PlayQueueService {
    * Returns null if no previous track available
    */
   getPreviousTrack(): QueueItem | null {
-    // In shuffle mode, pop from history
-    if (this.config.shuffleEnabled && this.playHistory.length > 0) {
-      return this.playHistory.pop() ?? null;
+    // In shuffle mode, pop from history or generate random track
+    if (this.config.shuffleEnabled) {
+      if (this.playHistory.length > 0) {
+        return this.playHistory.pop() ?? null;
+      }
+      // No history - generate a random previous track
+      // This allows backward navigation even at the start of shuffle playback
+      return this.getRandomTrack();
     }
 
     // In sequential mode, calculate previous index
@@ -469,6 +580,46 @@ export class PlayQueueService {
       }
     }
     return prevIndex;
+  }
+
+  /**
+   * Gets a random track from the playlist, excluding the current track
+   */
+  private getRandomTrack(): QueueItem | null {
+    if (this.config.playlist.length === 0 || !this.config.currentPlaylistId) {
+      return null;
+    }
+
+    // If shuffle order is empty but shuffle is enabled, use direct playlist indices
+    const useShuffleOrder = this.config.shuffleEnabled && this.config.shuffleOrder.length > 0;
+
+    // Get current actual index to avoid selecting the same track
+    let currentActualIndex: number;
+    if (useShuffleOrder) {
+      currentActualIndex = this.config.shuffleOrder[this.config.currentIndex];
+    } else {
+      currentActualIndex = this.config.currentIndex;
+    }
+
+    // Pick a random track that's different from current
+    let randomActualIndex: number;
+    if (this.config.playlist.length === 1) {
+      randomActualIndex = 0;
+    } else {
+      do {
+        randomActualIndex = Math.floor(Math.random() * this.config.playlist.length);
+      } while (randomActualIndex === currentActualIndex);
+    }
+
+    const track = this.config.playlist[randomActualIndex];
+    if (!track) return null;
+
+    return {
+      track,
+      playlistId: this.config.currentPlaylistId,
+      indexInPlaylist: randomActualIndex,
+      source: 'playlist' as const
+    };
   }
 
   /**

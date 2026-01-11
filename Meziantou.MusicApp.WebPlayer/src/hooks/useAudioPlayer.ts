@@ -28,7 +28,7 @@ export interface AudioPlayerActions {
   setShuffle: (enabled: boolean) => void;
   cycleRepeatMode: () => RepeatMode;
   setPlaylist: (playlistId: string, tracks: TrackInfo[], initialShuffleOrder?: number[]) => void;
-  playTrack: (track: TrackInfo, playlistId: string) => Promise<void>;
+  playTrack: (track: TrackInfo) => Promise<void>;
   playAtIndex: (index: number, autoPlay?: boolean, startTime?: number) => Promise<void>;
   addToQueue: (track: TrackInfo, playlistId: string, indexInPlaylist: number) => void;
   removeFromQueue: (index: number) => void;
@@ -161,9 +161,9 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     setPlaylist: (playlistId: string, tracks: TrackInfo[], initialShuffleOrder?: number[]) => {
       audioPlayer.setPlaylist(playlistId, tracks, initialShuffleOrder);
     },
-    playTrack: async (track: TrackInfo, playlistId: string) => {
+    playTrack: async (track: TrackInfo) => {
       setState(prev => ({ ...prev, isLoading: true }));
-      await audioPlayer.playTrack(track, playlistId);
+      await audioPlayer.playTrack(track);
     },
     playAtIndex: async (index: number, autoPlay = true, startTime = 0) => {
       setState(prev => ({ ...prev, isLoading: true }));

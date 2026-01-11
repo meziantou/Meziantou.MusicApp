@@ -17,7 +17,7 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
   const manualItems = queue.filter(item => item.source === 'manual');
   const playlistItems = queue.filter(item => item.source === 'playlist');
 
-  const playlistName = playlistItems.length > 0 
+  const playlistName = playlistItems.length > 0
     ? playlists.find(p => p.id === playlistItems[0].playlistId)?.name || 'Playlist'
     : 'Playlist';
 
@@ -31,16 +31,16 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
 
   const handlePlayItem = async (queueIndex: number) => {
     if (queueIndex < 0 || queueIndex >= queue.length) return;
-    
+
     const itemToPlay = queue[queueIndex];
-    
+
     // Remove all items up to and including the selected one
     for (let i = 0; i <= queueIndex; i++) {
       playerActions.removeFromQueue(0);
     }
-    
+
     // Play the selected track directly
-    await playerActions.playTrack(itemToPlay.track, itemToPlay.playlistId);
+    await playerActions.playTrack(itemToPlay.track);
   };
 
   return (

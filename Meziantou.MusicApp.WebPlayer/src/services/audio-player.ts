@@ -43,12 +43,6 @@ export class AudioPlayerService {
 
   private currentTrack: TrackInfo | null = null;
   private currentQuality: StreamingQuality | null = null;
-  private currentPlaylistId: string | null = null;
-  private playlist: TrackInfo[] = [];
-  private currentIndex: number = -1;
-  private shuffleOrder: number[] = [];
-  private shuffleEnabled: boolean = false;
-  private repeatMode: RepeatMode = 'off';
   private queueService: PlayQueueService;
 
   private quality: StreamingQuality = { format: 'raw' };
@@ -86,12 +80,12 @@ export class AudioPlayerService {
     this.setupAudioEvents(this.audioInstance);
     this.setupMediaSession();
     this.queueService = new PlayQueueService({
-      currentIndex: this.currentIndex,
-      currentPlaylistId: this.currentPlaylistId,
-      playlist: this.playlist,
-      shuffleOrder: this.shuffleOrder,
-      shuffleEnabled: this.shuffleEnabled,
-      repeatMode: this.repeatMode,
+      currentIndex: -1,
+      currentPlaylistId: null,
+      playlist: [],
+      shuffleOrder: [],
+      shuffleEnabled: false,
+      repeatMode: 'off',
       cachedTrackIds: this.cachedTrackIds,
       recentlyPlayedIds: this.recentlyPlayedIds,
       isOnline: this.isOnline,
@@ -565,7 +559,7 @@ export class AudioPlayerService {
   private async handleTrackEnded(): Promise<void> {
     this.emit('ended', {});
 
-    if (this.repeatMode === 'one') {
+    if (this.queueService.getRepeatMode() === 'one') {
       this.audio.currentTime = 0;
       this.play();
       return;
@@ -588,14 +582,19 @@ export class AudioPlayerService {
 
     // Update current index if this is a playlist track from the current playlist
     this.queueService.updateIndexFromQueueItem(queueItem);
-    this.syncConfigFromQueueService();
 
     this.emit('queuechange', {});
 
     // Replenish queue if needed (triggers at <100 items, adds 100 items to reach ~200)
     const playlistItemsCount = this.queueService.getQueue().filter(i => i.source === 'playlist').length;
-    if (this.repeatMode !== 'off' || playlistItemsCount < 10) {
-      this.syncConfigToQueueService();
+    if (this.queueService.getRepeatMode() !== 'off' || playlistItemsCount < 10) {
+      this.queueService.updateConfig({
+        cachedTrackIds: this.cachedTrackIds,
+        recentlyPlayedIds: this.recentlyPlayedIds,
+        isOnline: this.isOnline,
+        networkType: this.networkType,
+        preventDownloadOnLowData: this.preventDownloadOnLowData
+      });
       this.queueService.replenishPlaylistQueue();
     } else {
       this.scheduleStateSave();
@@ -606,11 +605,6 @@ export class AudioPlayerService {
 
   private getActualIndex(index: number): number {
     return this.queueService.getActualIndex(index);
-  }
-
-  private generateShuffleOrder(): void {
-    this.syncConfigToQueueService();
-    this.shuffleOrder = this.queueService.generateShuffleOrder();
   }
 
   private scheduleStateSave(): void {
@@ -630,16 +624,16 @@ export class AudioPlayerService {
   private async saveState(): Promise<void> {
     this.lastSaveTime = Date.now();
     const state: PlaybackState = {
-      currentPlaylistId: this.currentPlaylistId,
-      currentTrackIndex: this.currentIndex,
+      currentPlaylistId: this.queueService.getPlaylistId(),
+      currentTrackIndex: this.queueService.getCurrentIndex(),
       currentTrackId: this.currentTrack?.id ?? null,
       currentTime: this.audio.currentTime,
       isPlaying: !this.audio.paused,
       volume: this.masterVolume,
       isMuted: this.isMuted,
-      shuffleEnabled: this.shuffleEnabled,
-      repeatMode: this.repeatMode,
-      shuffleOrder: this.shuffleOrder,
+      shuffleEnabled: this.queueService.isShuffleEnabled(),
+      repeatMode: this.queueService.getRepeatMode(),
+      shuffleOrder: this.queueService.getShuffleOrder(),
       queue: this.queueService.getQueue(),
       playHistory: this.queueService.getPlayHistory()
     };
@@ -665,29 +659,6 @@ export class AudioPlayerService {
     }
   }
 
-  // Helper methods to sync config with queue service
-
-  private syncConfigToQueueService(): void {
-    this.queueService.updateConfig({
-      currentIndex: this.currentIndex,
-      currentPlaylistId: this.currentPlaylistId,
-      playlist: this.playlist,
-      shuffleOrder: this.shuffleOrder,
-      shuffleEnabled: this.shuffleEnabled,
-      repeatMode: this.repeatMode,
-      cachedTrackIds: this.cachedTrackIds,
-      recentlyPlayedIds: this.recentlyPlayedIds,
-      isOnline: this.isOnline,
-      networkType: this.networkType,
-      preventDownloadOnLowData: this.preventDownloadOnLowData
-    });
-  }
-
-  private syncConfigFromQueueService(): void {
-    const config = this.queueService.getConfig();
-    this.currentIndex = config.currentIndex;
-  }
-
   // Public methods
 
   on(event: PlayerEventType, callback: PlayerEventCallback): void {
@@ -706,17 +677,7 @@ export class AudioPlayerService {
   }
 
   setPlaylist(playlistId: string, tracks: TrackInfo[], initialShuffleOrder?: number[]): void {
-    this.currentPlaylistId = playlistId;
-    this.playlist = tracks;
-    this.currentIndex = -1;
-
-    if (this.shuffleEnabled) {
-      if (initialShuffleOrder && initialShuffleOrder.length === tracks.length) {
-        this.shuffleOrder = [...initialShuffleOrder];
-      } else {
-        this.generateShuffleOrder();
-      }
-    }
+    this.queueService.setPlaylist(playlistId, tracks, initialShuffleOrder);
 
     // Clear playlist items from queue when changing playlist
     this.queueService.clearPlaylistQueue();
@@ -726,33 +687,43 @@ export class AudioPlayerService {
   }
 
   async playAtIndex(index: number, autoPlay: boolean = true, startTime: number = 0): Promise<void> {
-    if (index < 0 || index >= this.playlist.length) return;
+    if (!this.queueService.playAtIndex(index)) return;
 
-    this.currentIndex = index;
     const actualIndex = this.getActualIndex(index);
-    const track = this.playlist[actualIndex];
+    const track = this.queueService.getPlaylist()[actualIndex];
 
     // Clear and rebuild the queue with upcoming playlist tracks
     this.queueService.clearPlaylistQueue();
-    this.syncConfigToQueueService();
+    this.queueService.updateConfig({
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
     this.queueService.replenishPlaylistQueue();
 
     await this.loadTrack(track, autoPlay, startTime);
   }
 
-  async playTrack(track: TrackInfo, playlistId: string): Promise<void> {
-    const index = this.playlist.findIndex(t => t.id === track.id);
+  async playTrack(track: TrackInfo): Promise<void> {
+    const playlist = this.queueService.getPlaylist();
+    const index = playlist.findIndex((t: TrackInfo) => t.id === track.id);
     if (index >= 0) {
       // Find the shuffle index if shuffling
-      this.syncConfigToQueueService();
-      this.currentIndex = this.queueService.findShuffleIndex(index);
+      const shuffleIndex = this.queueService.findShuffleIndex(index);
+      this.queueService.setCurrentIndex(shuffleIndex);
     }
-
-    this.currentPlaylistId = playlistId;
 
     // Clear and rebuild the queue with upcoming playlist tracks
     this.queueService.clearPlaylistQueue();
-    this.syncConfigToQueueService();
+    this.queueService.updateConfig({
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
     this.queueService.replenishPlaylistQueue();
 
     await this.loadTrack(track, true);
@@ -793,11 +764,11 @@ export class AudioPlayerService {
 
   async next(): Promise<void> {
     // Add current track to history before moving forward (for shuffle mode)
-    if (this.currentTrack && this.currentPlaylistId !== null && this.shuffleEnabled) {
-      const actualIndex = this.getActualIndex(this.currentIndex);
+    if (this.currentTrack && this.queueService.getPlaylistId() !== null && this.queueService.isShuffleEnabled()) {
+      const actualIndex = this.getActualIndex(this.queueService.getCurrentIndex());
       this.queueService.addToHistory({
         track: this.currentTrack,
-        playlistId: this.currentPlaylistId,
+        playlistId: this.queueService.getPlaylistId()!,
         indexInPlaylist: actualIndex,
         source: 'playlist'
       });
@@ -809,20 +780,24 @@ export class AudioPlayerService {
       this.emit('queuechange', {});
 
       // If it's a playlist item, update the current index
-      if (item?.source === 'playlist' && item.playlistId === this.currentPlaylistId) {
-        this.syncConfigToQueueService();
-        this.currentIndex = this.queueService.calculateNextIndex();
+      if (item?.source === 'playlist' && item.playlistId === this.queueService.getPlaylistId()) {
+        this.queueService.setCurrentIndex(this.queueService.calculateNextIndex());
       }
 
       await this.loadTrack(item!.track, true);
-      this.syncConfigToQueueService();
+      this.queueService.updateConfig({
+        cachedTrackIds: this.cachedTrackIds,
+        recentlyPlayedIds: this.recentlyPlayedIds,
+        isOnline: this.isOnline,
+        networkType: this.networkType,
+        preventDownloadOnLowData: this.preventDownloadOnLowData
+      });
       this.queueService.replenishPlaylistQueue();
       return;
     }
 
     if (!this.hasNext()) return;
 
-    this.syncConfigToQueueService();
     const nextIndex = this.queueService.calculateNextIndex();
     await this.playAtIndex(nextIndex);
   }
@@ -836,17 +811,32 @@ export class AudioPlayerService {
 
     if (!this.hasPrevious()) return;
 
-    this.syncConfigToQueueService();
+    // In shuffle mode, handle history-based navigation
+    if (this.queueService.isShuffleEnabled()) {
+      // Check if we have history to go back to
+      const hasHistory = this.queueService.getPlayHistory().length > 0;
 
-    // In shuffle mode, get from history; in sequential, calculate
-    if (this.shuffleEnabled) {
+      // If no history, add current track to history so we can return to it with "next"
+      if (!hasHistory && this.currentTrack && this.queueService.getPlaylistId() !== null) {
+        const actualIndex = this.getActualIndex(this.queueService.getCurrentIndex());
+        this.queueService.addToHistory({
+          track: this.currentTrack,
+          playlistId: this.queueService.getPlaylistId()!,
+          indexInPlaylist: actualIndex,
+          source: 'playlist'
+        });
+      }
+
       const prevItem = this.queueService.getPreviousTrack();
       if (prevItem) {
-        // Update index to match the historical track
-        if (prevItem.playlistId === this.currentPlaylistId) {
+        // Update index to match the historical/random track
+        if (prevItem.playlistId === this.queueService.getPlaylistId()) {
           const shuffleIndex = this.queueService.findShuffleIndex(prevItem.indexInPlaylist);
           if (shuffleIndex >= 0) {
-            this.currentIndex = shuffleIndex;
+            this.queueService.setCurrentIndex(shuffleIndex);
+          } else {
+            // If shuffle index not found (empty shuffle order), use actual index directly
+            this.queueService.setCurrentIndex(prevItem.indexInPlaylist);
           }
         }
         await this.loadTrack(prevItem.track, true);
@@ -854,18 +844,16 @@ export class AudioPlayerService {
       }
     }
 
-    // Sequential mode or no history available
+    // Sequential mode
     const prevIndex = this.queueService.calculatePreviousIndex();
     await this.playAtIndex(prevIndex);
   }
 
   hasNext(): boolean {
-    this.syncConfigToQueueService();
     return this.queueService.hasNext();
   }
 
   hasPrevious(): boolean {
-    this.syncConfigToQueueService();
     return this.queueService.hasPrevious();
   }
 
@@ -915,45 +903,62 @@ export class AudioPlayerService {
   }
 
   setShuffle(enabled: boolean): void {
-    this.shuffleEnabled = enabled;
-    if (enabled) {
-      this.generateShuffleOrder();
-    } else {
+    this.queueService.setShuffle(enabled);
+    if (!enabled) {
       // Clear history when turning off shuffle
       this.queueService.clearHistory();
     }
     // Rebuild queue with new shuffle order
     this.queueService.clearPlaylistQueue();
-    this.syncConfigToQueueService();
+    this.queueService.updateConfig({
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
     this.queueService.replenishPlaylistQueue();
     this.scheduleStateSave();
   }
 
   isShuffleEnabled(): boolean {
-    return this.shuffleEnabled;
+    return this.queueService.isShuffleEnabled();
   }
 
   setRepeatMode(mode: RepeatMode): void {
-    this.repeatMode = mode;
+    this.queueService.setRepeatMode(mode);
     // Replenish queue (may need more items in repeat mode)
-    this.syncConfigToQueueService();
+    this.queueService.updateConfig({
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
     this.queueService.replenishPlaylistQueue();
     this.scheduleStateSave();
   }
 
   getRepeatMode(): RepeatMode {
-    return this.repeatMode;
+    return this.queueService.getRepeatMode();
   }
 
   cycleRepeatMode(): RepeatMode {
     const modes: RepeatMode[] = ['off', 'all', 'one'];
-    const currentIdx = modes.indexOf(this.repeatMode);
-    this.repeatMode = modes[(currentIdx + 1) % modes.length];
+    const currentIdx = modes.indexOf(this.queueService.getRepeatMode());
+    const newMode = modes[(currentIdx + 1) % modes.length];
+    this.queueService.setRepeatMode(newMode);
     // Replenish queue (may need more items in repeat mode)
-    this.syncConfigToQueueService();
+    this.queueService.updateConfig({
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
     this.queueService.replenishPlaylistQueue();
     this.scheduleStateSave();
-    return this.repeatMode;
+    return newMode;
   }
 
   setQuality(quality: StreamingQuality): void {
@@ -984,7 +989,7 @@ export class AudioPlayerService {
 
   setCachedTrackIds(ids: Set<string>): void {
     this.cachedTrackIds = ids;
-    this.syncConfigToQueueService();
+    this.queueService.updateConfig({ cachedTrackIds: ids });
   }
 
   setIsOnline(isOnline: boolean): void {
@@ -1005,11 +1010,11 @@ export class AudioPlayerService {
   }
 
   getCurrentPlaylistId(): string | null {
-    return this.currentPlaylistId;
+    return this.queueService.getPlaylistId();
   }
 
   getCurrentIndex(): number {
-    return this.currentIndex;
+    return this.queueService.getCurrentIndex();
   }
 
   getCurrentTime(): number {
@@ -1026,16 +1031,16 @@ export class AudioPlayerService {
 
   getPlaybackState(): PlaybackState {
     return {
-      currentPlaylistId: this.currentPlaylistId,
-      currentTrackIndex: this.currentIndex,
+      currentPlaylistId: this.queueService.getPlaylistId(),
+      currentTrackIndex: this.queueService.getCurrentIndex(),
       currentTrackId: this.currentTrack?.id ?? null,
       currentTime: this.audio.currentTime,
       isPlaying: !this.audio.paused,
       volume: this.masterVolume,
       isMuted: this.isMuted,
-      shuffleEnabled: this.shuffleEnabled,
-      repeatMode: this.repeatMode,
-      shuffleOrder: this.shuffleOrder,
+      shuffleEnabled: this.queueService.isShuffleEnabled(),
+      repeatMode: this.queueService.getRepeatMode(),
+      shuffleOrder: this.queueService.getShuffleOrder(),
       queue: this.queueService.getQueue(),
       playHistory: this.queueService.getPlayHistory()
     };
@@ -1044,11 +1049,21 @@ export class AudioPlayerService {
   async restoreState(state: PlaybackState): Promise<void> {
     this.setVolume(state.volume);
     this.setMuted(state.isMuted);
-    this.shuffleEnabled = state.shuffleEnabled;
-    this.repeatMode = state.repeatMode;
-    this.shuffleOrder = state.shuffleOrder;
-    this.currentPlaylistId = state.currentPlaylistId;
-    this.currentIndex = state.currentTrackIndex;
+    
+    // Restore state to queue service
+    this.queueService.updateConfig({
+      shuffleEnabled: state.shuffleEnabled,
+      repeatMode: state.repeatMode,
+      shuffleOrder: state.shuffleOrder,
+      currentPlaylistId: state.currentPlaylistId,
+      currentIndex: state.currentTrackIndex,
+      playlist: [], // Will be set by the app after playlists are loaded
+      cachedTrackIds: this.cachedTrackIds,
+      recentlyPlayedIds: this.recentlyPlayedIds,
+      isOnline: this.isOnline,
+      networkType: this.networkType,
+      preventDownloadOnLowData: this.preventDownloadOnLowData
+    });
 
     // Restore queue and ensure each item has a source field (for backwards compatibility)
     const queue = (state.queue ?? []).map(item => ({

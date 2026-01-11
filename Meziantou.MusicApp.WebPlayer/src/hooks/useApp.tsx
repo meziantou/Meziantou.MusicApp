@@ -141,7 +141,7 @@ export function AppProvider({ children }: AppProviderProps) {
         console.log('[useApp] Initializing...');
         await storageService.init();
         console.log('[useApp] Storage initialized');
-        
+
         const loadedSettings = await storageService.getSettings(DEFAULT_SETTINGS);
         console.log('[useApp] Settings loaded:', loadedSettings);
         setSettings(loadedSettings);
@@ -161,7 +161,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
         await downloadService.init();
         console.log('[useApp] Download service initialized');
-        
+
         const cached = await storageService.getCachedTrackIds();
         setCachedTrackIds(cached);
 
@@ -186,7 +186,7 @@ export function AppProvider({ children }: AppProviderProps) {
         console.error('[useApp] Initialization failed:', error);
         // Even if initialization fails, we should probably mark as initialized so the UI can render (e.g. settings dialog)
         // But maybe with default settings?
-        setIsInitialized(true); 
+        setIsInitialized(true);
       }
     }
     init();
@@ -225,12 +225,12 @@ export function AppProvider({ children }: AppProviderProps) {
         // Restore last viewed playlist
         const lastViewedId = localStorage.getItem('lastViewedPlaylistId');
         let viewedId = lastViewedId;
-        
+
         // If no last viewed, fallback to playing playlist
         if (!viewedId && state.currentPlaylistId) {
             viewedId = state.currentPlaylistId;
         }
-        
+
         // If still nothing, maybe first playlist?
         if (!viewedId && currentPlaylists.length > 0) {
             viewedId = currentPlaylists[0].id;
@@ -248,7 +248,7 @@ export function AppProvider({ children }: AppProviderProps) {
         // Restore playing playlist tracks
         if (state.currentPlaylistId) {
              let tracks: TrackInfo[] = [];
-             
+
              if (state.currentPlaylistId === viewedId) {
                  tracks = viewedTracks;
              } else {
@@ -266,11 +266,11 @@ export function AppProvider({ children }: AppProviderProps) {
                      console.error("Failed to load playing playlist tracks", e);
                  }
              }
-             
+
              if (tracks.length > 0) {
                  setPlayingPlaylistId(state.currentPlaylistId);
                  playerActions.setPlaylist(state.currentPlaylistId, tracks, state.shuffleOrder);
-                 
+
                  // Find the correct track index using the track ID for more reliable restoration
                  let trackIndex = state.currentTrackIndex;
                  if (state.currentTrackId) {
@@ -290,13 +290,13 @@ export function AppProvider({ children }: AppProviderProps) {
                      }
                    }
                  }
-                 
+
                  if (trackIndex >= 0 && trackIndex < tracks.length) {
                      await playerActions.playAtIndex(trackIndex, state.isPlaying, state.currentTime);
                  }
              }
         }
-        
+
         // Check for invalid playlists after initial load
         if (isOnline) {
           try {
@@ -646,7 +646,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
     showToast('Settings saved');
 
-    const downloadQualityChanged = 
+    const downloadQualityChanged =
       newSettings.downloadQuality.format !== settings.downloadQuality.format ||
       newSettings.downloadQuality.maxBitRate !== settings.downloadQuality.maxBitRate;
 
@@ -654,10 +654,10 @@ export function AppProvider({ children }: AppProviderProps) {
       await storageService.clearCachedTracks();
       await downloadService.refreshCacheState();
       setCachedTrackIds(new Set());
-      
+
       const offlineIds = await storageService.getOfflinePlaylistIds();
       let redownloadCount = 0;
-      
+
       for (const playlistId of offlineIds) {
         const cachedPlaylist = await storageService.getCachedPlaylist(playlistId);
         if (cachedPlaylist && cachedPlaylist.tracks.length > 0) {
@@ -665,7 +665,7 @@ export function AppProvider({ children }: AppProviderProps) {
           redownloadCount++;
         }
       }
-      
+
       if (redownloadCount > 0) {
         showToast(`Redownloading ${redownloadCount} offline playlists`);
       }
@@ -699,7 +699,7 @@ export function AppProvider({ children }: AppProviderProps) {
     const networkType = getNetworkType();
     playerActions.setNetworkType(networkType);
     playerActions.setPreventDownloadOnLowData(settings.preventDownloadOnLowData);
-    
+
     const quality = networkType === 'low-data'
       ? settings.lowDataQuality
       : settings.normalQuality;
@@ -707,7 +707,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
     playerActions.setPlaylist(currentPlaylistId, tracks || currentPlaylistTracks);
     setPlayingPlaylistId(currentPlaylistId);
-    await playerActions.playTrack(_track, currentPlaylistId);
+    await playerActions.playTrack(_track);
   }, [currentPlaylistId, currentPlaylistTracks, settings, playerActions]);
 
   const downloadTrack = useCallback(async (track: TrackInfo) => {
@@ -829,7 +829,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setIsLoading(true);
     try {
       const api = getApiService();
-      
+
       let tracks = currentPlaylistTracks;
       if (currentPlaylistId !== playlistId) {
          const response = await api.getPlaylistTracks(playlistId);
@@ -863,7 +863,7 @@ export function AppProvider({ children }: AppProviderProps) {
       if (currentPlaylistId === playlistId) {
         setCurrentPlaylistTracks(updated.tracks);
       }
-      
+
       if (offlinePlaylistIds.has(playlistId)) {
         setOfflinePlaylistTracks(prev => {
           const next = new Map(prev);
@@ -906,7 +906,7 @@ export function AppProvider({ children }: AppProviderProps) {
       const api = getApiService();
       await api.triggerScan();
       showToast('Library scan started', 'success');
-      
+
       // Check for invalid playlists after a short delay to allow scan to complete
       setTimeout(async () => {
         try {
@@ -1026,7 +1026,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
       // Remove from cached playlists
       await storageService.deleteCachedPlaylist(playlistId);
-      
+
       // Cleanup orphaned tracks
       await storageService.cleanupOrphanedTracks();
 

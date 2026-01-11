@@ -207,7 +207,7 @@ describe('PlayQueueService', () => {
         service.addToHistory(createQueueItem(mockTracks[0]));
         service.addToHistory(createQueueItem(mockTracks[1]));
         service.addToHistory(createQueueItem(mockTracks[2]));
-        
+
         const history = service.getPlayHistory();
         expect(history.length).toBe(3);
         expect(history[0].track.id).toBe('1');
@@ -221,7 +221,7 @@ describe('PlayQueueService', () => {
           const track = createMockTrack(`${i}`, `Track ${i}`);
           service.addToHistory(createQueueItem(track));
         }
-        
+
         const history = service.getPlayHistory();
         expect(history.length).toBe(100); // MAX_HISTORY_SIZE
         // Should keep the most recent 100
@@ -233,11 +233,11 @@ describe('PlayQueueService', () => {
         // Add some history
         service.addToHistory(createQueueItem(mockTracks[0]));
         service.addToHistory(createQueueItem(mockTracks[3]));
-        
+
         const prev = service.getPreviousTrack();
         expect(prev).not.toBeNull();
         expect(prev?.track.id).toBe('4'); // Most recent in history
-        
+
         // History should be popped
         expect(service.getPlayHistory().length).toBe(1);
       });
@@ -246,16 +246,16 @@ describe('PlayQueueService', () => {
         service.addToHistory(createQueueItem(mockTracks[0]));
         service.addToHistory(createQueueItem(mockTracks[2]));
         service.addToHistory(createQueueItem(mockTracks[4]));
-        
+
         const prev1 = service.getPreviousTrack();
         expect(prev1?.track.id).toBe('5');
-        
+
         const prev2 = service.getPreviousTrack();
         expect(prev2?.track.id).toBe('3');
-        
+
         const prev3 = service.getPreviousTrack();
         expect(prev3?.track.id).toBe('1');
-        
+
         expect(service.getPlayHistory().length).toBe(0);
       });
 
@@ -264,14 +264,25 @@ describe('PlayQueueService', () => {
         expect(service.canGoToPrevious()).toBe(true);
       });
 
-      it('canGoToPrevious should return false when no history in shuffle mode', () => {
-        expect(service.canGoToPrevious()).toBe(false);
+      it('canGoToPrevious should return true even without history in shuffle mode', () => {
+        // In shuffle mode with no history, should allow going to random previous track
+        expect(service.canGoToPrevious()).toBe(true);
+      });
+
+      it('should return random track when no history in shuffle mode', () => {
+        // When no history exists, getPreviousTrack should return a random track
+        const prev = service.getPreviousTrack();
+        expect(prev).not.toBeNull();
+        expect(prev?.track).toBeDefined();
+        // Should be different from current track (which is at shuffle position 0 = actual index 2)
+        const currentActualIndex = service.getActualIndex(0);
+        expect(prev?.indexInPlaylist).not.toBe(currentActualIndex);
       });
 
       it('should clear history', () => {
         service.addToHistory(createQueueItem(mockTracks[0]));
         service.addToHistory(createQueueItem(mockTracks[1]));
-        
+
         service.clearHistory();
         expect(service.getPlayHistory().length).toBe(0);
       });
@@ -281,7 +292,7 @@ describe('PlayQueueService', () => {
       it('should generate a valid shuffle order', () => {
         const shuffleOrder = service.generateShuffleOrder();
         expect(shuffleOrder.length).toBe(mockTracks.length);
-        
+
         // Should contain all indices
         const sorted = [...shuffleOrder].sort((a, b) => a - b);
         expect(sorted).toEqual([0, 1, 2, 3, 4]);
@@ -290,7 +301,7 @@ describe('PlayQueueService', () => {
       it('should place current track at front of shuffle order', () => {
         service.updateConfig({ currentIndex: 3 });
         const shuffleOrder = service.generateShuffleOrder();
-        
+
         // Current track (index 3) should be at position 0
         expect(shuffleOrder[0]).toBe(3);
       });
@@ -298,7 +309,7 @@ describe('PlayQueueService', () => {
       it('should produce different orders on subsequent calls', () => {
         const order1 = service.generateShuffleOrder();
         const order2 = service.generateShuffleOrder();
-        
+
         // Very unlikely to be the same (but technically possible)
         // We'll just check they're both valid
         expect(order1.length).toBe(mockTracks.length);
@@ -324,7 +335,7 @@ describe('PlayQueueService', () => {
       it('should remove track from queue', () => {
         service.addToQueue(mockTracks[0], 'playlist-1', 0);
         service.addToQueue(mockTracks[1], 'playlist-1', 1);
-        
+
         service.removeFromQueue(0);
         expect(service.getQueueLength()).toBe(1);
         expect(service.getQueue()[0].track.id).toBe('2');
@@ -334,7 +345,7 @@ describe('PlayQueueService', () => {
         service.addToQueue(mockTracks[0], 'playlist-1', 0);
         service.addToQueue(mockTracks[1], 'playlist-1', 1);
         service.addToQueue(mockTracks[2], 'playlist-1', 2);
-        
+
         service.moveQueueItem(0, 2);
         const queue = service.getQueue();
         expect(queue[0].track.id).toBe('2');
@@ -348,7 +359,7 @@ describe('PlayQueueService', () => {
           { ...createQueueItem(mockTracks[1]), source: 'playlist' },
           { ...createQueueItem(mockTracks[2]), source: 'manual' },
         ]);
-        
+
         service.clearQueue();
         const queue = service.getQueue();
         expect(queue.length).toBe(1);
@@ -360,7 +371,7 @@ describe('PlayQueueService', () => {
           createQueueItem(mockTracks[0]),
           createQueueItem(mockTracks[1]),
         ]);
-        
+
         service.clearAllQueue();
         expect(service.getQueueLength()).toBe(0);
       });
@@ -368,7 +379,7 @@ describe('PlayQueueService', () => {
       it('should shift queue item', () => {
         service.addToQueue(mockTracks[0], 'playlist-1', 0);
         service.addToQueue(mockTracks[1], 'playlist-1', 1);
-        
+
         const item = service.shiftQueue();
         expect(item?.track.id).toBe('1');
         expect(service.getQueueLength()).toBe(1);
@@ -382,10 +393,10 @@ describe('PlayQueueService', () => {
           { ...createQueueItem(mockTracks[0]), source: 'playlist' },
           { ...createQueueItem(mockTracks[1]), source: 'playlist' },
         ]);
-        
+
         // Add manual item
         service.addToQueue(mockTracks[4], 'playlist-1', 4);
-        
+
         const queue = service.getQueue();
         expect(queue[0].track.id).toBe('5'); // Manual item first
         expect(queue[0].source).toBe('manual');
@@ -398,7 +409,7 @@ describe('PlayQueueService', () => {
       it('should return queue item before playlist items', () => {
         service.addToQueue(mockTracks[4], 'playlist-1', 4);
         service.updateConfig({ currentIndex: 0 });
-        
+
         const next = service.getNextTrack();
         expect(next?.track.id).toBe('5'); // From queue, not index 1
       });
@@ -437,7 +448,7 @@ describe('PlayQueueService', () => {
         });
       }
       service.addTracksToQueue(items);
-      
+
       const initialLength = service.getQueueLength();
       service.replenishPlaylistQueue();
       expect(service.getQueueLength()).toBe(initialLength); // No change
@@ -449,13 +460,13 @@ describe('PlayQueueService', () => {
         recentlyPlayedIds: recentlyPlayed,
         currentIndex: 0,
       });
-      
+
       service.replenishPlaylistQueue();
       const queue = service.getQueue();
-      
+
       // Queue should avoid recently played if possible
       const queueIds = queue.map(item => item.track.id);
-      
+
       // With 200 tracks and only 5 recently played, queue should avoid them initially
       // Check first 10 items
       const first10HasRecent = queueIds.slice(0, 10).some(id => recentlyPlayed.has(id));
@@ -467,7 +478,7 @@ describe('PlayQueueService', () => {
       const queue = service.getQueue();
       const ids = queue.map(item => item.track.id);
       const uniqueIds = new Set(ids);
-      
+
       // Initially, all IDs should be unique
       expect(ids.length).toBe(uniqueIds.size);
     });
@@ -478,20 +489,20 @@ describe('PlayQueueService', () => {
       for (let i = 1; i <= 10; i++) {
         smallTracks.push(createMockTrack(`${i}`, `Track ${i}`));
       }
-      
+
       service.updateConfig({
         playlist: smallTracks,
         currentIndex: 0,
         repeatMode: 'all',
       });
-      
+
       service.replenishPlaylistQueue();
       const queue = service.getQueue();
-      
+
       // With only 10 tracks and trying to add 100, duplicates are necessary with repeat mode
       // The queue should have more items than unique tracks available
       expect(queue.length).toBeGreaterThan(10);
-      
+
       // Check that we have some duplicates
       const trackIds = queue.map(item => item.track.id);
       const uniqueIds = new Set(trackIds);
@@ -501,10 +512,10 @@ describe('PlayQueueService', () => {
     it('should continue from last playlist item index', () => {
       service.updateConfig({ currentIndex: 10 });
       service.replenishPlaylistQueue();
-      
+
       const queue = service.getQueue();
       expect(queue.length).toBeGreaterThan(0);
-      
+
       // First item should be from index 11
       expect(parseInt(queue[0].track.id)).toBeGreaterThan(10);
     });
@@ -516,10 +527,10 @@ describe('PlayQueueService', () => {
         cachedTrackIds: cachedIds,
         currentIndex: 0,
       });
-      
+
       service.replenishPlaylistQueue();
       const queue = service.getQueue();
-      
+
       // All queued tracks should be cached
       for (const item of queue) {
         expect(cachedIds.has(item.track.id)).toBe(true);
@@ -534,10 +545,10 @@ describe('PlayQueueService', () => {
         cachedTrackIds: cachedIds,
         currentIndex: 0,
       });
-      
+
       service.replenishPlaylistQueue();
       const queue = service.getQueue();
-      
+
       // All queued tracks should be cached in low-data mode
       for (const item of queue) {
         expect(cachedIds.has(item.track.id)).toBe(true);
@@ -549,10 +560,10 @@ describe('PlayQueueService', () => {
         currentIndex: 195, // Near end
         repeatMode: 'all',
       });
-      
+
       service.replenishPlaylistQueue();
       const queue = service.getQueue();
-      
+
       // Should be able to add 100 items even near end by looping
       expect(queue.length).toBeGreaterThan(50);
     });
@@ -562,10 +573,10 @@ describe('PlayQueueService', () => {
         currentIndex: 195, // 4 tracks left
         repeatMode: 'off',
       });
-      
+
       service.replenishPlaylistQueue();
       const queue = service.getQueue();
-      
+
       // Can only add remaining tracks
       expect(queue.length).toBeLessThanOrEqual(4);
     });
@@ -585,11 +596,11 @@ describe('PlayQueueService', () => {
         playlist: [mockTracks[0]],
         currentIndex: 0,
       });
-      
+
       // Without repeat
       expect(service.getNextTrack()).toBeNull();
       expect(service.getPreviousTrack()).toBeNull();
-      
+
       // With repeat
       service.updateConfig({ repeatMode: 'all' });
       expect(service.getNextTrack()?.track.id).toBe('1');
@@ -600,7 +611,7 @@ describe('PlayQueueService', () => {
       service.updateConfig({ currentIndex: -1 });
       const next = service.getNextTrack();
       expect(next?.track.id).toBe('1'); // Index -1 + 1 = 0
-      
+
       service.updateConfig({ currentIndex: 100 });
       expect(service.getNextTrack()).toBeNull();
     });
@@ -615,7 +626,7 @@ describe('PlayQueueService', () => {
         shuffleEnabled: true,
         shuffleOrder: [],
       });
-      
+
       // Should fall back to sequential
       const next = service.getNextTrack();
       expect(next?.track.id).toBe('2');
@@ -624,10 +635,10 @@ describe('PlayQueueService', () => {
     it('should handle invalid remove index', () => {
       service.addToQueue(mockTracks[0], 'playlist-1', 0);
       const initialLength = service.getQueueLength();
-      
+
       service.removeFromQueue(-1);
       expect(service.getQueueLength()).toBe(initialLength);
-      
+
       service.removeFromQueue(100);
       expect(service.getQueueLength()).toBe(initialLength);
     });
@@ -635,12 +646,12 @@ describe('PlayQueueService', () => {
     it('should handle invalid move indices', () => {
       service.addToQueue(mockTracks[0], 'playlist-1', 0);
       service.addToQueue(mockTracks[1], 'playlist-1', 1);
-      
+
       const queue = service.getQueue();
-      
+
       service.moveQueueItem(-1, 1);
       expect(service.getQueue()).toEqual(queue); // No change
-      
+
       service.moveQueueItem(0, 100);
       expect(service.getQueue()).toEqual(queue); // No change
     });
@@ -650,9 +661,9 @@ describe('PlayQueueService', () => {
     it('should persist and restore queue', () => {
       service.addToQueue(mockTracks[0], 'playlist-1', 0);
       service.addToQueue(mockTracks[1], 'playlist-1', 1);
-      
+
       const queue = service.getQueue();
-      
+
       const newService = new PlayQueueService({
         currentIndex: 0,
         currentPlaylistId: 'playlist-1',
@@ -666,7 +677,7 @@ describe('PlayQueueService', () => {
         networkType: 'normal',
         preventDownloadOnLowData: false,
       });
-      
+
       newService.setQueue(queue);
       expect(newService.getQueue()).toEqual(queue);
     });
@@ -674,9 +685,9 @@ describe('PlayQueueService', () => {
     it('should persist and restore play history', () => {
       service.addToHistory(createQueueItem(mockTracks[0]));
       service.addToHistory(createQueueItem(mockTracks[1]));
-      
+
       const history = service.getPlayHistory();
-      
+
       const newService = new PlayQueueService({
         currentIndex: 0,
         currentPlaylistId: 'playlist-1',
@@ -690,7 +701,7 @@ describe('PlayQueueService', () => {
         networkType: 'normal',
         preventDownloadOnLowData: false,
       });
-      
+
       newService.setPlayHistory(history);
       expect(newService.getPlayHistory()).toEqual(history);
     });
