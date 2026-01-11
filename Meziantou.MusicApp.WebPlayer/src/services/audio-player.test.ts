@@ -44,11 +44,11 @@ describe('AudioPlayerService Queue Logic', () => {
     it('should play next track in sequence when repeat is off', async () => {
       await player.playAtIndex(0, false);
       expect(player.getCurrentIndex()).toBe(0);
-      
+
       await player.next();
       expect(player.getCurrentIndex()).toBe(1);
       expect(player.getCurrentTrack()?.id).toBe('2');
-      
+
       await player.next();
       expect(player.getCurrentIndex()).toBe(2);
       expect(player.getCurrentTrack()?.id).toBe('3');
@@ -57,7 +57,7 @@ describe('AudioPlayerService Queue Logic', () => {
     it('should stop at the end of playlist when repeat is off', async () => {
       await player.playAtIndex(4, false); // Last track
       expect(player.getCurrentIndex()).toBe(4);
-      
+
       await player.next();
       // Should stay on last track or not play anything new?
       // Implementation of next() returns if !hasNext().
@@ -69,7 +69,7 @@ describe('AudioPlayerService Queue Logic', () => {
     it('should loop to start when repeat is all', async () => {
       player.setRepeatMode('all');
       await player.playAtIndex(4, false); // Last track
-      
+
       await player.next();
       expect(player.getCurrentIndex()).toBe(0);
       expect(player.getCurrentTrack()?.id).toBe('1');
@@ -79,7 +79,7 @@ describe('AudioPlayerService Queue Logic', () => {
       // "Next" button usually forces advancement
       player.setRepeatMode('one');
       await player.playAtIndex(0, false);
-      
+
       await player.next();
       expect(player.getCurrentIndex()).toBe(1);
       expect(player.getCurrentTrack()?.id).toBe('2');
@@ -89,16 +89,16 @@ describe('AudioPlayerService Queue Logic', () => {
   describe('Previous Track', () => {
     it('should go to previous track', async () => {
       await player.playAtIndex(1, false);
-      
+
       await player.previous();
       expect(player.getCurrentIndex()).toBe(0);
       expect(player.getCurrentTrack()?.id).toBe('1');
     });
-    
+
     it('should loop to end when repeat is all and at start', async () => {
       player.setRepeatMode('all');
       await player.playAtIndex(0, false);
-      
+
       await player.previous();
       expect(player.getCurrentIndex()).toBe(4);
       expect(player.getCurrentTrack()?.id).toBe('5');
@@ -109,25 +109,25 @@ describe('AudioPlayerService Queue Logic', () => {
     it('should play tracks in random order', async () => {
       player.setShuffle(true);
       await player.playAtIndex(0, false);
-      
+
       // We can't predict the exact order, but we can check that it follows the shuffleOrder
       const state = player.getPlaybackState();
       const shuffleOrder = state.shuffleOrder;
-      
+
       expect(shuffleOrder).toHaveLength(mockTracks.length);
       expect(state.currentTrackIndex).toBe(0); // In shuffle mode, currentIndex is index in shuffleOrder
-      
+
       // The actual track played should be playlist[shuffleOrder[0]]
       const expectedTrackIndex = shuffleOrder[0];
       const expectedTrack = mockTracks[expectedTrackIndex];
       expect(player.getCurrentTrack()?.id).toBe(expectedTrack.id);
-      
+
       // Now next() should play shuffleOrder[currentIndex + 1]
       await player.next();
-      
+
       const nextIndex = player.getCurrentIndex();
       expect(nextIndex).toBe(1);
-      
+
       // Verify it's not just linear (though it could be by chance)
       // We can check if the track played matches the shuffle order
       const expectedNextTrackIndex = shuffleOrder[nextIndex];
@@ -141,27 +141,28 @@ describe('AudioPlayerService Queue Logic', () => {
       // Start playing from first track
       await player.playAtIndex(0, false);
       expect(player.getCurrentIndex()).toBe(0);
-      
+
       // Get the queue and verify it has tracks
       let queue = player.getQueue();
       const initialQueueLength = queue.length;
       expect(initialQueueLength).toBeGreaterThan(0);
-      
+
       // Find Track 2 in the queue (index 1)
       const track2Index = queue.findIndex(item => item.track.id === '2');
       expect(track2Index).toBeGreaterThanOrEqual(0);
-      
+
       // Remove Track 2 from the queue
       player.removeFromQueue(track2Index);
-      
+
       // Verify Track 2 is removed
       queue = player.getQueue();
       expect(queue.find(item => item.track.id === '2')).toBeUndefined();
-      
-      // Advance to next track
+
+      // Advance to next track (should skip removed track 2 and go to track 3)
       await player.next();
-      expect(player.getCurrentIndex()).toBe(1);
-      
+      expect(player.getCurrentIndex()).toBe(2); // Track 3 is at playlist index 2
+      expect(player.getCurrentTrack()?.id).toBe('3');
+
       // Verify Track 2 is still not in the queue after advancing
       queue = player.getQueue();
       expect(queue.find(item => item.track.id === '2')).toBeUndefined();
@@ -170,24 +171,24 @@ describe('AudioPlayerService Queue Logic', () => {
     it('should clear removed items tracking when changing playlist', async () => {
       // Start playing from first track
       await player.playAtIndex(0, false);
-      
+
       // Get the queue and remove Track 2
       let queue = player.getQueue();
       const track2Index = queue.findIndex(item => item.track.id === '2');
       if (track2Index >= 0) {
         player.removeFromQueue(track2Index);
       }
-      
+
       // Verify Track 2 is removed
       queue = player.getQueue();
       expect(queue.find(item => item.track.id === '2')).toBeUndefined();
-      
+
       // Change to a new playlist (same tracks)
       player.setPlaylist('playlist-2', mockTracks);
-      
+
       // Start playing again
       await player.playAtIndex(0, false);
-      
+
       // Track 2 should now be in the queue again since we changed playlists
       queue = player.getQueue();
       expect(queue.find(item => item.track.id === '2')).toBeDefined();

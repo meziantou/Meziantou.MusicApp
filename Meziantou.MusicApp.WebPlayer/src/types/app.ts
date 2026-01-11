@@ -34,8 +34,7 @@ export interface PlaybackState {
   shuffleEnabled: boolean;
   repeatMode: RepeatMode;
   shuffleOrder: number[]; // Track indices in shuffle order
-  queue: QueueItem[]; // Playing queue
-  playHistory?: QueueItem[]; // Play history for shuffle mode navigation
+  queue: QueueItem[]; // Unified queue array (history + current + lookahead)
 }
 
 export type RepeatMode = 'off' | 'all' | 'one';

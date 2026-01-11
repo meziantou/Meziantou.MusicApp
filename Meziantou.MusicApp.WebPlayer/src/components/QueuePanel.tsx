@@ -12,35 +12,30 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
 
   if (!isOpen) return null;
 
-  const queue = playerState.queue;
+  const lookaheadQueue = playerState.lookaheadQueue;
   const currentTrack = playerState.currentTrack;
-  const manualItems = queue.filter(item => item.source === 'manual');
-  const playlistItems = queue.filter(item => item.source === 'playlist');
+  const manualItems = lookaheadQueue.filter(item => item.source === 'manual');
+  const playlistItems = lookaheadQueue.filter(item => item.source === 'playlist');
 
   const playlistName = playlistItems.length > 0
     ? playlists.find(p => p.id === playlistItems[0].playlistId)?.name || 'Playlist'
     : 'Playlist';
 
-  const handleClearQueue = () => {
-    playerActions.clearQueue();
+  const handleRemoveItem = (lookaheadIndex: number) => {
+    // Convert lookahead index to full queue index by adding (currentIndex + 1)
+    const fullQueue = playerState.queue;
+    const currentIndex = fullQueue.length - lookaheadQueue.length - 1;
+    const queueIndex = currentIndex + 1 + lookaheadIndex;
+    playerActions.removeFromQueue(queueIndex);
   };
 
-  const handleRemoveItem = (index: number) => {
-    playerActions.removeFromQueue(index);
-  };
+  const handlePlayItem = async (lookaheadIndex: number) => {
+    if (lookaheadIndex < 0 || lookaheadIndex >= lookaheadQueue.length) return;
 
-  const handlePlayItem = async (queueIndex: number) => {
-    if (queueIndex < 0 || queueIndex >= queue.length) return;
-
-    const itemToPlay = queue[queueIndex];
-
-    // Remove all items up to and including the selected one
-    for (let i = 0; i <= queueIndex; i++) {
-      playerActions.removeFromQueue(0);
+    // Skip to this track by calling next() multiple times
+    for (let i = 0; i <= lookaheadIndex; i++) {
+      await playerActions.next();
     }
-
-    // Play the selected track directly
-    await playerActions.playTrack(itemToPlay.track);
   };
 
   return (
@@ -48,16 +43,13 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
       <div className="queue-header">
         <h3>Playing Queue</h3>
         <div className="queue-actions">
-          <button className="queue-clear-btn" title="Clear queue" onClick={handleClearQueue}>
-            Clear
-          </button>
           <button className="queue-close-btn" title="Close" onClick={onClose}>
             ×
           </button>
         </div>
       </div>
       <div className="queue-content">
-        {queue.length === 0 && !currentTrack ? (
+        {lookaheadQueue.length === 0 && !currentTrack ? (
           <div className="queue-empty-message">
             Queue is empty. Add tracks to play them next.
           </div>
@@ -86,7 +78,7 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
               <QueueSection
                 title="Next Up"
                 items={manualItems}
-                queue={queue}
+                lookaheadQueue={lookaheadQueue}
                 startNumber={1}
                 onPlay={handlePlayItem}
                 onRemove={handleRemoveItem}
@@ -96,7 +88,7 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
               <QueueSection
                 title={`Next from: ${playlistName}`}
                 items={playlistItems}
-                queue={queue}
+                lookaheadQueue={lookaheadQueue}
                 startNumber={manualItems.length + 1}
                 onPlay={handlePlayItem}
                 onRemove={handleRemoveItem}
@@ -112,28 +104,28 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
 interface QueueSectionProps {
   title: string;
   items: QueueItem[];
-  queue: QueueItem[];
+  lookaheadQueue: QueueItem[];
   startNumber: number;
-  onPlay: (queueIndex: number) => void;
-  onRemove: (queueIndex: number) => void;
+  onPlay: (lookaheadIndex: number) => void;
+  onRemove: (lookaheadIndex: number) => void;
 }
 
-function QueueSection({ title, items, queue, startNumber, onPlay, onRemove }: QueueSectionProps) {
+function QueueSection({ title, items, lookaheadQueue, startNumber, onPlay, onRemove }: QueueSectionProps) {
   return (
     <div className="queue-section">
       <div className="queue-section-header">{title}</div>
       {items.map((item, i) => {
-        const queueIndex = queue.indexOf(item);
+        const lookaheadIndex = lookaheadQueue.indexOf(item);
         const displayNumber = startNumber + i;
 
         return (
           <QueueItemRow
-            key={`${item.track.id}-${queueIndex}`}
+            key={`${item.track.id}-${lookaheadIndex}`}
             item={item}
-            queueIndex={queueIndex}
+            lookaheadIndex={lookaheadIndex}
             displayNumber={displayNumber}
-            onPlay={() => onPlay(queueIndex)}
-            onRemove={() => onRemove(queueIndex)}
+            onPlay={() => onPlay(lookaheadIndex)}
+            onRemove={() => onRemove(lookaheadIndex)}
           />
         );
       })}
@@ -143,7 +135,7 @@ function QueueSection({ title, items, queue, startNumber, onPlay, onRemove }: Qu
 
 interface QueueItemRowProps {
   item: QueueItem;
-  queueIndex: number;
+  lookaheadIndex: number;
   displayNumber: number;
   onPlay: () => void;
   onRemove: () => void;

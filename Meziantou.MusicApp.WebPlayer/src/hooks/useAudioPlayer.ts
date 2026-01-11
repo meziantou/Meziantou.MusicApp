@@ -13,6 +13,7 @@ export interface AudioPlayerState {
   shuffleEnabled: boolean;
   repeatMode: RepeatMode;
   queue: QueueItem[];
+  lookaheadQueue: QueueItem[];
   isLoading: boolean;
 }
 
@@ -32,7 +33,6 @@ export interface AudioPlayerActions {
   playAtIndex: (index: number, autoPlay?: boolean, startTime?: number) => Promise<void>;
   addToQueue: (track: TrackInfo, playlistId: string, indexInPlaylist: number) => void;
   removeFromQueue: (index: number) => void;
-  clearQueue: () => void;
   setQuality: (quality: StreamingQuality) => void;
   setReplayGainMode: (mode: ReplayGainMode) => void;
   setReplayGainPreamp: (preamp: number) => void;
@@ -59,6 +59,7 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     shuffleEnabled: audioPlayer.isShuffleEnabled(),
     repeatMode: audioPlayer.getRepeatMode(),
     queue: audioPlayer.getQueue(),
+    lookaheadQueue: audioPlayer.getLookaheadQueue(),
     isLoading: false,
   });
 
@@ -94,13 +95,13 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
       },
       {
         event: 'trackchange',
-        handler: (detail) => setState(prev => ({ 
-          ...prev, 
-          currentTrack: detail.track ?? null, 
+        handler: (detail) => setState(prev => ({
+          ...prev,
+          currentTrack: detail.track ?? null,
           currentQuality: detail.quality ?? null,
           currentTime: 0,
           duration: 0,
-          isLoading: false 
+          isLoading: false
         })),
       },
       {
@@ -113,7 +114,11 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
       },
       {
         event: 'queuechange',
-        handler: () => setState(prev => ({ ...prev, queue: audioPlayer.getQueue() })),
+        handler: () => setState(prev => ({
+          ...prev,
+          queue: audioPlayer.getQueue(),
+          lookaheadQueue: audioPlayer.getLookaheadQueue()
+        })),
       },
       {
         event: 'loadstart',
@@ -174,9 +179,6 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     },
     removeFromQueue: (index: number) => {
       audioPlayer.removeFromQueue(index);
-    },
-    clearQueue: () => {
-      audioPlayer.clearQueue();
     },
     setQuality: (quality: StreamingQuality) => {
       audioPlayer.setQuality(quality);
