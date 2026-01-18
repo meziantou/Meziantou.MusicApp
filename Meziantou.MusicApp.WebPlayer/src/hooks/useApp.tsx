@@ -765,9 +765,7 @@ export function AppProvider({ children }: AppProviderProps) {
         }
       }
 
-      const updated = await api.updatePlaylist(playlist.id, {
-        songIds: [...existing.tracks.map(t => t.id), trackId]
-      });
+      const updated = await api.addTrackToPlaylist(playlist.id, trackId);
 
       setPlaylists(prev => prev.map(p =>
         p.id === playlist.id
@@ -841,13 +839,7 @@ export function AppProvider({ children }: AppProviderProps) {
           return;
       }
 
-      const newTracks = [...tracks];
-      newTracks.splice(trackIndex, 1);
-      const songIds = newTracks.map(t => t.id);
-
-      const updated = await api.updatePlaylist(playlistId, {
-        songIds: songIds
-      });
+      const updated = await api.removeTrackFromPlaylist(playlistId, trackIndex);
 
       setPlaylists(prev => prev.map(p =>
         p.id === playlistId

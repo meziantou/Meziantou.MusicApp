@@ -147,7 +147,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicLibrary");
         var rootFolder = RootFolder;
         activity?.SetTag("music.library.root_path", rootFolder.Value);
-        
+
         var lockAcquired = false;
         try
         {
@@ -245,14 +245,14 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             {
                 using var cacheActivity = MusicLibraryActivitySource.Instance.StartActivity("CacheLibrary");
                 cacheActivity?.SetTag("music.library.cache_path", cachePath.Value);
-                
+
                 var tempCachePath = FullPath.FromPath(cachePath.Value + ".tmp");
                 try
                 {
                     logger.LogInformation("Caching music library to {Path}", cachePath);
                     var json = JsonSerializer.Serialize(library, JsonOptions);
                     cacheActivity?.SetTag("music.library.cache_size_bytes", json.Length);
-                    
+
                     tempCachePath.CreateParentDirectory();
                     cachePath.CreateParentDirectory();
                     await File.WriteAllTextAsync(tempCachePath, json, CancellationToken.None);
@@ -310,7 +310,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicFile");
         activity?.SetTag("music.file.path", context.RelativePath);
-        
+
         try
         {
             var fileInfo = new FileInfo(context.Path);
@@ -326,7 +326,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 cachedSong.FileSize == fileInfo.Length)
             {
                 activity?.SetTag("music.file.from_cache", true);
-                
+
                 // File hasn't changed, reuse cached metadata
                 // Check if external files (LRC, cover art) still exist
                 var song = new SerializableSong
@@ -389,7 +389,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
             // File is new or has changed, read metadata from file
             activity?.SetTag("music.file.from_cache", false);
-            
+
             var newSong = new SerializableSong
             {
                 RelativePath = relativePath,
@@ -605,7 +605,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("ComputeReplayGain");
         activity?.SetTag("music.file.path", filePath.Value);
-        
+
         try
         {
             var result = await replayGainService.AnalyzeTrackAsync(filePath);
@@ -613,10 +613,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             {
                 song.ReplayGainTrackGain = result.TrackGain;
                 song.ReplayGainTrackPeak = result.TrackPeak;
-                
+
                 activity?.SetTag("music.replaygain.track_gain", result.TrackGain);
                 activity?.SetTag("music.replaygain.track_peak", result.TrackPeak);
-                
+
                 logger.LogInformation("Computed ReplayGain for {Path}: Gain={Gain:F2}dB, Peak={Peak:F6}", filePath, result.TrackGain, result.TrackPeak);
 
                 // Write ReplayGain tags back to the file
@@ -643,7 +643,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             activity?.SetTag("music.replaygain.track_peak", trackPeak.Value);
         }
-        
+
         FullPath tempFilePath = FullPath.FromPath(filePath.Value + ".tmp");
 
         try
@@ -874,7 +874,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         catch (Exception ex)
         {
             logger.LogError(ex, "Error scanning XSPF playlist file: {Path}", context.Path);
-            
+
             // Add to invalid playlists list
             context.Catalog.InvalidPlaylists.Add(new SerializableInvalidPlaylist
             {
@@ -1194,7 +1194,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("CreatePlaylist");
         activity?.SetTag("music.playlist.name", name);
         activity?.SetTag("music.playlist.song_count", songIds.Count);
-        
+
         var rootFolder = RootFolder;
 
         // Generate a unique filename
@@ -1265,7 +1265,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             activity?.SetTag("music.playlist.song_count", songIds.Count);
         }
-        
+
         // Prevent modification of virtual playlists
         if (Playlist.IsVirtualPlaylist(playlistId))
         {
@@ -1394,11 +1394,170 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         return await RefreshPlaylist(FullPath.FromPath(playlist.Path));
     }
 
+    public async Task<Playlist> AddTrackToPlaylist(string playlistId, string songId)
+    {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("AddTrackToPlaylist");
+        activity?.SetTag("music.playlist.id", playlistId);
+        activity?.SetTag("music.song.id", songId);
+
+        // Prevent modification of virtual playlists
+        if (Playlist.IsVirtualPlaylist(playlistId))
+        {
+            throw new InvalidOperationException("Cannot modify virtual playlists");
+        }
+
+        var playlist = _catalog.GetPlaylist(playlistId);
+        if (playlist is null)
+        {
+            throw new FileNotFoundException("Playlist not found");
+        }
+
+        if (!File.Exists(playlist.Path))
+        {
+            throw new FileNotFoundException("Playlist file not found");
+        }
+
+        var song = _catalog.GetSong(songId);
+        if (song is null)
+        {
+            throw new FileNotFoundException("Song not found");
+        }
+
+        // Load existing XSPF file
+        await using var readStream = new FileStream(playlist.Path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        var xspfDoc = await XDocument.LoadAsync(readStream, LoadOptions.None, CancellationToken.None);
+        readStream.Close();
+
+        var playlistElement = xspfDoc.Root;
+        if (playlistElement is null || playlistElement.Name.LocalName != "playlist")
+        {
+            throw new InvalidOperationException("Invalid XSPF file");
+        }
+
+        var trackListElement = playlistElement.Element(XspfNamespace + "trackList");
+        if (trackListElement is null)
+        {
+            trackListElement = new XElement(XspfNamespace + "trackList");
+            playlistElement.Add(trackListElement);
+        }
+
+        // Add the new track
+        var relativePath = CreateRelativePathFromRoot(FullPath.FromPath(song.Path));
+        var now = DateTime.UtcNow;
+        var trackElement = new XElement(XspfNamespace + "track",
+            new XElement(XspfNamespace + "location", relativePath),
+            new XElement(XspfNamespace + "extension",
+                new XAttribute("application", MeziantouExtensionNamespace.NamespaceName),
+                new XElement(MeziantouExtensionNamespace + "addedAt", now.ToString("o", CultureInfo.InvariantCulture))));
+        trackListElement.Add(trackElement);
+
+        // Update the date
+        var dateElement = playlistElement.Element(XspfNamespace + "date");
+        var changedDate = DateTime.UtcNow;
+        if (dateElement is not null)
+        {
+            dateElement.Value = changedDate.ToString("o", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            playlistElement.Add(new XElement(XspfNamespace + "date", changedDate.ToString("o", CultureInfo.InvariantCulture)));
+        }
+
+        // Write back to file
+        await using (var writeStream = new FileStream(playlist.Path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+        {
+            await xspfDoc.SaveAsync(writeStream, SaveOptions.None, CancellationToken.None);
+        }
+
+        logger.LogInformation("Added track to playlist: {PlaylistName} at {Path}", playlist.Name, playlist.Path);
+
+        // Refresh only the updated playlist instead of a full library scan
+        return await RefreshPlaylist(FullPath.FromPath(playlist.Path));
+    }
+
+    public async Task<Playlist> RemoveTrackFromPlaylist(string playlistId, int trackIndex)
+    {
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("RemoveTrackFromPlaylist");
+        activity?.SetTag("music.playlist.id", playlistId);
+        activity?.SetTag("music.track.index", trackIndex);
+
+        // Prevent modification of virtual playlists
+        if (Playlist.IsVirtualPlaylist(playlistId))
+        {
+            throw new InvalidOperationException("Cannot modify virtual playlists");
+        }
+
+        var playlist = _catalog.GetPlaylist(playlistId);
+        if (playlist is null)
+        {
+            throw new FileNotFoundException("Playlist not found");
+        }
+
+        if (!File.Exists(playlist.Path))
+        {
+            throw new FileNotFoundException("Playlist file not found");
+        }
+
+        if (trackIndex < 0 || trackIndex >= playlist.SongCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(trackIndex), "Track index is out of range");
+        }
+
+        // Load existing XSPF file
+        await using var readStream = new FileStream(playlist.Path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        var xspfDoc = await XDocument.LoadAsync(readStream, LoadOptions.None, CancellationToken.None);
+        readStream.Close();
+
+        var playlistElement = xspfDoc.Root;
+        if (playlistElement is null || playlistElement.Name.LocalName != "playlist")
+        {
+            throw new InvalidOperationException("Invalid XSPF file");
+        }
+
+        var trackListElement = playlistElement.Element(XspfNamespace + "trackList");
+        if (trackListElement is null)
+        {
+            throw new InvalidOperationException("Playlist has no tracks");
+        }
+
+        var tracks = trackListElement.Elements(XspfNamespace + "track").ToList();
+        if (trackIndex >= tracks.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(trackIndex), "Track index is out of range");
+        }
+
+        // Remove the track
+        tracks[trackIndex].Remove();
+
+        // Update the date
+        var dateElement = playlistElement.Element(XspfNamespace + "date");
+        var changedDate = DateTime.UtcNow;
+        if (dateElement is not null)
+        {
+            dateElement.Value = changedDate.ToString("o", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            playlistElement.Add(new XElement(XspfNamespace + "date", changedDate.ToString("o", CultureInfo.InvariantCulture)));
+        }
+
+        // Write back to file
+        await using (var writeStream = new FileStream(playlist.Path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+        {
+            await xspfDoc.SaveAsync(writeStream, SaveOptions.None, CancellationToken.None);
+        }
+
+        logger.LogInformation("Removed track from playlist: {PlaylistName} at {Path}", playlist.Name, playlist.Path);
+
+        // Refresh only the updated playlist instead of a full library scan
+        return await RefreshPlaylist(FullPath.FromPath(playlist.Path));
+    }
+
     public async Task DeletePlaylist(string playlistId)
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("DeletePlaylist");
         activity?.SetTag("music.playlist.id", playlistId);
-        
+
         // Prevent deletion of virtual playlists
         if (Playlist.IsVirtualPlaylist(playlistId))
         {
@@ -1429,7 +1588,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("RenamePlaylist");
         activity?.SetTag("music.playlist.id", playlistId);
         activity?.SetTag("music.playlist.new_name", newName);
-        
+
         // Prevent renaming of virtual playlists
         if (Playlist.IsVirtualPlaylist(playlistId))
         {

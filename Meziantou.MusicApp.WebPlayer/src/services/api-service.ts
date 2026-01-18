@@ -91,6 +91,22 @@ export class ApiService {
     }
   }
 
+  async addTrackToPlaylist(playlistId: string, songId: string): Promise<PlaylistTracksResponse> {
+    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}/tracks.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ songId })
+    });
+  }
+
+  async removeTrackFromPlaylist(playlistId: string, trackIndex: number): Promise<PlaylistTracksResponse> {
+    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}/tracks/${trackIndex}.json`, {
+      method: 'DELETE'
+    });
+  }
+
   async getScanStatus(): Promise<ScanStatusResponse> {
     return this.fetch<ScanStatusResponse>('/api/scan/status.json');
   }
@@ -111,7 +127,7 @@ export class ApiService {
 
   getSongStreamUrl(songId: string, quality: StreamingQuality): string {
     const params = new URLSearchParams();
-    
+
     if (quality.format !== 'raw') {
       params.set('format', quality.format);
       if (quality.maxBitRate) {

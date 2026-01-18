@@ -139,6 +139,56 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         }
     }
 
+    /// <summary>Add a track to a playlist</summary>
+    [HttpPost("playlists/{id}/tracks.json")]
+    [ProducesResponseType<PlaylistTracksResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PlaylistTracksResponse>> AddTrackToPlaylist(string id, [FromBody] AddTrackToPlaylistRequest request)
+    {
+        try
+        {
+            var playlist = await library.AddTrackToPlaylist(id, request.SongId);
+            return Ok(CreatePlaylistTracksResponse(playlist));
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound(new ErrorResponse { Error = "Playlist or song not found" });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to add track to playlist");
+            return BadRequest(new ErrorResponse { Error = "Failed to add track to playlist" });
+        }
+    }
+
+    /// <summary>Remove a track from a playlist</summary>
+    [HttpDelete("playlists/{id}/tracks/{trackIndex}.json")]
+    [ProducesResponseType<PlaylistTracksResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ErrorResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ErrorResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PlaylistTracksResponse>> RemoveTrackFromPlaylist(string id, int trackIndex)
+    {
+        try
+        {
+            var playlist = await library.RemoveTrackFromPlaylist(id, trackIndex);
+            return Ok(CreatePlaylistTracksResponse(playlist));
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound(new ErrorResponse { Error = "Playlist not found" });
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return BadRequest(new ErrorResponse { Error = "Track index is out of range" });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to remove track from playlist");
+            return BadRequest(new ErrorResponse { Error = "Failed to remove track from playlist" });
+        }
+    }
+
     private PlaylistTracksResponse CreatePlaylistTracksResponse(Playlist playlist)
     {
         var tracks = playlist.Items
@@ -209,7 +259,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     }
 
     /// <summary>
-    /// Get song data (stream audio file). 
+    /// Get song data (stream audio file).
     /// If format is specified, the audio will be transcoded; otherwise, the raw file is returned.
     /// </summary>
     [HttpGet("songs/{id}/data")]
@@ -501,7 +551,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
 
     /// <summary>Scrobble a track to Last.fm</summary>
     /// <remarks>
-    /// Sends track play information to Last.fm. 
+    /// Sends track play information to Last.fm.
     /// When submission is true, it records the track as played.
     /// When submission is false, it updates the "Now Playing" status.
     /// </remarks>

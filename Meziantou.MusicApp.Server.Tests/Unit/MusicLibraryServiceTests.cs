@@ -1393,4 +1393,91 @@ public partial class MusicLibraryServiceTests
         var cacheContent2 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
         Assert.Contains($"\"Version\":{currentVersion}", cacheContent2, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task AddTrackToPlaylist_PreservesManualFileSystemChanges()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+        testContext.MusicLibrary.CreateTestMp3File("song2.mp3", title: "Song 2", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 2);
+        testContext.MusicLibrary.CreateTestMp3File("song3.mp3", title: "Song 3", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 3);
+
+        var customAddedAt1 = "2023-01-10T08:00:00.0000000Z";
+        var xspfContent = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>song1.mp3</location>
+                  <extension application="http://meziantou.net/xspf-extension/1/">
+                    <meziantou:addedAt>{customAddedAt1}</meziantou:addedAt>
+                  </extension>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlist = service.GetPlaylists().First(p => p.Name == "test-playlist");
+        var song2 = service.GetAllSongs().First(s => s.Title == "Song 2");
+        var song3 = service.GetAllSongs().First(s => s.Title == "Song 3");
+
+        // Manually update the file on the filesystem to add song2
+        var playlistPath = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
+        var customAddedAt2 = "2023-02-15T12:30:00.0000000Z";
+        var updatedXspfContent = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>song1.mp3</location>
+                  <extension application="http://meziantou.net/xspf-extension/1/">
+                    <meziantou:addedAt>{customAddedAt1}</meziantou:addedAt>
+                  </extension>
+                </track>
+                <track>
+                  <location>song2.mp3</location>
+                  <extension application="http://meziantou.net/xspf-extension/1/">
+                    <meziantou:addedAt>{customAddedAt2}</meziantou:addedAt>
+                  </extension>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await File.WriteAllTextAsync(playlistPath, updatedXspfContent, testContext.CancellationToken);
+
+        // Use the new API method to add song3
+        await service.AddTrackToPlaylist(playlist.Id, song3.Id);
+
+        // Ensure the file still has the local changes (song2) + the new track (song3)
+        var finalContent = await File.ReadAllTextAsync(playlistPath, testContext.CancellationToken);
+        var finalXml = System.Xml.Linq.XDocument.Parse(finalContent);
+
+        var xspfNs = System.Xml.Linq.XNamespace.Get("http://xspf.org/ns/0/");
+        var meziantouNs = System.Xml.Linq.XNamespace.Get("http://meziantou.net/xspf-extension/1/");
+
+        var trackList = finalXml.Root?.Element(xspfNs + "trackList");
+        Assert.NotNull(trackList);
+
+        var tracks = trackList.Elements(xspfNs + "track").ToList();
+        Assert.Equal(3, tracks.Count);
+
+        // Verify all three tracks are present in correct order
+        Assert.Contains("song1.mp3", tracks[0].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
+        Assert.Contains("song2.mp3", tracks[1].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
+        Assert.Contains("song3.mp3", tracks[2].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
+
+        // Verify the addedAt dates - song1 and song2 should have their original dates
+        var track1AddedAt = tracks[0].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;
+        var track2AddedAt = tracks[1].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;
+        var track3AddedAt = tracks[2].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;
+
+        Assert.Equal(customAddedAt1, track1AddedAt);
+        Assert.Equal(customAddedAt2, track2AddedAt);
+        Assert.NotNull(track3AddedAt); // song3 should have a new addedAt date
+    }
 }
