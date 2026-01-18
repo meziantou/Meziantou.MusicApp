@@ -1157,6 +1157,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     {
                         RelativePath = context.CreateRelativePath(songPath),
                         AddedDate = addedDate,
+                        FileLastWriteTime = File.GetLastWriteTimeUtc(songPath),
                     };
                     playlist.Items.Add(playlistItem);
                 }

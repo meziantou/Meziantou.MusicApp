@@ -50,7 +50,7 @@ public sealed class MusicCatalog
             foreach (var serializableSong in serializableCatalog.Songs)
             {
                 var fullPath = Path.Combine(rootPath, serializableSong.RelativePath);
-                var songId = CreateId("song", serializableSong.RelativePath);
+                var songId = ItemId.CreateSongId(serializableSong.RelativePath, serializableSong.FileLastWriteTime);
 
                 // Create Lyrics object if available
                 // External LRC files take precedence over embedded lyrics
@@ -59,7 +59,7 @@ public sealed class MusicCatalog
                 {
                     lyrics = new Lyrics
                     {
-                        Id = CreateId("lyrics", serializableSong.ExternalLyricsPath),
+                        Id = ItemId.CreateLyricsId(serializableSong.ExternalLyricsPath),
                         FilePath = Path.Combine(rootPath, serializableSong.ExternalLyricsPath),
                         IsMetadata = false,
                     };
@@ -68,7 +68,7 @@ public sealed class MusicCatalog
                 {
                     lyrics = new Lyrics
                     {
-                        Id = CreateId("lyrics", serializableSong.RelativePath),
+                        Id = ItemId.CreateLyricsId(serializableSong.RelativePath),
                         FilePath = fullPath,
                         IsMetadata = true,
                     };
@@ -80,7 +80,7 @@ public sealed class MusicCatalog
 
                 if (serializableSong.HasEmbeddedCover)
                 {
-                    var coverId = CreateId("cover", serializableSong.RelativePath);
+                    var coverId = ItemId.CreateCoverId(serializableSong.RelativePath);
                     coverArt = new CoverArt
                     {
                         Id = coverId,
@@ -93,7 +93,7 @@ public sealed class MusicCatalog
                 else if (!string.IsNullOrEmpty(serializableSong.ExternalCoverArtPath))
                 {
                     var externalCoverPath = Path.Combine(rootPath, serializableSong.ExternalCoverArtPath);
-                    var coverId = CreateId("cover", serializableSong.ExternalCoverArtPath);
+                    var coverId = ItemId.CreateCoverId(serializableSong.ExternalCoverArtPath);
                     var externalLastWriteTimeUtc = File.Exists(externalCoverPath) ? File.GetLastWriteTimeUtc(externalCoverPath) : DateTime.MinValue;
 
                     coverArt = new CoverArt
@@ -217,8 +217,8 @@ public sealed class MusicCatalog
 
             var artistName = parts[0];
             var albumName = parts[1];
-            var artistId = CreateId("artist", artistName);
-            var albumId = CreateId("album", albumKey);
+            var artistId = ItemId.CreateArtistId(artistName);
+            var albumId = ItemId.CreateAlbumId(albumKey);
 
             var firstSong = songs[0];
 
@@ -263,7 +263,7 @@ public sealed class MusicCatalog
 
         foreach (var (artistName, albumIds) in artistDict)
         {
-            var artistId = CreateId("artist", artistName);
+            var artistId = ItemId.CreateArtistId(artistName);
             var artistAlbums = albumIds.Select(id => _albumsById[id]).ToList();
 
             var artist = new Artist
@@ -301,7 +301,7 @@ public sealed class MusicCatalog
 
             var playlist = new Playlist
             {
-                Id = CreateId("playlist", serializablePlaylist.RelativePath),
+                Id = ItemId.CreatePlaylistId(serializablePlaylist.RelativePath),
                 Name = serializablePlaylist.Name,
                 Path = fullPath,
                 Created = fileInfo.Exists ? fileInfo.CreationTimeUtc : DateTime.UtcNow,
@@ -312,7 +312,7 @@ public sealed class MusicCatalog
             var items = new List<PlaylistItem>();
             foreach (var item in serializablePlaylist.Items)
             {
-                var songId = CreateId("song", item.RelativePath);
+                var songId = ItemId.CreateSongId(item.RelativePath, item.FileLastWriteTime);
                 if (_songsById.TryGetValue(songId, out var song))
                 {
                     items.Add(new PlaylistItem
@@ -348,7 +348,7 @@ public sealed class MusicCatalog
         foreach (var item in serializableMissingItems)
         {
             var fullPath = Path.Combine(RootPath, item.RelativePath);
-            var playlistId = CreateId("playlist", item.PlaylistRelativePath);
+            var playlistId = ItemId.CreatePlaylistId(item.PlaylistRelativePath);
 
             missingItemsBuilder.Add(new MissingPlaylistItem
             {
@@ -408,7 +408,7 @@ public sealed class MusicCatalog
         // Create root directory
         var rootDir = new MusicDirectory
         {
-            Id = CreateId("dir", RootPath),
+            Id = ItemId.CreateDirectoryId(RootPath),
             Name = Path.GetFileName(RootPath) ?? "Music",
             Path = RootPath,
         };
@@ -426,14 +426,14 @@ public sealed class MusicCatalog
                 var parentPath = Path.GetDirectoryName(dirPath);
                 dir = new MusicDirectory
                 {
-                    Id = CreateId("dir", dirPath),
+                    Id = ItemId.CreateDirectoryId(dirPath),
                     Name = Path.GetFileName(dirPath) ?? dirPath,
                     Path = dirPath,
                 };
 
                 if (!string.IsNullOrEmpty(parentPath))
                 {
-                    dir.ParentId = CreateId("dir", parentPath);
+                    dir.ParentId = ItemId.CreateDirectoryId(parentPath);
                 }
 
                 directoryDict[dirPath] = dir;
@@ -461,11 +461,6 @@ public sealed class MusicCatalog
         }
 
         activity?.SetTag("music.catalog.directories_built", Directories.Count);
-    }
-
-    private static string CreateId(string context, string id)
-    {
-        return Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{context}:{id}")));
     }
 
     private static string GetContentType(string extension)
@@ -505,7 +500,7 @@ public sealed class MusicCatalog
 
         var playlist = new Playlist
         {
-            Id = CreateId("playlist", serializablePlaylist.RelativePath),
+            Id = ItemId.CreatePlaylistId(serializablePlaylist.RelativePath),
             Name = serializablePlaylist.Name,
             Path = fullPath,
             Created = fileInfo.Exists ? fileInfo.CreationTimeUtc : DateTime.UtcNow,
@@ -516,7 +511,7 @@ public sealed class MusicCatalog
         var items = new List<PlaylistItem>();
         foreach (var item in serializablePlaylist.Items)
         {
-            var songId = CreateId("song", item.RelativePath);
+            var songId = ItemId.CreateSongId(item.RelativePath, item.FileLastWriteTime);
             if (_songsById.TryGetValue(songId, out var song))
             {
                 items.Add(new PlaylistItem
