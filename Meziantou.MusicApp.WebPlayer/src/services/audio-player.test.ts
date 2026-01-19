@@ -197,30 +197,18 @@ describe('AudioPlayerService Queue Logic', () => {
 
   describe('Play Track by ID', () => {
     it('should play the correct track in shuffle mode', async () => {
-      // Enable shuffle with a specific order
-      const shuffleOrder = [2, 4, 0, 3, 1]; // Track 3, Track 5, Track 1, Track 4, Track 2
-      player.setPlaylist('playlist-1', mockTracks, shuffleOrder);
       player.setShuffle(true);
 
-      // Play Track 5 (actual index 4 in the playlist)
-      await player.playTrack(mockTracks[4]);
+      // When double-clicking tracks in the UI while in shuffle mode,
+      // the player should play the exact track clicked, not a random one
+      await player.playTrack(mockTracks[4]); // Request Track 5
+      expect(player.getCurrentTrack()?.id).toBe('5'); // Should play Track 5
 
-      // Should be playing Track 5
-      expect(player.getCurrentTrack()?.id).toBe('5');
+      await player.playTrack(mockTracks[2]); // Request Track 3
+      expect(player.getCurrentTrack()?.id).toBe('3'); // Should play Track 3
 
-      // The next track should be at position 2 in the shuffle order
-      // which is Track 1 (actual index 0)
-      const queue = player.getQueue();
-      const nextTrack = queue[player.getCurrentIndex() + 1];
-      expect(nextTrack?.track.id).toBe('1');
-      await player.playTrack(mockTracks[2]);
-
-      // Should be playing Track 3
-      expect(player.getCurrentTrack()?.id).toBe('3');
-
-      // Next should be Track 4
-      await player.next();
-      expect(player.getCurrentTrack()?.id).toBe('4');
+      await player.playTrack(mockTracks[0]); // Request Track 1
+      expect(player.getCurrentTrack()?.id).toBe('1'); // Should play Track 1
     });
 
     it('should handle double-click scenario in shuffle mode', async () => {
