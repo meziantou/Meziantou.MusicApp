@@ -204,10 +204,10 @@ describe('AudioPlayerService Queue Logic', () => {
 
       // Play Track 5 (actual index 4 in the playlist)
       await player.playTrack(mockTracks[4]);
-      
+
       // Should be playing Track 5
       expect(player.getCurrentTrack()?.id).toBe('5');
-      
+
       // The next track should be at position 2 in the shuffle order
       // which is Track 1 (actual index 0)
       const queue = player.getQueue();
