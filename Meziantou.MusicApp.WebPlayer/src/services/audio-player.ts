@@ -657,10 +657,23 @@ export class AudioPlayerService {
 
   async playTrack(track: TrackInfo): Promise<void> {
     const playlist = this.queueService.getPlaylist();
-    const index = playlist.findIndex((t: TrackInfo) => t.id === track.id);
-    if (index >= 0) {
-      await this.playAtIndex(index);
+    const actualIndex = playlist.findIndex((t: TrackInfo) => t.id === track.id);
+    if (actualIndex < 0) return;
+
+    // Convert actual track index to play order position
+    let playOrderIndex = actualIndex;
+    if (this.queueService.isShuffleEnabled()) {
+      const shuffleOrder = this.queueService.getShuffleOrder();
+      if (shuffleOrder.length > 0) {
+        // Find the position in shuffle order that contains our actual track index
+        const positionInShuffle = shuffleOrder.indexOf(actualIndex);
+        if (positionInShuffle >= 0) {
+          playOrderIndex = positionInShuffle;
+        }
+      }
     }
+
+    await this.playAtIndex(playOrderIndex);
   }
 
   async play(): Promise<void> {
