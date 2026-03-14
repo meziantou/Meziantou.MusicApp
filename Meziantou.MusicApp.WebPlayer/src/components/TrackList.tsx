@@ -40,6 +40,11 @@ export function TrackList() {
   const sortButtonRef = useRef<HTMLButtonElement>(null);
 
   const filteredTracks = useMemo(() => {
+    const originalTrackOrder = new Map<TrackInfo, number>();
+    currentPlaylistTracks.forEach((track, index) => {
+      originalTrackOrder.set(track, index);
+    });
+
     let tracks = currentPlaylistTracks;
     if (searchQuery) {
       tracks = tracks.filter(track =>
@@ -52,6 +57,8 @@ export function TrackList() {
 
     return [...tracks].sort((a, b) => {
       let res = 0;
+      const originalOrderRes = (originalTrackOrder.get(a) ?? 0) - (originalTrackOrder.get(b) ?? 0);
+
       switch (sortOption) {
         case 'title':
           res = a.title.localeCompare(b.title);
@@ -64,11 +71,20 @@ export function TrackList() {
           break;
         case 'added':
         default:
-           const dateA = a.addedDate ? new Date(a.addedDate).getTime() : 0;
-           const dateB = b.addedDate ? new Date(b.addedDate).getTime() : 0;
-           res = dateA - dateB;
-           break;
+          const dateA = a.addedDate ? new Date(a.addedDate).getTime() : 0;
+          const dateB = b.addedDate ? new Date(b.addedDate).getTime() : 0;
+          res = dateA - dateB;
+          if (res !== 0) {
+            return sortDirection === 'asc' ? res : -res;
+          }
+
+          return originalOrderRes;
       }
+
+      if (res === 0) {
+        return originalOrderRes;
+      }
+
       return sortDirection === 'asc' ? res : -res;
     });
   }, [currentPlaylistTracks, searchQuery, sortOption, sortDirection]);
@@ -157,7 +173,7 @@ export function TrackList() {
         // Center the track if possible
         const containerHeight = scrollContainerRef.current.clientHeight;
         const centeredScrollTop = Math.max(0, scrollTop - containerHeight / 2 + ITEM_HEIGHT / 2);
-        
+
         scrollContainerRef.current.scrollTo({
           top: centeredScrollTop,
           behavior: 'smooth'
@@ -249,17 +265,17 @@ export function TrackList() {
             </svg>
           </button>
         </div>
-        
+
         <div className="sort-container" style={{ position: 'relative', marginLeft: '10px' }}>
-          <button 
+          <button
             ref={sortButtonRef}
-            className="sort-button" 
+            className="sort-button"
             popoverTarget="sort-menu-popover"
             aria-label="Sort tracks"
-            style={{ 
-              background: 'transparent', 
-              border: 'none', 
-              color: 'var(--text-secondary)', 
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -271,15 +287,15 @@ export function TrackList() {
               <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
             </svg>
           </button>
-          <SortMenu 
+          <SortMenu
             id="sort-menu-popover"
             anchorRef={sortButtonRef}
-            currentOption={sortOption} 
-            currentDirection={sortDirection} 
+            currentOption={sortOption}
+            currentDirection={sortDirection}
             onSelect={(opt, dir) => {
               setSortOption(opt);
               setSortDirection(dir);
-            }} 
+            }}
           />
         </div>
 
@@ -418,8 +434,8 @@ function TrackItem({
     if (settings.replayGainMode === 'track') {
       if (!hasTrackGain) {
         isMissingReplayGain = true;
-        replayGainTooltip = hasAlbumGain 
-          ? "Missing Track ReplayGain (Album ReplayGain available)" 
+        replayGainTooltip = hasAlbumGain
+          ? "Missing Track ReplayGain (Album ReplayGain available)"
           : "Missing Track and Album ReplayGain";
       }
     } else if (settings.replayGainMode === 'album') {
@@ -457,8 +473,8 @@ function TrackItem({
         <span className="track-title">
           {track.title}
           {isMissingReplayGain && (
-            <span 
-              className="replay-gain-warning" 
+            <span
+              className="replay-gain-warning"
               title={replayGainTooltip}
               style={{ marginLeft: '8px', fontSize: '0.8em', cursor: 'help' }}
             >
@@ -617,7 +633,7 @@ function SortMenu({ id, anchorRef, currentOption, currentDirection, onSelect }: 
     const handleToggle = (e: ToggleEvent) => {
       if (e.newState === 'open') {
         const buttonRect = anchorRef.current!.getBoundingClientRect();
-        
+
         // Position below the button, aligned to the right
         menu.style.position = 'fixed';
         menu.style.top = `${buttonRect.bottom + 5}px`;
@@ -642,14 +658,14 @@ function SortMenu({ id, anchorRef, currentOption, currentDirection, onSelect }: 
   };
 
   return (
-    <div 
+    <div
       ref={menuRef}
       id={id}
       popover="auto"
-      className="context-menu" 
-      style={{ 
+      className="context-menu"
+      style={{
         margin: 0,
-        minWidth: '200px', 
+        minWidth: '200px',
         zIndex: 100,
         position: 'fixed'
       }}
@@ -658,9 +674,9 @@ function SortMenu({ id, anchorRef, currentOption, currentDirection, onSelect }: 
         Sort by
       </div>
       {options.map(opt => (
-        <button 
+        <button
           key={opt.value}
-          className="context-menu-item" 
+          className="context-menu-item"
           onClick={() => {
             if (currentOption === opt.value) {
               // Toggle direction
