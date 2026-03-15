@@ -89,17 +89,21 @@ export function normalizeSearch(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, ''); // Remove diacritics
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function matchesSearch(text: string | null | undefined, query: string): boolean {
   if (!text) return false;
-  if (!query) return true;
-  
-  const normalizedText = normalizeSearch(text);
+
   const normalizedQuery = normalizeSearch(query);
-  
-  return normalizedText.includes(normalizedQuery);
+  if (!normalizedQuery) return true;
+
+  const normalizedText = normalizeSearch(text);
+  const queryFragments = normalizedQuery.split(' ');
+
+  return queryFragments.every(fragment => normalizedText.includes(fragment));
 }
 
 export function getNetworkType(): 'normal' | 'low-data' | 'unknown' {

@@ -34,6 +34,11 @@ describe('Search Track Feature', () => {
       expect(normalizeSearch('hello-world')).toBe('hello-world');
       expect(normalizeSearch('test@123')).toBe('test@123');
     });
+
+    it('should normalize whitespace', () => {
+      expect(normalizeSearch('  Hello   World  ')).toBe('hello world');
+      expect(normalizeSearch('Track\t\tName')).toBe('track name');
+    });
   });
 
   describe('matchesSearch', () => {
@@ -52,6 +57,17 @@ describe('Search Track Feature', () => {
         expect(matchesSearch('Hello World', 'Hello')).toBe(true);
         expect(matchesSearch('Hello World', 'World')).toBe(true);
         expect(matchesSearch('Hello World', 'lo Wo')).toBe(true);
+      });
+
+      it('should match all query fragments regardless of order', () => {
+        expect(matchesSearch('Hello World', 'hello world')).toBe(true);
+        expect(matchesSearch('Hello World', 'world hello')).toBe(true);
+        expect(matchesSearch('abc xyz def', 'abc def')).toBe(true);
+      });
+
+      it('should not match when one fragment is missing', () => {
+        expect(matchesSearch('Hello World', 'hello moon')).toBe(false);
+        expect(matchesSearch('abc xyz', 'abc def')).toBe(false);
       });
 
       it('should not match when text does not contain query', () => {
@@ -103,9 +119,15 @@ describe('Search Track Feature', () => {
         expect(matchesSearch('  Hello World  ', 'hello')).toBe(true);
       });
 
-      it('should not trim whitespace in query', () => {
-        expect(matchesSearch('Hello World', '  Hello  ')).toBe(false);
+      it('should normalize whitespace in query', () => {
+        expect(matchesSearch('Hello World', '  Hello  ')).toBe(true);
+        expect(matchesSearch('Hello World', 'Hello   World')).toBe(true);
         expect(matchesSearch('  Hello  ', 'Hello')).toBe(true);
+      });
+
+      it('should ignore trailing spaces in query', () => {
+        expect(matchesSearch('abc', 'abc')).toBe(true);
+        expect(matchesSearch('abc', 'abc ')).toBe(true);
       });
     });
 
