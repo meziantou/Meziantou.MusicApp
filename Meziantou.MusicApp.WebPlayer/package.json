@@ -24,13 +24,13 @@
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "5.1.4",
+    "@vitejs/plugin-react": "5.2.0",
     "jsdom": "28.1.0",
     "sharp": "0.34.5",
     "typescript": "5.9.3",
     "vite": "7.3.1",
     "vite-plugin-pwa": "1.2.0",
-    "vitest": "4.0.18",
+    "vitest": "4.1.0",
     "workbox-window": "7.4.0"
   },
   "dependencies": {
