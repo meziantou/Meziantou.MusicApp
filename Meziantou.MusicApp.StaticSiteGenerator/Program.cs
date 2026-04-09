@@ -5,8 +5,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
-using CliWrap;
-using CliWrap.Buffered;
+using Meziantou.Framework;
 
 namespace Meziantou.MusicApp.StaticSiteGenerator;
 
@@ -333,20 +332,22 @@ internal sealed class Program
 
     private static async Task ConvertToOpus(string inputPath, string outputPath, int bitrate)
     {
-        var result = await Cli.Wrap("ffmpeg")
-            .WithArguments(args => args
-                .Add("-i").Add(inputPath)
-                .Add("-c:a").Add("libopus")
-                .Add("-b:a").Add($"{bitrate}k")
-                .Add("-vn")
-                .Add("-y")
-                .Add(outputPath))
-            .WithValidation(CommandResultValidation.None)
+        using var process = ProcessWrapper.Create("ffmpeg")
+            .WithArguments(
+            [
+                "-i", inputPath,
+                "-c:a", "libopus",
+                "-b:a", $"{bitrate}k",
+                "-vn",
+                "-y",
+                outputPath,
+            ])
+            .WithValidation(ProcessValidationMode.None)
             .ExecuteBufferedAsync();
 
-        if (result.ExitCode != 0)
+        if (await process != 0)
         {
-            throw new InvalidOperationException($"ffmpeg failed: {result.StandardError}");
+            throw new InvalidOperationException($"ffmpeg failed: {ToText(process.Output.StandardError)}");
         }
     }
 
@@ -354,16 +355,20 @@ internal sealed class Program
     {
         try
         {
-            var result = await Cli.Wrap("ffprobe")
-                .WithArguments(args => args
-                    .Add("-v").Add("error")
-                    .Add("-show_entries").Add("format=duration")
-                    .Add("-of").Add("default=noprint_wrappers=1:nokey=1")
-                    .Add(filePath))
-                .WithValidation(CommandResultValidation.None)
+            using var process = ProcessWrapper.Create("ffprobe")
+                .WithArguments(
+                [
+                    "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    filePath,
+                ])
+                .WithValidation(ProcessValidationMode.None)
                 .ExecuteBufferedAsync();
 
-            if (double.TryParse(result.StandardOutput.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration))
+            await process;
+
+            if (double.TryParse(ToText(process.Output.StandardOutput).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration))
             {
                 return (int)Math.Round(duration);
             }
@@ -380,16 +385,20 @@ internal sealed class Program
     {
         try
         {
-            var result = await Cli.Wrap("ffprobe")
-                .WithArguments(args => args
-                    .Add("-v").Add("error")
-                    .Add("-show_entries").Add("format=bit_rate")
-                    .Add("-of").Add("default=noprint_wrappers=1:nokey=1")
-                    .Add(filePath))
-                .WithValidation(CommandResultValidation.None)
+            using var process = ProcessWrapper.Create("ffprobe")
+                .WithArguments(
+                [
+                    "-v", "error",
+                    "-show_entries", "format=bit_rate",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    filePath,
+                ])
+                .WithValidation(ProcessValidationMode.None)
                 .ExecuteBufferedAsync();
 
-            if (double.TryParse(result.StandardOutput.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var bitrate))
+            await process;
+
+            if (double.TryParse(ToText(process.Output.StandardOutput).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var bitrate))
             {
                 return (int)Math.Round(bitrate / 1000);
             }
@@ -400,6 +409,11 @@ internal sealed class Program
         }
 
         return null;
+    }
+
+    private static string ToText(IEnumerable<ProcessOutput> outputs)
+    {
+        return string.Join(Environment.NewLine, outputs.Select(static output => output.Text));
     }
 }
 
