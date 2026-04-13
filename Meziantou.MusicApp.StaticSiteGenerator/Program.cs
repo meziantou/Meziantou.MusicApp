@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using Meziantou.Framework;
+using Meziantou.Framework.MediaTags;
 
 namespace Meziantou.MusicApp.StaticSiteGenerator;
 
@@ -274,7 +275,7 @@ internal sealed class Program
             await ConvertToOpus(songPath, outputPath, opusBitrate);
         }
 
-        // Extract metadata using TagLib
+        // Extract metadata
         string title;
         string? artists = null;
         string? album = null;
@@ -284,18 +285,23 @@ internal sealed class Program
 
         try
         {
-            using var file = TagLib.File.Create(songPath);
-            var tag = file.Tag;
+            var readResult = MediaFile.ReadTags(songPath);
+            if (!readResult.IsSuccess)
+            {
+                throw new InvalidOperationException(readResult.ErrorMessage);
+            }
+
+            var tag = readResult.Value;
 
             title = !string.IsNullOrWhiteSpace(tag.Title)
                 ? tag.Title
                 : Path.GetFileNameWithoutExtension(songPath);
 
-            artists = tag.JoinedPerformers;
+            artists = tag.Artist;
             album = tag.Album;
-            track = tag.Track > 0 ? (int)tag.Track : null;
-            year = tag.Year > 0 ? (int)tag.Year : null;
-            genre = tag.JoinedGenres;
+            track = tag.TrackNumber > 0 ? tag.TrackNumber : null;
+            year = tag.Year > 0 ? tag.Year : null;
+            genre = tag.Genre;
         }
         catch (Exception ex)
         {
