@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using Meziantou.MusicApp.Server.Models;
 using Meziantou.MusicApp.Server.Telemetry;
 using Meziantou.Framework;
+using Meziantou.Framework.MediaTags;
 using Microsoft.Extensions.Options;
 
 namespace Meziantou.MusicApp.Server.Services;
@@ -401,22 +402,25 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
             try
             {
-                using var file = TagLib.File.Create(context.Path);
-                newSong.Title = file.Tag.Title ?? context.Path.NameWithoutExtension;
-                newSong.AlbumName = file.Tag.Album;
-                newSong.Artist = file.Tag.FirstPerformer;
-                newSong.AlbumArtist = file.Tag.FirstAlbumArtist ?? file.Tag.FirstPerformer ?? string.Empty;
-                newSong.Genre = file.Tag.FirstGenre ?? string.Empty;
-                newSong.Year = (int)file.Tag.Year;
-                newSong.Track = (int)file.Tag.Track;
-                newSong.Duration = file.Properties.Duration;
-                newSong.BitRate = file.Properties.AudioBitrate;
-                newSong.Lyrics = file.Tag.Lyrics;
+                var readResult = MediaFile.ReadTags(context.Path);
+                if (!readResult.IsSuccess)
+                {
+                    throw new InvalidOperationException(readResult.ErrorMessage);
+                }
 
-                // Read ISRC from different tag formats
-                ReadIsrcTag(file, newSong);
+                var tags = readResult.Value;
+                newSong.Title = tags.Title ?? context.Path.NameWithoutExtension;
+                newSong.AlbumName = tags.Album;
+                newSong.Artist = tags.Artist;
+                newSong.AlbumArtist = tags.AlbumArtist ?? tags.Artist ?? string.Empty;
+                newSong.Genre = tags.Genre ?? string.Empty;
+                newSong.Year = tags.Year ?? 0;
+                newSong.Track = tags.TrackNumber ?? 0;
+                newSong.Lyrics = tags.Lyrics;
 
-                if (file.Tag.Pictures.Length > 0)
+                newSong.Isrc = tags.Isrc;
+
+                if (tags.Pictures.Count > 0)
                 {
                     newSong.HasEmbeddedCover = true;
                 }
@@ -435,7 +439,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 }
 
                 // Read ReplayGain tags from file
-                ReadReplayGainTags(file, newSong);
+                ReadReplayGainTags(tags, newSong);
             }
             catch (Exception ex)
             {
@@ -465,139 +469,14 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         }
     }
 
-    private static void ReadReplayGainTags(TagLib.File file, SerializableSong song)
+    private static void ReadReplayGainTags(MediaTagInfo tags, SerializableSong song)
     {
-        // Try to read ReplayGain from different tag formats
-        // ID3v2 tags (MP3)
-        if (file.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3v2Tag)
+        if (tags.ReplayGain is { } replayGain)
         {
-            foreach (var frame in id3v2Tag.GetFrames<TagLib.Id3v2.TextInformationFrame>())
-            {
-                var value = frame.Text.FirstOrDefault();
-                if (string.IsNullOrEmpty(value))
-                    continue;
-
-                // TXXX frames for ReplayGain
-                if (frame is TagLib.Id3v2.UserTextInformationFrame userFrame)
-                {
-                    ParseReplayGainTag(userFrame.Description, userFrame.Text.FirstOrDefault(), song);
-                }
-            }
-
-            // Also check TXXX frames directly
-            foreach (var frame in id3v2Tag.GetFrames<TagLib.Id3v2.UserTextInformationFrame>())
-            {
-                ParseReplayGainTag(frame.Description, frame.Text.FirstOrDefault(), song);
-            }
-        }
-
-        // Xiph Comment (Vorbis/FLAC/Opus)
-        if (file.GetTag(TagLib.TagTypes.Xiph) is TagLib.Ogg.XiphComment xiphTag)
-        {
-            var trackGain = xiphTag.GetFirstField("REPLAYGAIN_TRACK_GAIN");
-            var trackPeak = xiphTag.GetFirstField("REPLAYGAIN_TRACK_PEAK");
-            var albumGain = xiphTag.GetFirstField("REPLAYGAIN_ALBUM_GAIN");
-            var albumPeak = xiphTag.GetFirstField("REPLAYGAIN_ALBUM_PEAK");
-
-            ParseReplayGainTag("REPLAYGAIN_TRACK_GAIN", trackGain, song);
-            ParseReplayGainTag("REPLAYGAIN_TRACK_PEAK", trackPeak, song);
-            ParseReplayGainTag("REPLAYGAIN_ALBUM_GAIN", albumGain, song);
-            ParseReplayGainTag("REPLAYGAIN_ALBUM_PEAK", albumPeak, song);
-        }
-
-        // Apple tags (M4A/AAC)
-        if (file.GetTag(TagLib.TagTypes.Apple) is TagLib.Mpeg4.AppleTag appleTag)
-        {
-            // Apple stores ReplayGain in custom atoms
-            // ----:com.apple.iTunes:replaygain_track_gain
-            var trackGainItem = appleTag.GetDashBox("com.apple.iTunes", "replaygain_track_gain");
-            var trackPeakItem = appleTag.GetDashBox("com.apple.iTunes", "replaygain_track_peak");
-            var albumGainItem = appleTag.GetDashBox("com.apple.iTunes", "replaygain_album_gain");
-            var albumPeakItem = appleTag.GetDashBox("com.apple.iTunes", "replaygain_album_peak");
-
-            ParseReplayGainTag("REPLAYGAIN_TRACK_GAIN", trackGainItem, song);
-            ParseReplayGainTag("REPLAYGAIN_TRACK_PEAK", trackPeakItem, song);
-            ParseReplayGainTag("REPLAYGAIN_ALBUM_GAIN", albumGainItem, song);
-            ParseReplayGainTag("REPLAYGAIN_ALBUM_PEAK", albumPeakItem, song);
-        }
-    }
-
-    private static void ReadIsrcTag(TagLib.File file, SerializableSong song)
-    {
-        // Try to read ISRC from different tag formats
-        // ID3v2 tags (MP3) - TSRC frame
-        if (file.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3v2Tag)
-        {
-            // Look for TSRC frame (official ISRC frame in ID3v2)
-            foreach (var frame in id3v2Tag.GetFrames<TagLib.Id3v2.TextInformationFrame>())
-            {
-                if (frame.FrameId.ToString() == "TSRC")
-                {
-                    var isrc = frame.Text.FirstOrDefault();
-                    if (!string.IsNullOrWhiteSpace(isrc))
-                    {
-                        song.Isrc = isrc;
-                        return;
-                    }
-                }
-            }
-        }
-
-        // Xiph Comment (Vorbis/FLAC/Opus) - ISRC field
-        if (file.GetTag(TagLib.TagTypes.Xiph) is TagLib.Ogg.XiphComment xiphTag)
-        {
-            var isrc = xiphTag.GetFirstField("ISRC");
-            if (!string.IsNullOrWhiteSpace(isrc))
-            {
-                song.Isrc = isrc;
-                return;
-            }
-        }
-
-        // Apple tags (M4A/AAC)
-        if (file.GetTag(TagLib.TagTypes.Apple) is TagLib.Mpeg4.AppleTag appleTag)
-        {
-            // Try to get ISRC from standard atom
-            var isrcItem = appleTag.GetDashBox("com.apple.iTunes", "ISRC");
-            if (!string.IsNullOrWhiteSpace(isrcItem))
-            {
-                song.Isrc = isrcItem;
-                return;
-            }
-        }
-    }
-
-    private static void ParseReplayGainTag(string? tagName, string? value, SerializableSong song)
-    {
-        if (string.IsNullOrWhiteSpace(tagName) || string.IsNullOrWhiteSpace(value))
-            return;
-
-        // Normalize tag name for comparison
-        var normalizedName = tagName.ToUpperInvariant().Replace(" ", "_", StringComparison.Ordinal);
-
-        // Remove " dB" suffix if present and parse the value
-        var cleanValue = value.Replace(" dB", "", StringComparison.OrdinalIgnoreCase)
-                              .Replace("dB", "", StringComparison.OrdinalIgnoreCase)
-                              .Trim();
-
-        if (!double.TryParse(cleanValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var numValue))
-            return;
-
-        if (normalizedName.Contains("REPLAYGAIN_TRACK_GAIN", StringComparison.Ordinal))
-        {
-            song.ReplayGainTrackGain = numValue;
-        }
-        else if (normalizedName.Contains("REPLAYGAIN_TRACK_PEAK", StringComparison.Ordinal))
-        {
-            song.ReplayGainTrackPeak = numValue;
-        }
-        else if (normalizedName.Contains("REPLAYGAIN_ALBUM_GAIN", StringComparison.Ordinal))
-        {
-            song.ReplayGainAlbumGain = numValue;
-        }
-        else if (normalizedName.Contains("REPLAYGAIN_ALBUM_PEAK", StringComparison.Ordinal))
-        {
-            song.ReplayGainAlbumPeak = numValue;
+            song.ReplayGainTrackGain = replayGain.TrackGain;
+            song.ReplayGainTrackPeak = replayGain.TrackPeak;
+            song.ReplayGainAlbumGain = replayGain.AlbumGain;
+            song.ReplayGainAlbumPeak = replayGain.AlbumPeak;
         }
     }
 
@@ -644,79 +523,37 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             activity?.SetTag("music.replaygain.track_peak", trackPeak.Value);
         }
 
-        FullPath tempFilePath = FullPath.FromPath(filePath.Value + ".tmp");
-
         try
         {
-            // Copy the original file to the temporary file
-            File.Copy(filePath, tempFilePath, overwrite: true);
-
-            // Get the mimetype from the original file's extension
-            var mimeType = GetMimeTypeFromExtension(filePath.Value);
-
-            using (var file = TagLib.File.Create(tempFilePath, mimeType, TagLib.ReadStyle.Average))
+            var readResult = MediaFile.ReadTags(filePath);
+            if (!readResult.IsSuccess)
             {
-                // Format values according to ReplayGain spec
-                var trackGainStr = string.Create(CultureInfo.InvariantCulture, $"{trackGain:F2} dB");
-                var trackPeakStr = trackPeak.HasValue ? string.Create(CultureInfo.InvariantCulture, $"{trackPeak.Value:F6}") : null;
-
-                // Write to ID3v2 tags (MP3)
-                if (file.GetTag(TagLib.TagTypes.Id3v2, create: true) is TagLib.Id3v2.Tag id3v2Tag)
-                {
-                    // Remove existing ReplayGain frames first
-                    RemoveId3v2ReplayGainFrames(id3v2Tag);
-
-                    // Add track gain
-                    var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
-                    {
-                        Text = [trackGainStr]
-                    };
-                    id3v2Tag.AddFrame(trackGainFrame);
-
-                    // Add track peak
-                    if (trackPeakStr is not null)
-                    {
-                        var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
-                        {
-                            Text = [trackPeakStr]
-                        };
-                        id3v2Tag.AddFrame(trackPeakFrame);
-                    }
-                }
-
-                // Write to Xiph Comment (Vorbis/FLAC/Opus)
-                if (file.GetTag(TagLib.TagTypes.Xiph, create: true) is TagLib.Ogg.XiphComment xiphTag)
-                {
-                    xiphTag.SetField("REPLAYGAIN_TRACK_GAIN", trackGainStr);
-                    if (trackPeakStr is not null)
-                    {
-                        xiphTag.SetField("REPLAYGAIN_TRACK_PEAK", trackPeakStr);
-                    }
-                }
-
-                // Write to Apple tags (M4A/AAC)
-                if (file.GetTag(TagLib.TagTypes.Apple, create: true) is TagLib.Mpeg4.AppleTag appleTag)
-                {
-                    appleTag.SetDashBox("com.apple.iTunes", "replaygain_track_gain", trackGainStr);
-                    if (trackPeakStr is not null)
-                    {
-                        appleTag.SetDashBox("com.apple.iTunes", "replaygain_track_peak", trackPeakStr);
-                    }
-                }
-
-                file.Save();
+                logger.LogWarning("Failed to read tags to write ReplayGain for {Path}: {Error}", filePath, readResult.ErrorMessage);
+                return;
             }
 
-            // Replace the original file with the temporary file
-            File.Move(tempFilePath, filePath, overwrite: true);
+            var tags = readResult.Value;
+            tags.ReplayGain = (tags.ReplayGain ?? default) with
+            {
+                TrackGain = trackGain,
+                TrackPeak = trackPeak,
+            };
+
+            var writeResult = MediaFile.WriteTags(filePath, tags);
+            if (!writeResult.IsSuccess)
+            {
+                logger.LogWarning("Failed to write ReplayGain tags to {Path}: {Error}", filePath, writeResult.ErrorMessage);
+                return;
+            }
 
             logger.LogDebug("Wrote ReplayGain tags to {Path}", filePath);
 
             // Verify tags were written correctly
-            using (var file = TagLib.File.Create(filePath))
+            var verificationResult = MediaFile.ReadTags(filePath);
+            if (verificationResult.IsSuccess)
             {
                 var song = new SerializableSong { RelativePath = "" };
-                ReadReplayGainTags(file, song);
+                ReadReplayGainTags(verificationResult.Value, song);
 
                 if (!song.ReplayGainTrackGain.HasValue || Math.Abs(song.ReplayGainTrackGain.Value - trackGain) > 0.01)
                 {
@@ -731,54 +568,14 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     }
                 }
             }
+            else
+            {
+                logger.LogError("Failed to verify ReplayGain tags for {Path}: {Error}", filePath, verificationResult.ErrorMessage);
+            }
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to write ReplayGain tags to {Path}", filePath);
-        }
-        finally
-        {
-            // Clean up temporary file if it still exists
-            if (File.Exists(tempFilePath))
-            {
-                try
-                {
-                    File.Delete(tempFilePath);
-                }
-                catch
-                {
-                    // Ignore cleanup errors
-                }
-            }
-        }
-    }
-
-    private static string? GetMimeTypeFromExtension(string filePath)
-    {
-        var extension = Path.GetExtension(filePath).ToLowerInvariant();
-        return extension switch
-        {
-            ".mp3" => "taglib/mp3",
-            ".flac" => "taglib/flac",
-            ".ogg" => "taglib/ogg",
-            ".opus" => "taglib/opus",
-            ".m4a" => "taglib/m4a",
-            ".aac" => "taglib/aac",
-            ".wma" => "taglib/wma",
-            ".wav" => "taglib/wav",
-            _ => null,
-        };
-    }
-
-    private static void RemoveId3v2ReplayGainFrames(TagLib.Id3v2.Tag id3v2Tag)
-    {
-        var framesToRemove = id3v2Tag.GetFrames<TagLib.Id3v2.UserTextInformationFrame>()
-            .Where(f => f.Description?.Contains("REPLAYGAIN", StringComparison.OrdinalIgnoreCase) == true)
-            .ToList();
-
-        foreach (var frame in framesToRemove)
-        {
-            id3v2Tag.RemoveFrame(frame);
         }
     }
 
