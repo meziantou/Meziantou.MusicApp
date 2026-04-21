@@ -15,6 +15,9 @@ export interface AudioPlayerState {
   queue: QueueItem[];
   lookaheadQueue: QueueItem[];
   isLoading: boolean;
+  isAirPlaySupported: boolean;
+  isAirPlayAvailable: boolean;
+  isAirPlayActive: boolean;
 }
 
 export interface AudioPlayerActions {
@@ -45,6 +48,7 @@ export interface AudioPlayerActions {
   getCurrentPlaylistId: () => string | null;
   getCurrentIndex: () => number;
   loadRecentlyPlayed: () => Promise<void>;
+  showAirPlayPicker: () => void;
 }
 
 export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
@@ -61,6 +65,9 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     queue: audioPlayer.getQueue(),
     lookaheadQueue: audioPlayer.getLookaheadQueue(),
     isLoading: false,
+    isAirPlaySupported: audioPlayer.isAirPlaySupported(),
+    isAirPlayAvailable: audioPlayer.isAirPlayAvailable(),
+    isAirPlayActive: audioPlayer.isAirPlayActive(),
   });
 
   const timeUpdateThrottleRef = useRef<number>(0);
@@ -131,6 +138,15 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
       {
         event: 'error',
         handler: () => setState(prev => ({ ...prev, isLoading: false })),
+      },
+      {
+        event: 'airplayavailabilitychange',
+        handler: () => setState(prev => ({
+          ...prev,
+          isAirPlaySupported: audioPlayer.isAirPlaySupported(),
+          isAirPlayAvailable: audioPlayer.isAirPlayAvailable(),
+          isAirPlayActive: audioPlayer.isAirPlayActive(),
+        })),
       },
     ];
 
@@ -218,6 +234,7 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     getCurrentPlaylistId: () => audioPlayer.getCurrentPlaylistId(),
     getCurrentIndex: () => audioPlayer.getCurrentIndex(),
     loadRecentlyPlayed: () => audioPlayer.loadRecentlyPlayed(),
+    showAirPlayPicker: () => audioPlayer.showAirPlayPicker(),
   }), []);
 
   return [state, actions];

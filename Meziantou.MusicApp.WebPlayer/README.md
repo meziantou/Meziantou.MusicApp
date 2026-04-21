@@ -12,6 +12,7 @@ The features
 - Auto-sync: Background playlist refresh and automatic track downloading
 - Search: Quick search across tracks, artists, and albums
 - Playback Controls: Play, pause, seek, shuffle, repeat modes
+- AirPlay: Stream audio to AirPlay devices on Safari/macOS
 - Media Session API: System-level media controls and notifications
 - Dark Theme: Easy on the eyes
 - Scrobbler Support

@@ -17,6 +17,17 @@ Object.defineProperty(window.HTMLMediaElement.prototype, 'load', {
   value: vi.fn(),
 });
 
+Object.defineProperty(window.HTMLMediaElement.prototype, 'webkitShowPlaybackTargetPicker', {
+  configurable: true,
+  value: vi.fn(),
+});
+
+Object.defineProperty(window.HTMLMediaElement.prototype, 'webkitCurrentPlaybackTargetIsWireless', {
+  configurable: true,
+  writable: true,
+  value: false,
+});
+
 // Mock URL.createObjectURL and revokeObjectURL
 globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
 globalThis.URL.revokeObjectURL = vi.fn();
