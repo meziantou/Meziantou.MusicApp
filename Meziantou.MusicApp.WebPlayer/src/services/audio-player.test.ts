@@ -224,4 +224,36 @@ describe('AudioPlayerService Queue Logic', () => {
       // Should be playing Track 2, not a random track
       expect(player.getCurrentTrack()?.id).toBe('2');
     });
-  });});
+  });
+
+  describe('Volume restoration', () => {
+    it('should reset media element volume when AudioContext is initialized', async () => {
+      player.setVolume(0.3);
+
+      const audioBeforePlay = (player as any).audioInstance.audio as HTMLAudioElement;
+      expect(audioBeforePlay.volume).toBeCloseTo(0.09, 5);
+
+      await player.play();
+
+      const audioAfterPlay = (player as any).audioInstance.audio as HTMLAudioElement;
+      expect(audioAfterPlay.volume).toBe(1);
+
+      const gainNode = (player as any).masterGainNode as GainNode;
+      expect(gainNode.gain.value).toBeCloseTo(0.09, 5);
+    });
+
+    it('should keep media element unmuted when using gain-node muting', async () => {
+      player.setMuted(true);
+      const audioBeforePlay = (player as any).audioInstance.audio as HTMLAudioElement;
+      expect(audioBeforePlay.muted).toBe(true);
+
+      await player.play();
+
+      const audioAfterPlay = (player as any).audioInstance.audio as HTMLAudioElement;
+      expect(audioAfterPlay.muted).toBe(false);
+
+      player.toggleMute();
+      expect(audioAfterPlay.muted).toBe(false);
+    });
+  });
+});

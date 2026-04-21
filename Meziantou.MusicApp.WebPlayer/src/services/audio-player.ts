@@ -119,11 +119,10 @@ export class AudioPlayerService {
     this.audioContext = new AudioContext();
     this.masterGainNode = this.audioContext.createGain();
     this.masterGainNode.connect(this.audioContext.destination);
-    // Apply volume respecting the muted state
-    this.masterGainNode.gain.value = this.isMuted ? 0 : this.linearToLogarithmic(this.masterVolume);
 
     // Connect audio element to the audio context
     this.connectAudioInstance(this.audioInstance);
+    this.applyOutputVolume();
 
     // Emit volumechange to sync React state with actual audio player state
     // This ensures the UI reflects the correct volume after AudioContext initialization
@@ -769,15 +768,25 @@ export class AudioPlayerService {
     return linear * linear;
   }
 
+  private applyOutputVolume(): void {
+    const gainValue = this.linearToLogarithmic(this.masterVolume);
+
+    if (this.masterGainNode) {
+      // Keep the media element at full volume when using Web Audio gain to avoid compounding attenuation.
+      this.audioInstance.audio.volume = 1;
+      this.audioInstance.audio.muted = false;
+      this.masterGainNode.gain.value = this.isMuted ? 0 : gainValue;
+      return;
+    }
+
+    // Fallback path before AudioContext initialization.
+    this.audioInstance.audio.muted = this.isMuted;
+    this.audioInstance.audio.volume = Math.min(1, gainValue);
+  }
+
   setVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(2, volume));
-    const gainValue = this.linearToLogarithmic(this.masterVolume);
-    if (this.masterGainNode) {
-      this.masterGainNode.gain.value = this.isMuted ? 0 : gainValue;
-    } else {
-      // Fallback if no audio context
-      this.audioInstance.audio.volume = this.isMuted ? 0 : Math.min(1, gainValue);
-    }
+    this.applyOutputVolume();
     this.emit('volumechange', { volume: this.masterVolume });
   }
 
@@ -787,11 +796,7 @@ export class AudioPlayerService {
 
   setMuted(muted: boolean): void {
     this.isMuted = muted;
-    if (this.masterGainNode) {
-      this.masterGainNode.gain.value = muted ? 0 : this.linearToLogarithmic(this.masterVolume);
-    } else {
-      this.audioInstance.audio.muted = muted;
-    }
+    this.applyOutputVolume();
     this.emit('volumechange', { volume: this.masterVolume });
   }
 
