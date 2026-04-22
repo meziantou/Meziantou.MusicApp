@@ -33,16 +33,29 @@ globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
 globalThis.URL.revokeObjectURL = vi.fn();
 
 // Mock AudioContext
-window.AudioContext = vi.fn().mockImplementation(() => ({
-  createGain: vi.fn().mockReturnValue({
-    connect: vi.fn(),
-    gain: { value: 1 }
-  }),
-  createMediaElementSource: vi.fn().mockReturnValue({
-    connect: vi.fn()
-  }),
-  destination: {}
-}));
+class MockAudioContext {
+  public readonly destination = {};
+  public readonly state: AudioContextState = 'running';
+
+  createGain() {
+    return {
+      connect: vi.fn(),
+      gain: { value: 1 },
+    };
+  }
+
+  createMediaElementSource() {
+    return {
+      connect: vi.fn(),
+    };
+  }
+
+  async resume() {
+    return undefined;
+  }
+}
+
+window.AudioContext = MockAudioContext as unknown as typeof AudioContext;
 
 // Mock fetch
 globalThis.fetch = vi.fn().mockResolvedValue({
