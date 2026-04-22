@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import type { TrackInfo, AppSettings } from '../types';
-import { formatDuration, matchesSearch, debounce } from '../utils';
+import { formatDuration, matchesSearch, debounce, sortTracks } from '../utils';
 import { useApp } from '../hooks';
 import { PlayingIndicator } from './PlayingIndicator';
 import { CoverImage } from './CoverImage';
 
-type SortOption = 'added' | 'title' | 'artist' | 'album';
-type SortDirection = 'asc' | 'desc';
+type SortOption = Parameters<typeof sortTracks>[1];
+type SortDirection = Parameters<typeof sortTracks>[2];
 
 const ITEM_HEIGHT = 56;
 const BUFFER_SIZE = 5;
@@ -39,55 +39,23 @@ export function TrackList() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const sortButtonRef = useRef<HTMLButtonElement>(null);
 
-  const filteredTracks = useMemo(() => {
-    const originalTrackOrder = new Map<TrackInfo, number>();
-    currentPlaylistTracks.forEach((track, index) => {
-      originalTrackOrder.set(track, index);
-    });
+  const sortedTracks = useMemo(
+    () => sortTracks(currentPlaylistTracks, sortOption, sortDirection),
+    [currentPlaylistTracks, sortDirection, sortOption]
+  );
 
-    let tracks = currentPlaylistTracks;
-    if (searchQuery) {
-      tracks = tracks.filter(track =>
-        matchesSearch(track.title, searchQuery) ||
-        matchesSearch(track.artists, searchQuery) ||
-        matchesSearch(track.album, searchQuery) ||
-        matchesSearch(track.isrc, searchQuery)
-      );
+  const filteredTracks = useMemo(() => {
+    if (!searchQuery) {
+      return sortedTracks;
     }
 
-    return [...tracks].sort((a, b) => {
-      let res = 0;
-      const originalOrderRes = (originalTrackOrder.get(a) ?? 0) - (originalTrackOrder.get(b) ?? 0);
-
-      switch (sortOption) {
-        case 'title':
-          res = a.title.localeCompare(b.title);
-          break;
-        case 'artist':
-          res = (a.artists || '').localeCompare(b.artists || '');
-          break;
-        case 'album':
-          res = (a.album || '').localeCompare(b.album || '');
-          break;
-        case 'added':
-        default:
-          const dateA = a.addedDate ? new Date(a.addedDate).getTime() : 0;
-          const dateB = b.addedDate ? new Date(b.addedDate).getTime() : 0;
-          res = dateA - dateB;
-          if (res !== 0) {
-            return sortDirection === 'asc' ? res : -res;
-          }
-
-          return originalOrderRes;
-      }
-
-      if (res === 0) {
-        return originalOrderRes;
-      }
-
-      return sortDirection === 'asc' ? res : -res;
-    });
-  }, [currentPlaylistTracks, searchQuery, sortOption, sortDirection]);
+    return sortedTracks.filter(track =>
+      matchesSearch(track.title, searchQuery) ||
+      matchesSearch(track.artists, searchQuery) ||
+      matchesSearch(track.album, searchQuery) ||
+      matchesSearch(track.isrc, searchQuery)
+    );
+  }, [searchQuery, sortedTracks]);
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -206,7 +174,7 @@ export function TrackList() {
     const isCached = cachedTrackIds.has(track.id);
     const isAvailable = isOnline || isCached;
     if (isAvailable) {
-      playTrack(track, index, currentPlaylistTracks);
+      playTrack(track, index, sortedTracks);
     }
   };
 
@@ -329,7 +297,7 @@ export function TrackList() {
                     if (isPlaying) {
                       playerActions.togglePlayPause();
                     } else {
-                      playTrack(track, originalIndex, currentPlaylistTracks);
+                      playTrack(track, originalIndex, sortedTracks);
                     }
                   }}
                 />
@@ -347,7 +315,7 @@ export function TrackList() {
           index={contextMenu.index}
           isCached={cachedTrackIds.has(contextMenu.track.id)}
           onPlay={() => {
-            playTrack(contextMenu.track, contextMenu.index, currentPlaylistTracks);
+            playTrack(contextMenu.track, contextMenu.index, sortedTracks);
             setContextMenu(null);
           }}
           onAddToQueue={() => {
@@ -700,4 +668,3 @@ function SortMenu({ id, anchorRef, currentOption, currentDirection, onSelect }: 
     </div>
   );
 }
-

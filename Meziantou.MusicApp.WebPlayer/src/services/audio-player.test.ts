@@ -256,4 +256,48 @@ describe('AudioPlayerService Queue Logic', () => {
       expect(audioAfterPlay.muted).toBe(false);
     });
   });
+
+  describe('AirPlay', () => {
+    it('should expose AirPlay availability changes', () => {
+      const audio = (player as any).audio as HTMLAudioElement;
+
+      const availableEvent = new Event('webkitplaybacktargetavailabilitychanged') as WebKitPlaybackTargetAvailabilityEvent;
+      availableEvent.availability = 'available';
+      audio.dispatchEvent(availableEvent);
+
+      expect(player.isAirPlaySupported()).toBe(true);
+      expect(player.isAirPlayAvailable()).toBe(true);
+      expect(player.isAirPlayActive()).toBe(false);
+
+      const unavailableEvent = new Event('webkitplaybacktargetavailabilitychanged') as WebKitPlaybackTargetAvailabilityEvent;
+      unavailableEvent.availability = 'not-available';
+      audio.dispatchEvent(unavailableEvent);
+
+      expect(player.isAirPlayAvailable()).toBe(false);
+    });
+
+    it('should update AirPlay active state when target changes', () => {
+      const audio = (player as any).audio as HTMLAudioElement;
+
+      audio.webkitCurrentPlaybackTargetIsWireless = true;
+      audio.dispatchEvent(new Event('webkitcurrentplaybacktargetiswirelesschanged'));
+      expect(player.isAirPlayActive()).toBe(true);
+
+      audio.webkitCurrentPlaybackTargetIsWireless = false;
+      audio.dispatchEvent(new Event('webkitcurrentplaybacktargetiswirelesschanged'));
+      expect(player.isAirPlayActive()).toBe(false);
+    });
+
+    it('should open the AirPlay picker when requested', () => {
+      const audio = (player as any).audio as HTMLAudioElement;
+      const pickerSpy = vi.spyOn(
+        audio as HTMLAudioElement & { webkitShowPlaybackTargetPicker: () => void },
+        'webkitShowPlaybackTargetPicker',
+      );
+
+      player.showAirPlayPicker();
+
+      expect(pickerSpy).toHaveBeenCalledTimes(1);
+    });
+  });
 });

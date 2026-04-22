@@ -1538,6 +1538,11 @@ body {
   position: relative;
 }
 
+.airplay-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 .queue-badge {
   position: absolute;
   top: -4px;

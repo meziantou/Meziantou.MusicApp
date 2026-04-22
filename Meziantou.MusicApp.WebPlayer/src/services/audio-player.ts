@@ -14,7 +14,8 @@ export type PlayerEventType =
   | 'durationchange'
   | 'loadstart'
   | 'canplay'
-  | 'queuechange';
+  | 'queuechange'
+  | 'airplayavailabilitychange';
 
 export interface PlayerEventDetail {
   currentTime?: number;
@@ -23,6 +24,9 @@ export interface PlayerEventDetail {
   error?: string;
   track?: TrackInfo;
   quality?: StreamingQuality;
+  airPlaySupported?: boolean;
+  airPlayAvailable?: boolean;
+  airPlayActive?: boolean;
 }
 
 type PlayerEventCallback = (detail: PlayerEventDetail) => void;
@@ -75,8 +79,14 @@ export class AudioPlayerService {
   private recentlyPlayedIds: Set<string> = new Set();
   private static readonly RECENTLY_PLAYED_MAX_COUNT = 300;
 
+  private airPlaySupported: boolean = false;
+  private airPlayAvailable: boolean = false;
+  private airPlayActive: boolean = false;
+
   constructor() {
     this.audioInstance = this.createAudioInstance();
+    this.airPlaySupported = this.supportsAirPlayPicker(this.audioInstance.audio);
+    this.updateAirPlayStateFromAudio(this.audioInstance.audio);
     this.setupAudioEvents(this.audioInstance);
     this.setupMediaSession();
     this.queueService = new PlayQueueService({
@@ -190,12 +200,51 @@ export class AudioPlayerService {
     });
 
     audio.addEventListener('loadstart', () => {
+      this.updateAirPlayStateFromAudio(audio);
       this.emit('loadstart', {});
     });
 
     audio.addEventListener('canplay', () => {
+      this.updateAirPlayStateFromAudio(audio);
       this.emit('canplay', {});
     });
+
+    if (this.supportsAirPlayPicker(audio)) {
+      audio.addEventListener('webkitplaybacktargetavailabilitychanged', (event) => {
+        const availability = (event as WebKitPlaybackTargetAvailabilityEvent).availability;
+        this.updateAirPlayStateFromAudio(audio, availability);
+      });
+
+      audio.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', () => {
+        this.updateAirPlayStateFromAudio(audio);
+      });
+    }
+  }
+
+  private supportsAirPlayPicker(audio: HTMLAudioElement): audio is HTMLAudioElement & { webkitShowPlaybackTargetPicker: () => void } {
+    return typeof audio.webkitShowPlaybackTargetPicker === 'function';
+  }
+
+  private updateAirPlayStateFromAudio(audio: HTMLAudioElement, availability?: string): void {
+    const previousSupported = this.airPlaySupported;
+    const previousAvailable = this.airPlayAvailable;
+    const previousActive = this.airPlayActive;
+
+    this.airPlaySupported = this.supportsAirPlayPicker(audio);
+    this.airPlayAvailable = this.airPlaySupported && availability === 'available';
+    this.airPlayActive = this.airPlaySupported && audio.webkitCurrentPlaybackTargetIsWireless === true;
+
+    if (
+      previousSupported !== this.airPlaySupported
+      || previousAvailable !== this.airPlayAvailable
+      || previousActive !== this.airPlayActive
+    ) {
+      this.emit('airplayavailabilitychange', {
+        airPlaySupported: this.airPlaySupported,
+        airPlayAvailable: this.airPlayAvailable,
+        airPlayActive: this.airPlayActive,
+      });
+    }
   }
 
   private setupMediaSession(): void {
@@ -806,6 +855,23 @@ export class AudioPlayerService {
 
   toggleMute(): void {
     this.setMuted(!this.isMuted);
+  }
+
+  isAirPlaySupported(): boolean {
+    return this.airPlaySupported;
+  }
+
+  isAirPlayAvailable(): boolean {
+    return this.airPlayAvailable;
+  }
+
+  isAirPlayActive(): boolean {
+    return this.airPlayActive;
+  }
+
+  showAirPlayPicker(): void {
+    if (!this.supportsAirPlayPicker(this.audio)) return;
+    this.audio.webkitShowPlaybackTargetPicker();
   }
 
   setShuffle(enabled: boolean): void {

@@ -1,5 +1,51 @@
 // Utility functions for DOM manipulation and formatting
 
+import type { TrackInfo } from '../types';
+
+export type TrackSortOption = 'added' | 'title' | 'artist' | 'album';
+export type TrackSortDirection = 'asc' | 'desc';
+
+export function sortTracks(tracks: TrackInfo[], sortOption: TrackSortOption, sortDirection: TrackSortDirection): TrackInfo[] {
+  const originalTrackOrder = new Map<TrackInfo, number>();
+  tracks.forEach((track, index) => {
+    originalTrackOrder.set(track, index);
+  });
+
+  return [...tracks].sort((a, b) => {
+    let res = 0;
+    const originalOrderRes = (originalTrackOrder.get(a) ?? 0) - (originalTrackOrder.get(b) ?? 0);
+
+    switch (sortOption) {
+      case 'title':
+        res = a.title.localeCompare(b.title);
+        break;
+      case 'artist':
+        res = (a.artists || '').localeCompare(b.artists || '');
+        break;
+      case 'album':
+        res = (a.album || '').localeCompare(b.album || '');
+        break;
+      case 'added':
+      default: {
+        const dateA = a.addedDate ? new Date(a.addedDate).getTime() : 0;
+        const dateB = b.addedDate ? new Date(b.addedDate).getTime() : 0;
+        res = dateA - dateB;
+        if (res !== 0) {
+          return sortDirection === 'asc' ? res : -res;
+        }
+
+        return originalOrderRes;
+      }
+    }
+
+    if (res === 0) {
+      return originalOrderRes;
+    }
+
+    return sortDirection === 'asc' ? res : -res;
+  });
+}
+
 export function formatDuration(seconds: number): string {
   if (!seconds || !isFinite(seconds)) return '0:00';
 
