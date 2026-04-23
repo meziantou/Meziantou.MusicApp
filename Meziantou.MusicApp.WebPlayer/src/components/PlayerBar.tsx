@@ -233,6 +233,12 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
 
       <div className="player-right">
         <div className="player-secondary-actions">
+          {playerState.isAirPlayAvailable && (
+            <AirPlayButton
+              active={playerState.isAirPlayActive}
+              onClick={() => playerActions.showAirPlayPicker()}
+            />
+          )}
           <QueueButton
             queueLength={playerState.queue.length}
             onClick={onQueueClick}
@@ -394,6 +400,21 @@ function QueueButton({ queueLength, onClick }: { queueLength: number; onClick: (
           {queueLength > 99 ? '99+' : queueLength}
         </span>
       )}
+    </button>
+  );
+}
+
+function AirPlayButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      className={`icon-button airplay-btn ${active ? 'active' : ''}`}
+      title="AirPlay"
+      aria-label="Open AirPlay device picker"
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 21h12l-6-6-6 6zm15-18H3a2 2 0 0 0-2 2v11h2V5h18v11h2V5a2 2 0 0 0-2-2z" />
+      </svg>
     </button>
   );
 }

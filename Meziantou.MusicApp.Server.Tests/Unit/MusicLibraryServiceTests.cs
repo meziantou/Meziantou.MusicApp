@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Meziantou.Framework;
+using Meziantou.Framework.MediaTags;
 using Meziantou.MusicApp.Server.Models;
 using Meziantou.MusicApp.Server.Services;
 using Meziantou.MusicApp.Server.Tests.Helpers;
@@ -540,13 +541,16 @@ public partial class MusicLibraryServiceTests
         Assert.Equal("Original Title", songs[0].Title);
 
         // Modify the file and ensure it's fully written before scanning
-        using (var tagFile = TagLib.File.Create(mp3FilePath))
-        {
-            tagFile.Tag.Title = "Modified Title";
-            tagFile.Tag.Performers = ["Modified Artist"];
-            tagFile.Tag.Album = "Modified Album";
-            tagFile.Save();
-        } // Dispose to ensure file is closed
+        var readResult = MediaFile.ReadTags(mp3FilePath);
+        Assert.True(readResult.IsSuccess, $"Failed to read media tags: {readResult.ErrorMessage}");
+
+        var tags = readResult.Value;
+        tags.Title = "Modified Title";
+        tags.Artist = "Modified Artist";
+        tags.Album = "Modified Album";
+
+        var writeResult = MediaFile.WriteTags(mp3FilePath, tags);
+        Assert.True(writeResult.IsSuccess, $"Failed to write media tags: {writeResult.ErrorMessage}");
 
         // Explicitly update the file timestamp to ensure modification is detected
         var timestampBefore = File.GetLastWriteTimeUtc(mp3FilePath);

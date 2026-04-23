@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using Meziantou.Framework;
+using Meziantou.Framework.MediaTags;
 using Meziantou.MusicApp.Server.Telemetry;
 
 namespace Meziantou.MusicApp.Server.Models;
@@ -627,15 +628,15 @@ public sealed class MusicCatalog
             if (coverArt.IsMetadata)
             {
                 // Read from embedded metadata
-                using var tagFile = TagLib.File.Create(coverArt.FilePath);
-                var pictures = tagFile.Tag.Pictures;
-                if (pictures.Length > 0)
+                var readResult = MediaFile.ReadTags(coverArt.FilePath);
+                if (readResult.IsSuccess && readResult.Value.Pictures.Count > 0)
                 {
+                    var pictureData = readResult.Value.Pictures[0].Data;
                     activity?.SetTag("music.coverart.result", "from_metadata");
-                    activity?.SetTag("music.coverart.size_bytes", pictures[0].Data.Data.Length);
+                    activity?.SetTag("music.coverart.size_bytes", pictureData.Length);
                     return new CoverArtData
                     {
-                        Data = pictures[0].Data.Data,
+                        Data = pictureData,
                         LastModified = lastModified,
                     };
                 }
@@ -677,8 +678,13 @@ public sealed class MusicCatalog
             if (song.Lyrics.IsMetadata)
             {
                 // Read from embedded metadata
-                using var tagFile = TagLib.File.Create(song.Lyrics.FilePath);
-                var lyrics = tagFile.Tag.Lyrics;
+                string? lyrics = null;
+                var readResult = MediaFile.ReadTags(song.Lyrics.FilePath);
+                if (readResult.IsSuccess)
+                {
+                    lyrics = readResult.Value.Lyrics;
+                }
+
                 activity?.SetTag("music.lyrics.result", "from_metadata");
                 if (lyrics is not null)
                 {
@@ -792,11 +798,10 @@ public sealed class MusicCatalog
             if (coverArt.IsMetadata)
             {
                 // Extract from embedded metadata
-                using var tagFile = TagLib.File.Create(coverArt.FilePath);
-                var pictures = tagFile.Tag.Pictures;
-                if (pictures.Length > 0)
+                var readResult = MediaFile.ReadTags(coverArt.FilePath);
+                if (readResult.IsSuccess && readResult.Value.Pictures.Count > 0)
                 {
-                    imageData = pictures[0].Data.Data;
+                    imageData = readResult.Value.Pictures[0].Data;
                 }
             }
             else

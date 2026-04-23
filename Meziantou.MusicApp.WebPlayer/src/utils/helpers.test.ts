@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { matchesSearch, normalizeSearch } from './helpers';
+import type { TrackInfo } from '../types';
+import { matchesSearch, normalizeSearch, sortTracks } from './helpers';
 
 describe('Search Track Feature', () => {
   describe('normalizeSearch', () => {
@@ -191,6 +192,55 @@ describe('Search Track Feature', () => {
         expect(matchesSearch('Track 1', '1')).toBe(true);
         expect(matchesSearch('2023 Album', '2023')).toBe(true);
       });
+    });
+  });
+
+  describe('sortTracks', () => {
+    const createTrack = (id: string, title: string, addedDate: string | null): TrackInfo => ({
+      id,
+      title,
+      path: `/music/${id}.mp3`,
+      artists: null,
+      album: null,
+      duration: 60,
+      artistId: null,
+      albumId: null,
+      track: null,
+      year: null,
+      genre: null,
+      bitRate: null,
+      size: 1000,
+      contentType: 'audio/mpeg',
+      addedDate,
+      isrc: null,
+      replayGainTrackGain: null,
+      replayGainTrackPeak: null,
+      replayGainAlbumGain: null,
+      replayGainAlbumPeak: null,
+    });
+
+    it('should sort by added date descending', () => {
+      const tracks = [
+        createTrack('old', 'Old Track', '2024-01-01T00:00:00Z'),
+        createTrack('new', 'New Track', '2024-03-01T00:00:00Z'),
+        createTrack('mid', 'Mid Track', '2024-02-01T00:00:00Z'),
+      ];
+
+      const sorted = sortTracks(tracks, 'added', 'desc');
+
+      expect(sorted.map(track => track.id)).toEqual(['new', 'mid', 'old']);
+    });
+
+    it('should preserve original order when added dates are equal', () => {
+      const tracks = [
+        createTrack('a', 'Track A', '2024-01-01T00:00:00Z'),
+        createTrack('b', 'Track B', '2024-01-01T00:00:00Z'),
+        createTrack('c', 'Track C', '2024-01-01T00:00:00Z'),
+      ];
+
+      const sorted = sortTracks(tracks, 'added', 'desc');
+
+      expect(sorted.map(track => track.id)).toEqual(['a', 'b', 'c']);
     });
   });
 });

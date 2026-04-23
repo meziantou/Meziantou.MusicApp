@@ -1,4 +1,5 @@
 using Meziantou.Framework;
+using Meziantou.Framework.MediaTags;
 
 namespace Meziantou.MusicApp.Server.Tests.Helpers;
 
@@ -46,82 +47,41 @@ internal sealed class MusicLibraryTestContext(FullPath root)
         fullPath.CreateParentDirectory();
         File.WriteAllBytes(fullPath, mp3Data);
 
-        // Use TagLibSharp to add ID3 tags
-        using var tagFile = TagLib.File.Create(fullPath);
-        
-        if (title != null)
+        var tags = new MediaTagInfo
         {
-            tagFile.Tag.Title = title;
+            Title = title,
+            Artist = artist,
+            AlbumArtist = albumArtist,
+            Album = album,
+            Genre = genre,
+            Year = year,
+            TrackNumber = track.HasValue ? (int)track.Value : null,
+        };
+
+        if (!string.IsNullOrWhiteSpace(lyrics))
+        {
+            tags.Lyrics = lyrics;
         }
 
-        if (album != null)
+        if (!string.IsNullOrWhiteSpace(isrc))
         {
-            tagFile.Tag.Album = album;
+            tags.Isrc = isrc;
         }
 
-        if (genre != null)
+        if (replayGainTrackGain.HasValue || replayGainTrackPeak.HasValue)
         {
-            tagFile.Tag.Genres = [genre];
-        }
-
-        if (year.HasValue)
-        {
-            tagFile.Tag.Year = (uint)year.Value;
-        }
-
-        if (track.HasValue)
-        {
-            tagFile.Tag.Track = track.Value;
-        }
-
-        if (artist != null)
-        {
-            tagFile.Tag.Performers = [artist];
-        }
-
-        if (albumArtist != null)
-        {
-            tagFile.Tag.AlbumArtists = [albumArtist];
-        }
-
-        if (lyrics != null)
-        {
-            tagFile.Tag.Lyrics = lyrics;
-        }
-
-        // Add ISRC if provided
-        if (isrc != null)
-        {
-            if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+            tags.ReplayGain = new ReplayGainInfo
             {
-                var tsrcFrame = TagLib.Id3v2.TextInformationFrame.Get(id3v2Tag, "TSRC", true);
-                tsrcFrame.Text = [isrc];
-            }
+                TrackGain = replayGainTrackGain,
+                TrackPeak = replayGainTrackPeak,
+            };
         }
 
-        // Add ReplayGain if provided
-        if (replayGainTrackGain.HasValue && replayGainTrackPeak.HasValue)
+        var writeResult = MediaFile.WriteTags(fullPath, tags);
+        if (!writeResult.IsSuccess)
         {
-            var trackGainStr = $"{replayGainTrackGain.Value:F2} dB";
-            var trackPeakStr = $"{replayGainTrackPeak.Value:F6}";
-
-            if (tagFile.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
-            {
-                var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
-                {
-                    Text = [trackGainStr]
-                };
-                id3v2Tag.AddFrame(trackGainFrame);
-
-                var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
-                {
-                    Text = [trackPeakStr]
-                };
-                id3v2Tag.AddFrame(trackPeakFrame);
-            }
+            throw new InvalidOperationException($"Failed to write media tags: {writeResult.ErrorMessage}");
         }
-
-        tagFile.Save();
     }
 
     public async Task CreateLrcFile(string relativePath, string content)

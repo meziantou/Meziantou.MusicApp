@@ -2,6 +2,7 @@ using Meziantou.MusicApp.Server.Models;
 using Meziantou.MusicApp.Server.Services;
 using Meziantou.MusicApp.Server.Tests.Helpers;
 using Meziantou.Framework;
+using Meziantou.Framework.MediaTags;
 
 namespace Meziantou.MusicApp.Server.Tests.Unit;
 
@@ -245,64 +246,34 @@ public class ReplayGainServiceTests
 
     private static (double? TrackGain, double? TrackPeak) ReadReplayGainTagsFromFile(FullPath path)
     {
-        using var file = TagLib.File.Create(path);
-
-        double? trackGain = null;
-        double? trackPeak = null;
-
-        // Read from ID3v2 tags (MP3)
-        if (file.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3v2Tag)
+        var readResult = MediaFile.ReadTags(path);
+        if (!readResult.IsSuccess)
         {
-            foreach (var frame in id3v2Tag.GetFrames<TagLib.Id3v2.UserTextInformationFrame>())
-            {
-                var value = frame.Text.FirstOrDefault();
-                if (string.IsNullOrEmpty(value))
-                    continue;
-
-                if (frame.Description?.Equals("REPLAYGAIN_TRACK_GAIN", StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    var cleanValue = value.Replace(" dB", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    if (double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var gain))
-                    {
-                        trackGain = gain;
-                    }
-                }
-                else if (frame.Description?.Equals("REPLAYGAIN_TRACK_PEAK", StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    if (double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var peak))
-                    {
-                        trackPeak = peak;
-                    }
-                }
-            }
+            return (null, null);
         }
 
-        return (trackGain, trackPeak);
+        return (readResult.Value.ReplayGain?.TrackGain, readResult.Value.ReplayGain?.TrackPeak);
     }
 
     private static void WriteReplayGainTagsToFile(FullPath path, double trackGain, double trackPeak)
     {
-        using var file = TagLib.File.Create(path);
-
-        var trackGainStr = $"{trackGain:F2} dB";
-        var trackPeakStr = $"{trackPeak:F6}";
-
-        // Write to ID3v2 tags (MP3)
-        if (file.GetTag(TagLib.TagTypes.Id3v2, true) is TagLib.Id3v2.Tag id3v2Tag)
+        var readResult = MediaFile.ReadTags(path);
+        if (!readResult.IsSuccess)
         {
-            var trackGainFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_GAIN")
-            {
-                Text = [trackGainStr]
-            };
-            id3v2Tag.AddFrame(trackGainFrame);
-
-            var trackPeakFrame = new TagLib.Id3v2.UserTextInformationFrame("REPLAYGAIN_TRACK_PEAK")
-            {
-                Text = [trackPeakStr]
-            };
-            id3v2Tag.AddFrame(trackPeakFrame);
+            throw new InvalidOperationException($"Failed to read media tags: {readResult.ErrorMessage}");
         }
 
-        file.Save();
+        var tags = readResult.Value;
+        tags.ReplayGain = new ReplayGainInfo
+        {
+            TrackGain = trackGain,
+            TrackPeak = trackPeak,
+        };
+
+        var writeResult = MediaFile.WriteTags(path, tags);
+        if (!writeResult.IsSuccess)
+        {
+            throw new InvalidOperationException($"Failed to write media tags: {writeResult.ErrorMessage}");
+        }
     }
 }

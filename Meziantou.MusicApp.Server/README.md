@@ -6,7 +6,7 @@ This project is a music streaming server that supports both Subsonic and Jellyfi
 
 - Dual API Support: Subsonic REST API (v1.16.1) and Jellyfin API (v10.9)
 - Automatic M3U/M3U8 playlist detection
-- ID3 tag reading using TagLibSharp
+- ID3 tag reading using Meziantou.Framework.MediaTags
 - Lyrics support from file metadata
 - Cover art extraction from files or folders
 - Simple token-based authentication
