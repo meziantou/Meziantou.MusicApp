@@ -105,7 +105,7 @@ export default defineConfig({
     })
   ],
   build: {
-    target: 'ES2022',
+    target: 'esnext',
     sourcemap: true
   },
   server: {
