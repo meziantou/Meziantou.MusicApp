@@ -338,7 +338,7 @@ internal sealed class Program
 
     private static async Task ConvertToOpus(string inputPath, string outputPath, int bitrate)
     {
-        using var process = ProcessWrapper.Create("ffmpeg")
+        var process = ProcessWrapper.Create("ffmpeg")
             .WithArguments(
             [
                 "-i", inputPath,
@@ -351,9 +351,10 @@ internal sealed class Program
             .WithValidation(ProcessValidationMode.None)
             .ExecuteBufferedAsync();
 
-        if (await process != 0)
+        var result = await process;
+        if (result.ExitCode != 0)
         {
-            throw new InvalidOperationException($"ffmpeg failed: {ToText(process.Output.StandardError)}");
+            throw new InvalidOperationException($"ffmpeg failed: {ToText(result.Output.StandardError)}");
         }
     }
 
@@ -361,7 +362,7 @@ internal sealed class Program
     {
         try
         {
-            using var process = ProcessWrapper.Create("ffprobe")
+            var process = ProcessWrapper.Create("ffprobe")
                 .WithArguments(
                 [
                     "-v", "error",
@@ -372,9 +373,9 @@ internal sealed class Program
                 .WithValidation(ProcessValidationMode.None)
                 .ExecuteBufferedAsync();
 
-            await process;
+            var result = await process;
 
-            if (double.TryParse(ToText(process.Output.StandardOutput).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration))
+            if (double.TryParse(ToText(result.Output.StandardOutput).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration))
             {
                 return (int)Math.Round(duration);
             }
@@ -391,7 +392,7 @@ internal sealed class Program
     {
         try
         {
-            using var process = ProcessWrapper.Create("ffprobe")
+            var process = ProcessWrapper.Create("ffprobe")
                 .WithArguments(
                 [
                     "-v", "error",
@@ -402,9 +403,9 @@ internal sealed class Program
                 .WithValidation(ProcessValidationMode.None)
                 .ExecuteBufferedAsync();
 
-            await process;
+            var result = await process;
 
-            if (double.TryParse(ToText(process.Output.StandardOutput).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var bitrate))
+            if (double.TryParse(ToText(result.Output.StandardOutput).Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var bitrate))
             {
                 return (int)Math.Round(bitrate / 1000);
             }
