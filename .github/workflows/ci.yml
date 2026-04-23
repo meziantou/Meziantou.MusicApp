@@ -1,6 +1,7 @@
 on:
   workflow_dispatch:
   push:
+  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -93,7 +94,6 @@ jobs:
 
   static-site-generator:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     permissions:
         contents: write
     steps:
@@ -115,6 +115,7 @@ jobs:
         run: dotnet publish Meziantou.MusicApp.StaticSiteGenerator --configuration Release --runtime osx-arm64 --self-contained --output ./publish/osx-arm64
 
       - name: Create release archives
+        if: github.ref == 'refs/heads/main'
         run: |
           cd publish
           zip -r ../StaticSiteGenerator-win-x64.zip win-x64/
@@ -124,6 +125,7 @@ jobs:
           cd ..
 
       - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
