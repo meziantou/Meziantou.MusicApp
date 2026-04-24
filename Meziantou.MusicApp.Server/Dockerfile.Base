@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 # Install tools
-RUN wget -O /usr/bin/ffmpeg https://github.com/meziantou/prebuilt/releases/download/2.0.2/ffmpeg-linux-x64
+RUN wget -O /usr/bin/ffmpeg https://github.com/meziantou/prebuilt/releases/download/2.0.4/ffmpeg-linux-x64
 RUN chmod +x /usr/bin/ffmpeg
 
 # Remove packages that are not needed after installation to keep the image size small.
