@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } fr
 import type { TrackInfo, AppSettings } from '../types';
 import { formatDuration, matchesSearch, debounce, sortTracks } from '../utils';
 import { useApp } from '../hooks';
+import { getApiService } from '../services';
 import { PlayingIndicator } from './PlayingIndicator';
 import { CoverImage } from './CoverImage';
 
@@ -10,6 +11,21 @@ type SortDirection = Parameters<typeof sortTracks>[2];
 
 const ITEM_HEIGHT = 56;
 const BUFFER_SIZE = 5;
+
+function getTrackDownloadFileName(track: TrackInfo): string {
+  const normalizedPath = track.path.replace(/\\/g, '/');
+  const fileName = normalizedPath.split('/').pop()?.trim();
+  if (fileName) {
+    return fileName;
+  }
+
+  const safeTitle = track.title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim();
+  if (safeTitle) {
+    return `${safeTitle}.bin`;
+  }
+
+  return `${track.id}.bin`;
+}
 
 export function TrackList() {
   const {
@@ -189,6 +205,26 @@ export function TrackList() {
     e.dataTransfer.setData('text/plain', track.id);
   };
 
+  const handleDownloadRawFile = useCallback(async (track: TrackInfo) => {
+    try {
+      const apiService = getApiService();
+      const blob = await apiService.fetchSongBlob(track.id, { format: 'raw' });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = getTrackDownloadFileName(track);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 0);
+    } catch (error) {
+      console.error(`Failed to download raw file for track ${track.id}`, error);
+      showToast('Failed to download raw file', 'error');
+    }
+  }, [showToast]);
+
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
     document.addEventListener('click', handleClick);
@@ -325,6 +361,10 @@ export function TrackList() {
           }}
           onDownload={() => {
             downloadTrack(contextMenu.track);
+            setContextMenu(null);
+          }}
+          onDownloadRawFile={() => {
+            void handleDownloadRawFile(contextMenu.track);
             setContextMenu(null);
           }}
           onDelete={() => {
@@ -486,13 +526,26 @@ interface ContextMenuProps {
   onPlay: () => void;
   onAddToQueue: () => void;
   onDownload: () => void;
+  onDownloadRawFile: () => void;
   onDelete: () => void;
   onRemoveFromPlaylist?: () => void;
   onCopyFilePath: () => void;
   onViewDetails: () => void;
 }
 
-function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelete, onRemoveFromPlaylist, onCopyFilePath, onViewDetails }: ContextMenuProps) {
+function ContextMenu({
+  x,
+  y,
+  isCached,
+  onPlay,
+  onAddToQueue,
+  onDownload,
+  onDownloadRawFile,
+  onDelete,
+  onRemoveFromPlaylist,
+  onCopyFilePath,
+  onViewDetails
+}: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x, y });
 
@@ -537,6 +590,12 @@ function ContextMenu({ x, y, isCached, onPlay, onAddToQueue, onDownload, onDelet
           <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
         </svg>
         Add to Queue
+      </button>
+      <button className="context-menu-item" onClick={onDownloadRawFile}>
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+        </svg>
+        Download Raw File
       </button>
       {onRemoveFromPlaylist && (
         <button className="context-menu-item" onClick={onRemoveFromPlaylist}>
