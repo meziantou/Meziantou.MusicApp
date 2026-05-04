@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type {
   AppSettings,
   PlaylistSummary,
@@ -93,7 +93,13 @@ export function AppProvider({ children }: AppProviderProps) {
   const [networkType, setNetworkType] = useState(getNetworkType());
   const [cachedTrackIds, setCachedTrackIds] = useState<Set<string>>(new Set());
   const [offlinePlaylistIds, setOfflinePlaylistIds] = useState<Set<string>>(new Set());
-  const [offlinePlaylistTracks, setOfflinePlaylistTracks] = useState<Map<string, string[]>>(new Map());
+  // Progress is stored directly as {cached,total} so we never have to keep the
+  // full track-id list of every offline playlist in React state. Initial values
+  // are computed once when the offline playlist is loaded; subsequent download
+  // completions bump `cached` incrementally via the downloadService.onProgress
+  // handler below.
+  const [playlistDownloadProgress, setPlaylistDownloadProgress] =
+    useState<Map<string, { cached: number; total: number }>>(new Map());
   const [loadingCount, setLoadingCount] = useState(0);
   const isLoading = loadingCount > 0;
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -105,16 +111,6 @@ export function AppProvider({ children }: AppProviderProps) {
   const setIsLoading = useCallback((loading: boolean) => {
     setLoadingCount(prev => Math.max(0, prev + (loading ? 1 : -1)));
   }, []);
-
-  // Compute playlist download progress dynamically from track lists and cached IDs
-  const playlistDownloadProgress = useMemo(() => {
-    const progress = new Map<string, { cached: number; total: number }>();
-    for (const [playlistId, trackIds] of offlinePlaylistTracks) {
-      const cachedCount = trackIds.filter(id => cachedTrackIds.has(id)).length;
-      progress.set(playlistId, { cached: cachedCount, total: trackIds.length });
-    }
-    return progress;
-  }, [offlinePlaylistTracks, cachedTrackIds]);
 
   const showToast = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
     const id = Date.now();
@@ -207,15 +203,21 @@ export function AppProvider({ children }: AppProviderProps) {
           currentPlaylists = cachedPlaylists.map(cp => cp.playlist).sort((a, b) => a.sortOrder - b.sortOrder);
           setPlaylists(currentPlaylists);
 
-          // Set up track lists for offline playlists
+          // Set up download progress for offline playlists.
+          // Computing once here avoids keeping the full track-id list in React state.
           const offlinePls = await storageService.getOfflinePlaylistIds();
-          const trackLists = new Map<string, string[]>();
+          const cached = await storageService.getCachedTrackIds();
+          const progressMap = new Map<string, { cached: number; total: number }>();
           for (const cachedPl of cachedPlaylists) {
             if (offlinePls.has(cachedPl.playlist.id)) {
-              trackLists.set(cachedPl.playlist.id, cachedPl.tracks.map(t => t.id));
+              let cachedCount = 0;
+              for (const t of cachedPl.tracks) {
+                if (cached.has(t.id)) cachedCount++;
+              }
+              progressMap.set(cachedPl.playlist.id, { cached: cachedCount, total: cachedPl.tracks.length });
             }
           }
-          setOfflinePlaylistTracks(trackLists);
+          setPlaylistDownloadProgress(progressMap);
         }
 
         // Restore playback state
@@ -361,7 +363,26 @@ export function AppProvider({ children }: AppProviderProps) {
   useEffect(() => {
     const unsubscribe = downloadService.onProgress((progress) => {
       if (progress.status === 'complete') {
-        setCachedTrackIds(prev => new Set([...prev, progress.trackId]));
+        setCachedTrackIds(prev => {
+          if (prev.has(progress.trackId)) return prev;
+          const next = new Set(prev);
+          next.add(progress.trackId);
+          return next;
+        });
+        if (progress.playlistIds && progress.playlistIds.length > 0) {
+          setPlaylistDownloadProgress(prev => {
+            let mutated = false;
+            const next = new Map(prev);
+            for (const pid of progress.playlistIds!) {
+              const entry = next.get(pid);
+              if (entry && entry.cached < entry.total) {
+                next.set(pid, { cached: entry.cached + 1, total: entry.total });
+                mutated = true;
+              }
+            }
+            return mutated ? next : prev;
+          });
+        }
       } else if (progress.status === 'error') {
         showToast(`Download failed: ${progress.error}`, 'error');
       }
@@ -447,8 +468,9 @@ export function AppProvider({ children }: AppProviderProps) {
             });
           }
 
-          // Remove from offline playlist tracks
-          setOfflinePlaylistTracks(prev => {
+          // Remove from offline playlist progress tracking
+          setPlaylistDownloadProgress(prev => {
+            if (!prev.has(cachedPlaylist.playlist.id)) return prev;
             const next = new Map(prev);
             next.delete(cachedPlaylist.playlist.id);
             return next;
@@ -468,12 +490,19 @@ export function AppProvider({ children }: AppProviderProps) {
             const tracksResponse = await api.getPlaylistTracks(playlist.id);
             await storageService.saveCachedPlaylist(playlist, tracksResponse.tracks);
 
-            // Update track list for progress calculation
-            setOfflinePlaylistTracks(prev => {
-              const next = new Map(prev);
-              next.set(playlist.id, tracksResponse.tracks.map(t => t.id));
-              return next;
-            });
+            // Recompute download progress for this playlist
+            {
+              let cachedCount = 0;
+              for (const t of tracksResponse.tracks) {
+                if (cachedTrackIds.has(t.id)) cachedCount++;
+              }
+              const total = tracksResponse.tracks.length;
+              setPlaylistDownloadProgress(prev => {
+                const next = new Map(prev);
+                next.set(playlist.id, { cached: cachedCount, total });
+                return next;
+              });
+            }
 
             // Queue downloads for uncached tracks
             const uncachedTracks = tracksResponse.tracks.filter(t => !cachedTrackIds.has(t.id));
@@ -494,12 +523,21 @@ export function AppProvider({ children }: AppProviderProps) {
               setCurrentPlaylistTracks(tracksResponse.tracks);
             }
           } else if (cached) {
-            // Playlist hasn't changed, but ensure track list is set for progress
-            setOfflinePlaylistTracks(prev => {
-              const next = new Map(prev);
-              next.set(playlist.id, cached.tracks.map(t => t.id));
-              return next;
-            });
+            // Playlist hasn't changed, but ensure progress is initialized.
+            {
+              let cachedCount = 0;
+              for (const t of cached.tracks) {
+                if (cachedTrackIds.has(t.id)) cachedCount++;
+              }
+              const total = cached.tracks.length;
+              setPlaylistDownloadProgress(prev => {
+                const existing = prev.get(playlist.id);
+                if (existing && existing.cached === cachedCount && existing.total === total) return prev;
+                const next = new Map(prev);
+                next.set(playlist.id, { cached: cachedCount, total });
+                return next;
+              });
+            }
 
             // Also check for uncached tracks (in case previous downloads were interrupted)
             const uncachedTracks = cached.tracks.filter(t => !cachedTrackIds.has(t.id));
@@ -717,12 +755,32 @@ export function AppProvider({ children }: AppProviderProps) {
   }, [currentPlaylistId, settings.downloadQuality, showToast]);
 
   const deleteDownloadedTrack = useCallback(async (track: TrackInfo) => {
+    // Capture playlistIds before deletion so we can decrement the per-playlist
+    // progress counters for each affected offline playlist.
+    const before = await storageService.getCachedTrack(track.id);
+    const affectedPlaylistIds = before?.playlistIds ?? [];
+
     await downloadService.deleteTrack(track.id);
     setCachedTrackIds(prev => {
+      if (!prev.has(track.id)) return prev;
       const next = new Set(prev);
       next.delete(track.id);
       return next;
     });
+    if (affectedPlaylistIds.length > 0) {
+      setPlaylistDownloadProgress(prev => {
+        let mutated = false;
+        const next = new Map(prev);
+        for (const pid of affectedPlaylistIds) {
+          const entry = next.get(pid);
+          if (entry && entry.cached > 0) {
+            next.set(pid, { cached: entry.cached - 1, total: entry.total });
+            mutated = true;
+          }
+        }
+        return mutated ? next : prev;
+      });
+    }
     showToast(`Removed "${track.title}" from downloads`);
   }, [showToast]);
 
@@ -731,7 +789,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setCachedTrackIds(new Set());
     playerActions.setCachedTrackIds(new Set());
     setOfflinePlaylistIds(new Set());
-    setOfflinePlaylistTracks(new Map());
+    setPlaylistDownloadProgress(new Map());
     downloadService.clearQueue();
     showToast('All cached data cleared');
   }, [playerActions, showToast]);
@@ -782,11 +840,16 @@ export function AppProvider({ children }: AppProviderProps) {
         setCurrentPlaylistTracks(updated.tracks);
       }
 
-      // If this playlist is marked for offline, update track list and download the new track
+      // If this playlist is marked for offline, refresh progress and download the new track
       if (offlinePlaylistIds.has(playlist.id)) {
-        setOfflinePlaylistTracks(prev => {
+        let cachedCount = 0;
+        for (const t of updated.tracks) {
+          if (cachedTrackIds.has(t.id)) cachedCount++;
+        }
+        const total = updated.tracks.length;
+        setPlaylistDownloadProgress(prev => {
           const next = new Map(prev);
-          next.set(playlist.id, updated.tracks.map(t => t.id));
+          next.set(playlist.id, { cached: cachedCount, total });
           return next;
         });
 
@@ -857,9 +920,14 @@ export function AppProvider({ children }: AppProviderProps) {
       }
 
       if (offlinePlaylistIds.has(playlistId)) {
-        setOfflinePlaylistTracks(prev => {
+        let cachedCount = 0;
+        for (const t of updated.tracks) {
+          if (cachedTrackIds.has(t.id)) cachedCount++;
+        }
+        const total = updated.tracks.length;
+        setPlaylistDownloadProgress(prev => {
           const next = new Map(prev);
-          next.set(playlistId, updated.tracks.map(t => t.id));
+          next.set(playlistId, { cached: cachedCount, total });
           return next;
         });
       }
@@ -871,7 +939,7 @@ export function AppProvider({ children }: AppProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [isOnline, settings.serverUrl, currentPlaylistId, currentPlaylistTracks, playlists, offlinePlaylistIds, showToast]);
+  }, [isOnline, settings.serverUrl, currentPlaylistId, currentPlaylistTracks, playlists, offlinePlaylistIds, cachedTrackIds, showToast]);
 
   const testConnection = useCallback(async () => {
     try {
@@ -1009,7 +1077,8 @@ export function AppProvider({ children }: AppProviderProps) {
           next.delete(playlistId);
           return next;
         });
-        setOfflinePlaylistTracks(prev => {
+        setPlaylistDownloadProgress(prev => {
+          if (!prev.has(playlistId)) return prev;
           const next = new Map(prev);
           next.delete(playlistId);
           return next;
@@ -1048,15 +1117,6 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }, [isOnline, settings.serverUrl, playlists, currentPlaylistId, playingPlaylistId, offlinePlaylistIds, playerActions, showToast]);
 
-  // Helper to update offline playlist track list
-  const setPlaylistTrackList = useCallback((playlistId: string, tracks: TrackInfo[]) => {
-    setOfflinePlaylistTracks(prev => {
-      const next = new Map(prev);
-      next.set(playlistId, tracks.map(t => t.id));
-      return next;
-    });
-  }, []);
-
   // Start caching a playlist for offline use
   const startPlaylistCaching = useCallback(async (playlistId: string) => {
     if (!isOnline) {
@@ -1085,8 +1145,17 @@ export function AppProvider({ children }: AppProviderProps) {
       return;
     }
 
-    // Set track list for progress calculation
-    setPlaylistTrackList(playlistId, tracks);
+    // Initialize progress for this playlist
+    let cachedCount = 0;
+    for (const t of tracks) {
+      if (cachedTrackIds.has(t.id)) cachedCount++;
+    }
+    const total = tracks.length;
+    setPlaylistDownloadProgress(prev => {
+      const next = new Map(prev);
+      next.set(playlistId, { cached: cachedCount, total });
+      return next;
+    });
 
     // Queue all tracks for download
     const uncachedTracks = tracks.filter(t => !cachedTrackIds.has(t.id));
@@ -1097,7 +1166,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
     showToast(`Downloading ${uncachedTracks.length} tracks...`);
     await downloadService.queuePlaylistDownload(uncachedTracks, playlistId, settings.downloadQuality);
-  }, [isOnline, playlists, cachedTrackIds, settings.downloadQuality, showToast, setPlaylistTrackList]);
+  }, [isOnline, playlists, cachedTrackIds, settings.downloadQuality, showToast]);
 
   // Stop caching a playlist and optionally delete cached tracks
   const stopPlaylistCaching = useCallback(async (playlistId: string) => {
@@ -1126,8 +1195,9 @@ export function AppProvider({ children }: AppProviderProps) {
     const cached = await storageService.getCachedTrackIds();
     setCachedTrackIds(cached);
 
-    // Remove from track list tracking
-    setOfflinePlaylistTracks(prev => {
+    // Remove from progress tracking
+    setPlaylistDownloadProgress(prev => {
+      if (!prev.has(playlistId)) return prev;
       const next = new Map(prev);
       next.delete(playlistId);
       return next;

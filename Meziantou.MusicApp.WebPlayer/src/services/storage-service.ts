@@ -79,6 +79,7 @@ const DB_VERSION = 6;
 class StorageService {
   private db: IDBPDatabase<MusicPlayerDB> | null = null;
   private initPromise: Promise<IDBPDatabase<MusicPlayerDB>> | null = null;
+  private coverSavesSinceEviction = 0;
 
   async init(): Promise<IDBPDatabase<MusicPlayerDB>> {
     if (this.db) return this.db;
@@ -160,6 +161,12 @@ class StorageService {
     });
 
     this.db = await this.initPromise;
+
+    // One-shot maintenance after init: evict any oversized cover-art cache from earlier versions.
+    // Best-effort; do not block init or surface errors.
+    this.evictOldCachedCovers().catch(err => console.warn('Cover LRU eviction failed:', err));
+    this.cleanupOldRecentlyPlayed(300).catch(err => console.warn('Recently-played cleanup failed:', err));
+
     return this.db;
   }
 
@@ -367,9 +374,16 @@ class StorageService {
   }
 
   // Cover Art
+  static readonly COVER_ART_MAX_ENTRIES = 300;
+
   async getCachedCover(trackId: string): Promise<Blob | undefined> {
     const db = await this.init();
     const entry = await db.get('coverArt', trackId);
+    if (entry) {
+      // Refresh cachedAt so frequently-used covers are kept by LRU eviction.
+      // Don't await; this is a background hint.
+      db.put('coverArt', { trackId, blob: entry.blob, cachedAt: Date.now() }).catch(() => { /* best-effort */ });
+    }
     return entry?.blob;
   }
 
@@ -380,6 +394,54 @@ class StorageService {
       blob,
       cachedAt: Date.now()
     });
+
+    // Amortize LRU eviction every N saves to avoid scanning the store on every write.
+    this.coverSavesSinceEviction++;
+    if (this.coverSavesSinceEviction >= 50) {
+      this.coverSavesSinceEviction = 0;
+      this.evictOldCachedCovers().catch(err => console.warn('Cover LRU eviction failed:', err));
+    }
+  }
+
+  async evictOldCachedCovers(maxEntries: number = StorageService.COVER_ART_MAX_ENTRIES): Promise<void> {
+    const db = await this.init();
+
+    // Cheap pre-check: nothing to do if total already fits the cap.
+    if ((await db.count('coverArt')) <= maxEntries) return;
+
+    // Covers for tracks that are downloaded for offline use are protected:
+    // evicting them would leave a downloaded playlist with missing artwork.
+    const protectedIds = await db.getAllKeys('cachedTracks');
+    const protectedSet = new Set(protectedIds as string[]);
+
+    const tx = db.transaction('coverArt', 'readwrite');
+    const store = tx.objectStore('coverArt');
+
+    const evictable: { trackId: string; cachedAt: number }[] = [];
+    let cursor = await store.openCursor();
+    while (cursor) {
+      const trackId = cursor.value.trackId;
+      if (!protectedSet.has(trackId)) {
+        evictable.push({ trackId, cachedAt: cursor.value.cachedAt ?? 0 });
+      }
+      cursor = await cursor.continue();
+    }
+
+    // Budget for non-protected covers. If protected covers alone already exceed
+    // the cap, evict every non-protected cover but leave protected ones intact.
+    const protectedCount = (await store.count()) - evictable.length;
+    const evictableBudget = Math.max(0, maxEntries - protectedCount);
+    const toDelete = evictable.length - evictableBudget;
+    if (toDelete <= 0) {
+      await tx.done;
+      return;
+    }
+
+    evictable.sort((a, b) => a.cachedAt - b.cachedAt);
+    for (let i = 0; i < toDelete; i++) {
+      await store.delete(evictable[i].trackId);
+    }
+    await tx.done;
   }
 
   // Offline Playlists (marking playlists for offline caching)

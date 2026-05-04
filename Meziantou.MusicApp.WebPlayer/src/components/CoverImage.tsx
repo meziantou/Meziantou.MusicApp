@@ -25,6 +25,17 @@ export function CoverImage({
   const [coverSrc, setCoverSrc] = useState(COVER_PLACEHOLDER_DATA_URI);
   const coverBlobUrlRef = useRef<string | null>(null);
 
+  // Always revoke any blob URL on unmount so virtualized rows don't leak
+  // when they scroll out of view without re-running the main effect.
+  useEffect(() => {
+    return () => {
+      if (coverBlobUrlRef.current && coverBlobUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(coverBlobUrlRef.current);
+        coverBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     // Cleanup previous blob URL
     if (coverBlobUrlRef.current && coverBlobUrlRef.current.startsWith('blob:')) {

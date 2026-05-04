@@ -27,10 +27,10 @@ export class PlayQueueService {
   private config: QueueConfig;
 
   // Constants
-  private static readonly MAX_QUEUE_SIZE = 500;
-  private static readonly MIN_LOOKAHEAD = 100;
-  private static readonly KEEP_HISTORY_ITEMS = 50; // When trimming, keep this many items before current
-  private static readonly KEEP_LOOKAHEAD_ITEMS = 100; // When trimming, keep this many items after current
+  private static readonly MAX_QUEUE_SIZE = 200;
+  private static readonly MIN_LOOKAHEAD = 20;
+  private static readonly KEEP_HISTORY_ITEMS = 20; // When trimming, keep this many items before current
+  private static readonly KEEP_LOOKAHEAD_ITEMS = 30; // When trimming, keep this many items after current
   private static readonly MAX_LOOP_OFFSET = 10;
 
   constructor(config: QueueConfig) {

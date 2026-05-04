@@ -87,26 +87,14 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\/api\/songs\/.*\/cover/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'cover-art-cache',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          }
-        ]
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+        // Cover art is cached in IndexedDB by storage-service; no runtime SW cache to avoid duplicating storage and RAM pressure.
       }
     })
   ],
   build: {
     target: 'esnext',
-    sourcemap: true
+    sourcemap: process.env.NODE_ENV !== 'production'
   },
   server: {
     port: 3000
