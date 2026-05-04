@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import type { TrackInfo, AppSettings } from '../types';
-import { formatDuration, matchesSearch, debounce, sortTracks } from '../utils';
+import { formatDuration, normalizeSearch, debounce, sortTracks } from '../utils';
 import { useApp } from '../hooks';
 import { getApiService } from '../services';
 import { PlayingIndicator } from './PlayingIndicator';
@@ -60,18 +60,43 @@ export function TrackList() {
     [currentPlaylistTracks, sortDirection, sortOption]
   );
 
+  // Precomputed normalized search text per sorted track. Built once per
+  // playlist/sort so each keystroke is a cheap string.includes scan instead
+  // of re-normalizing every searchable field on every track.
+  const searchHaystacks = useMemo(() => {
+    const out = new Array<string>(sortedTracks.length);
+    for (let i = 0; i < sortedTracks.length; i++) {
+      const t = sortedTracks[i];
+      out[i] = normalizeSearch(
+        `${t.title}\n${t.artists ?? ''}\n${t.album ?? ''}\n${t.isrc ?? ''}`
+      );
+    }
+    return out;
+  }, [sortedTracks]);
+
   const filteredTracks = useMemo(() => {
     if (!searchQuery) {
       return sortedTracks;
     }
 
-    return sortedTracks.filter(track =>
-      matchesSearch(track.title, searchQuery) ||
-      matchesSearch(track.artists, searchQuery) ||
-      matchesSearch(track.album, searchQuery) ||
-      matchesSearch(track.isrc, searchQuery)
-    );
-  }, [searchQuery, sortedTracks]);
+    const normalizedQuery = normalizeSearch(searchQuery);
+    if (!normalizedQuery) return sortedTracks;
+    const queryFragments = normalizedQuery.split(' ');
+
+    const out: TrackInfo[] = [];
+    for (let i = 0; i < sortedTracks.length; i++) {
+      const haystack = searchHaystacks[i];
+      let matches = true;
+      for (let j = 0; j < queryFragments.length; j++) {
+        if (!haystack.includes(queryFragments[j])) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) out.push(sortedTracks[i]);
+    }
+    return out;
+  }, [searchQuery, sortedTracks, searchHaystacks]);
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;

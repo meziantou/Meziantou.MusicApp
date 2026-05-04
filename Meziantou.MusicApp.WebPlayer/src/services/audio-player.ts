@@ -64,6 +64,11 @@ export class AudioPlayerService {
   private preloadBlobUrl: string | null = null;
   private preloadAbortController: AbortController | null = null;
 
+  // Idle-release state: free the audio Blob URL after a long pause.
+  private idleReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+  private isIdleReleased: boolean = false;
+  private static readonly IDLE_RELEASE_MS = 5 * 60 * 1000; // 5 minutes
+
   // Volume state
   private masterVolume: number = 1;
   private isMuted: boolean = false;
@@ -152,6 +157,7 @@ export class AudioPlayerService {
     const audio = instance.audio;
 
     audio.addEventListener('play', () => {
+      this.cancelIdleRelease();
       this.emit('play', {});
       if (!this.hasSentNowPlaying && this.currentTrack) {
         this.hasSentNowPlaying = true;
@@ -160,6 +166,7 @@ export class AudioPlayerService {
     });
 
     audio.addEventListener('pause', () => {
+      this.scheduleIdleRelease();
       this.emit('pause', {});
     });
 
@@ -395,14 +402,90 @@ export class AudioPlayerService {
     }
   }
 
+  // Idle-release helpers: free the audio Blob URL after a long pause to release
+  // the underlying bytes back to the GC. The track and timestamp are kept on
+  // this.currentTrack / this.idleReleasedTime so play() can transparently reload.
+
+  private idleReleasedTime: number = 0;
+
+  private scheduleIdleRelease(): void {
+    if (this.idleReleaseTimer) return;
+    if (this.isIdleReleased) return;
+    this.idleReleaseTimer = setTimeout(() => {
+      this.idleReleaseTimer = null;
+      this.releaseLoadedAudioMemory();
+    }, AudioPlayerService.IDLE_RELEASE_MS);
+  }
+
+  private cancelIdleRelease(): void {
+    if (this.idleReleaseTimer) {
+      clearTimeout(this.idleReleaseTimer);
+      this.idleReleaseTimer = null;
+    }
+  }
+
+  private releaseLoadedAudioMemory(): void {
+    if (this.isIdleReleased) return;
+    if (!this.audio.paused) return; // safety: only release when paused
+
+    this.idleReleasedTime = this.audio.currentTime;
+
+    const active = this.activeInstance;
+    if (active.audio.src) {
+      // Revoke the blob URL so the underlying Blob can be GC'd.
+      const src = active.audio.src;
+      active.audio.removeAttribute('src');
+      active.audio.load(); // force the element to drop its buffered bytes
+      if (src.startsWith('blob:')) {
+        URL.revokeObjectURL(src);
+      }
+    }
+
+    if (this.preloadBlobUrl) {
+      URL.revokeObjectURL(this.preloadBlobUrl);
+      this.preloadBlobUrl = null;
+    }
+    if (this.preloadAbortController) {
+      this.preloadAbortController.abort();
+      this.preloadAbortController = null;
+    }
+    this.preloadedTrack = null;
+    this.isPreloading = false;
+
+    this.isIdleReleased = true;
+  }
+
+  private async restoreFromIdleReleaseIfNeeded(): Promise<void> {
+    if (!this.isIdleReleased) return;
+    const track = this.currentTrack;
+    this.isIdleReleased = false;
+    if (!track) return;
+    await this.loadTrack(track, false, this.idleReleasedTime);
+  }
+
   // Preloading methods
+
+  // Only preload the next track when the current one is near the end.
+  // Holding two full audio Blobs at once is a major source of RAM use; deferring
+  // preload to the last ~30s (or 10% of duration) keeps just one blob in memory
+  // for most of the playback window.
+  private static readonly PRELOAD_TAIL_SECONDS = 30;
+  private static readonly PRELOAD_TAIL_FRACTION = 0.1;
 
   private checkForPreload(): void {
     if (this.isPreloading || this.preloadedTrack) return;
 
     const duration = this.audio.duration;
+    const currentTime = this.audio.currentTime;
 
-    if (!duration || isNaN(duration)) return;
+    if (!duration || isNaN(duration) || !isFinite(duration)) return;
+
+    const remaining = duration - currentTime;
+    const tailWindow = Math.min(
+      AudioPlayerService.PRELOAD_TAIL_SECONDS,
+      duration * AudioPlayerService.PRELOAD_TAIL_FRACTION
+    );
+    if (remaining > tailWindow) return;
 
     this.preloadNextTrack();
   }
@@ -483,6 +566,10 @@ export class AudioPlayerService {
   }
 
   private async loadTrack(track: TrackInfo, autoPlay: boolean = false, startTime: number = 0): Promise<void> {
+    // Loading a new track invalidates any pending idle release.
+    this.cancelIdleRelease();
+    this.isIdleReleased = false;
+
     // Cancel any ongoing preload
     if (this.preloadAbortController) {
       this.preloadAbortController.abort();
@@ -725,6 +812,8 @@ export class AudioPlayerService {
   }
 
   async play(): Promise<void> {
+    this.cancelIdleRelease();
+    await this.restoreFromIdleReleaseIfNeeded();
     if (!this.audioContext) {
       await this.initAudioContext();
     }
@@ -807,6 +896,12 @@ export class AudioPlayerService {
   }
 
   seek(time: number): void {
+    // While idle-released the audio element has no src; just remember where the
+    // user seeked to so the next play() resumes from there.
+    if (this.isIdleReleased) {
+      this.idleReleasedTime = Math.max(0, time);
+      return;
+    }
     this.audio.currentTime = Math.max(0, Math.min(time, this.audio.duration || 0));
     this.updatePositionState();
   }

@@ -7,6 +7,8 @@ export interface DownloadProgress {
   progress: number; // 0-1
   status: 'pending' | 'downloading' | 'complete' | 'error';
   error?: string;
+  /** Playlists this track belongs to. Populated for 'complete' events so subscribers can update per-playlist progress without scanning every playlist's track list. */
+  playlistIds?: string[];
 }
 
 type DownloadCallback = (progress: DownloadProgress) => void;
@@ -180,7 +182,7 @@ class DownloadService {
       }
 
       this.cachedTrackIds.add(track.id);
-      this.notifyProgress({ trackId: track.id, progress: 1, status: 'complete' });
+      this.notifyProgress({ trackId: track.id, progress: 1, status: 'complete', playlistIds });
     } catch (error) {
       this.notifyProgress({ 
         trackId: track.id, 
