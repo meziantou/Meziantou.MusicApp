@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TrackInfo } from '../types';
-import { matchesSearch, normalizeSearch, sortTracks } from './helpers';
+import { isTauriApp, matchesSearch, normalizeSearch, sortTracks } from './helpers';
 
 describe('Search Track Feature', () => {
   describe('normalizeSearch', () => {
@@ -241,6 +241,23 @@ describe('Search Track Feature', () => {
       const sorted = sortTracks(tracks, 'added', 'desc');
 
       expect(sorted.map(track => track.id)).toEqual(['a', 'b', 'c']);
+    });
+  });
+
+  describe('isTauriApp', () => {
+    it('should return false when no tauri globals are present', () => {
+      expect(isTauriApp(undefined)).toBe(false);
+      expect(isTauriApp({} as Window)).toBe(false);
+    });
+
+    it('should return true when __TAURI__ is present', () => {
+      const windowLike = { __TAURI__: {} } as Window & { __TAURI__?: unknown };
+      expect(isTauriApp(windowLike)).toBe(true);
+    });
+
+    it('should return true when __TAURI_INTERNALS__ is present', () => {
+      const windowLike = { __TAURI_INTERNALS__: {} } as Window & { __TAURI_INTERNALS__?: unknown };
+      expect(isTauriApp(windowLike)).toBe(true);
     });
   });
 });

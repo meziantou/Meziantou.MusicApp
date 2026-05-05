@@ -101,6 +101,7 @@ In the future, I want to support more backend servers like Subsonic, Airsonic, s
 ### Stack
 - **TypeScript**: Type-safe development
 - **Vite**: Fast build tool and dev server
+- **Tauri**: macOS desktop wrapper for the WebPlayer frontend
 - **IndexedDB**: Client-side storage for offline support
 - **Service Worker**: PWA and caching functionality
 - **Media Session API**: System integration
@@ -110,3 +111,30 @@ In the future, I want to support more backend servers like Subsonic, Airsonic, s
 - Virtual scrolling for large playlists
 - Efficient IndexedDB caching
 - Optimized asset loading
+
+## Desktop wrapper (macOS)
+
+The WebPlayer can also run as a macOS desktop application using Tauri.
+
+### Prerequisites
+
+- Node.js (same version used for WebPlayer development)
+- Rust toolchain (`rustup`, `cargo`)
+- Xcode Command Line Tools
+
+### Commands
+
+```bash
+cd Meziantou.MusicApp.WebPlayer
+npm ci
+
+# Run desktop app in development mode
+npm run tauri:dev
+
+# Build macOS desktop bundle
+npm run tauri:build
+```
+
+Build artifacts are generated under:
+
+`Meziantou.MusicApp.WebPlayer/src-tauri/target/release/bundle/`

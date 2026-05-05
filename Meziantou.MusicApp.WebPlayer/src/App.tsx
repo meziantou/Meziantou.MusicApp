@@ -12,12 +12,14 @@ import {
   SongDetailsDialog,
   UpdateNotification,
 } from './components';
+import { isTauriApp } from './utils';
 import './styles/main.css';
 
 const VOLUME_STEP = 0.05;
 
 function AppContent() {
   const { isLoading, settings, isInitialized, playerActions } = useApp();
+  const tauriApp = isTauriApp();
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -186,7 +188,7 @@ function AppContent() {
         onClose={() => setSongDetailsTrack(null)}
       />
 
-      <UpdateNotification />
+      {!tauriApp && <UpdateNotification />}
 
       {isLoading && (
         <div className="loading-overlay">
