@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { PlaylistSummary } from '../types';
 import { formatDuration } from '../utils';
-import { useApp } from '../hooks';
+import { useApp, usePlayer } from '../hooks';
 
 interface PlaylistSidebarProps {
   onSettingsClick: () => void;
@@ -11,7 +11,6 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
   const {
     playlists,
     currentPlaylistId,
-    playingPlaylistId,
     selectPlaylist,
     offlinePlaylistIds,
     playlistDownloadProgress,
@@ -21,6 +20,7 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
     networkType,
     invalidPlaylists,
   } = useApp();
+  const { playingPlaylistId } = usePlayer();
 
   return (
     <aside className="sidebar">

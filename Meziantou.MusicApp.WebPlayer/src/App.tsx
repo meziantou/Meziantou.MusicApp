@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AppProvider, useApp } from './hooks';
+import { AppProvider, useApp, usePlayer } from './hooks';
 import { audioPlayer } from './services';
 import type { TrackInfo } from './types';
 import {
@@ -17,7 +17,8 @@ import './styles/main.css';
 const VOLUME_STEP = 0.05;
 
 function AppContent() {
-  const { isLoading, settings, isInitialized, playerActions } = useApp();
+  const { isLoading, settings, isInitialized } = useApp();
+  const { playerActions } = usePlayer();
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);

@@ -103,11 +103,16 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
       },
       {
         event: 'queuechange',
-        handler: () => setState(prev => ({
-          ...prev,
-          queue: audioPlayer.getQueue(),
-          lookaheadQueue: audioPlayer.getLookaheadQueue()
-        })),
+        handler: () => setState(prev => {
+          const queue = audioPlayer.getQueue();
+          const lookaheadQueue = audioPlayer.getLookaheadQueue();
+          // PlayQueueService returns stable references when nothing changed —
+          // bail out of the setState to skip the AppContext fanout entirely.
+          if (prev.queue === queue && prev.lookaheadQueue === lookaheadQueue) {
+            return prev;
+          }
+          return { ...prev, queue, lookaheadQueue };
+        }),
       },
       {
         event: 'loadstart',

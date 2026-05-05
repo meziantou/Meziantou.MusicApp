@@ -1,24 +1,28 @@
-import { useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 interface ServiceWorkerUpdateState {
   needRefresh: boolean;
   updateServiceWorker: (reloadPage?: boolean) => Promise<void>;
   offlineReady: boolean;
+  checkForUpdate: () => Promise<boolean>;
+}
+
+// Module-level so that multiple hook consumers share the registration and
+// the auto-update interval is set up exactly once for the lifetime of the page.
+let sharedRegistration: ServiceWorkerRegistration | null = null;
+let intervalHandle: number | null = null;
+
+function ensureAutoUpdateInterval(registration: ServiceWorkerRegistration): void {
+  sharedRegistration = registration;
+  if (intervalHandle !== null) return;
+  intervalHandle = window.setInterval(() => {
+    if (!navigator.onLine || document.hidden) return;
+    registration.update();
+  }, 60 * 60 * 1000);
 }
 
 export function useServiceWorkerUpdate(): ServiceWorkerUpdateState {
-  const updateIntervalRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (updateIntervalRef.current !== null) {
-        window.clearInterval(updateIntervalRef.current);
-        updateIntervalRef.current = null;
-      }
-    };
-  }, []);
-
   const {
     needRefresh: [needRefresh],
     offlineReady: [offlineReady],
@@ -26,19 +30,8 @@ export function useServiceWorkerUpdate(): ServiceWorkerUpdateState {
   } = useRegisterSW({
     onRegisteredSW(swUrl: string, registration: ServiceWorkerRegistration | undefined) {
       console.log('Service Worker registered:', swUrl);
-
-      // Check for updates periodically (every hour)
       if (registration) {
-        if (updateIntervalRef.current !== null) {
-          window.clearInterval(updateIntervalRef.current);
-        }
-
-        updateIntervalRef.current = window.setInterval(() => {
-          if (!navigator.onLine || document.hidden) {
-            return;
-          }
-          registration.update();
-        }, 60 * 60 * 1000);
+        ensureAutoUpdateInterval(registration);
       }
     },
     onRegisterError(error: Error) {
@@ -46,9 +39,22 @@ export function useServiceWorkerUpdate(): ServiceWorkerUpdateState {
     },
   });
 
+  const checkForUpdate = useCallback(async (): Promise<boolean> => {
+    const registration = sharedRegistration;
+    if (!registration) return false;
+    try {
+      await registration.update();
+      return true;
+    } catch (error) {
+      console.error('Service Worker manual update failed:', error);
+      return false;
+    }
+  }, []);
+
   return {
     needRefresh,
     updateServiceWorker,
     offlineReady,
+    checkForUpdate,
   };
 }

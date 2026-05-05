@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { RepeatMode } from '../types';
 import { formatDuration } from '../utils';
-import { useApp } from '../hooks';
+import { useApp, usePlayer } from '../hooks';
 import { audioPlayer, type PlayerEventDetail } from '../services';
 import { CoverImage } from './CoverImage';
 
@@ -23,7 +23,8 @@ const getFormatColor = (format: string) => {
 };
 
 export function PlayerBar({ onQueueClick }: PlayerBarProps) {
-  const { playerState, playerActions, currentPlaylistId, selectPlaylist, playlists } = useApp();
+  const { currentPlaylistId, selectPlaylist, playlists } = useApp();
+  const { playerState, playerActions } = usePlayer();
   const [currentTime, setCurrentTime] = useState(() => audioPlayer.getCurrentTime());
   const [duration, setDuration] = useState(() => audioPlayer.getDuration());
 
@@ -72,11 +73,17 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
 
   const [isVolumePopoverVisible, setIsVolumePopoverVisible] = useState(false);
   const volumePopoverTimeoutRef = useRef<number | undefined>(undefined);
+  const volumeRafRef = useRef<number | null>(null);
+  const pendingVolumeRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (volumePopoverTimeoutRef.current) {
         window.clearTimeout(volumePopoverTimeoutRef.current);
+      }
+      if (volumeRafRef.current !== null) {
+        window.cancelAnimationFrame(volumeRafRef.current);
+        volumeRafRef.current = null;
       }
     };
   }, []);
@@ -137,12 +144,23 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
     showVolumePopover();
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const volume = parseInt(e.target.value, 10) / 100;
+  const flushPendingVolume = useCallback(() => {
+    volumeRafRef.current = null;
+    const volume = pendingVolumeRef.current;
+    pendingVolumeRef.current = null;
+    if (volume === null) return;
     if (playerState.isMuted && volume > 0) {
       playerActions.toggleMute();
     }
     playerActions.setVolume(volume);
+  }, [playerActions, playerState.isMuted]);
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const volume = parseInt(e.target.value, 10) / 100;
+    pendingVolumeRef.current = volume;
+    if (volumeRafRef.current === null) {
+      volumeRafRef.current = window.requestAnimationFrame(flushPendingVolume);
+    }
     showVolumePopover();
   };
 
