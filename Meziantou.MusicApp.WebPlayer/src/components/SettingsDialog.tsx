@@ -28,10 +28,11 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsDialogProps) {
-  const { settings, updateSettings, testConnection } = useApp();
+  const { settings, updateSettings, testConnection, triggerLibraryScan } = useApp();
 
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning'>('idle');
   const settingsRef = useRef(settings);
   const prevIsOpenRef = useRef(isOpen);
 
@@ -64,6 +65,15 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     setConnectionStatus('testing');
     const success = await testConnection();
     setConnectionStatus(success ? 'success' : 'error');
+  };
+
+  const handleRescanLibrary = async () => {
+    setScanStatus('scanning');
+    try {
+      await triggerLibraryScan();
+    } finally {
+      setScanStatus('idle');
+    }
   };
 
   const handleSave = async () => {
@@ -247,6 +257,16 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
           {onOpenDiagnostics && (
             <section className="settings-section">
               <h3>Advanced</h3>
+              <div className="form-group">
+                <button
+                  className="secondary-button"
+                  onClick={handleRescanLibrary}
+                  disabled={scanStatus === 'scanning'}
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {scanStatus === 'scanning' ? 'Scanning...' : 'Rescan Music Library'}
+                </button>
+              </div>
               <div className="form-group">
                 <button
                   className="secondary-button"

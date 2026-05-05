@@ -14,7 +14,7 @@ The features
 - AirPlay: Stream audio to AirPlay devices on Safari/macOS
 - Media Session API: System-level media controls and notifications
 - Dark Theme: Easy on the eyes
-- Read-only server interaction (no playlist/server mutations)
+- Read-only server interaction (except manual library rescan)
 - State persistence: Playback state saved in IndexedDB
 - Auto-resume: Continues playback on app reopen
 - Background sync: Periodic playlist refresh (5 min intervals)

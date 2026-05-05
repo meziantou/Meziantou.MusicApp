@@ -8,12 +8,28 @@ namespace Meziantou.MusicApp.Server.Tests.Integration;
 public class RestApiIntegrationTests
 {
     [Fact]
-    public async Task TriggerScanRoute_IsNotAvailable()
+    public async Task TriggerScan_WithValidAuth_ReturnsOk()
     {
+        // Act
         await using var app = AppTestContext.Create();
         using var response = await app.Client.PostAsync("/api/scan.json", content: null, app.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        InlineSnapshot
+            .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
+            .Validate(response, """
+                StatusCode: 200 (OK)
+                Headers:
+                  Cache-Control: no-store, must-revalidate, no-cache
+                Content:
+                  Headers:
+                    Content-Type: application/json; charset=utf-8
+                  Value:
+                    {
+                      "isScanning": "[redacted]",
+                      "isInitialScanCompleted": true,
+                      "scanCount": 0,
+                      "invalidPlaylists": []
+                    }
+                """);
     }
 
     [Fact]

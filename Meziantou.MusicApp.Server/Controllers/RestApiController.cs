@@ -349,6 +349,25 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         return Ok(new ArtistsResponse { Artists = artists });
     }
 
+    /// <summary>Trigger a library scan</summary>
+    [HttpPost("scan.json")]
+    [ProducesResponseType<ScanStatusResponse>(StatusCodes.Status200OK)]
+    public ActionResult<ScanStatusResponse> TriggerScan()
+    {
+        // Trigger scan in background
+        _ = Task.Run(() => library.ScanMusicLibrary());
+
+        return Ok(new ScanStatusResponse
+        {
+            IsScanning = library.IsScanning,
+            IsInitialScanCompleted = library.IsInitialScanCompleted,
+            ScanCount = library.ScanCount,
+            LastScanDate = library.LastScanDate,
+            Percentage = library.ScanProgress,
+            EstimatedCompletionTime = library.ScanEta,
+        });
+    }
+
     /// <summary>Get scan status</summary>
     [HttpGet("scan/status.json")]
     [ProducesResponseType<ScanStatusResponse>(StatusCodes.Status200OK)]

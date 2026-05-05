@@ -811,8 +811,37 @@ export function AppProvider({ children }: AppProviderProps) {
   }, [settings]);
 
   const triggerLibraryScan = useCallback(async () => {
-    showToast('Server is read-only');
-  }, [showToast]);
+    if (!isOnline) {
+      showToast('Cannot trigger scan while offline', 'error');
+      return;
+    }
+
+    if (!settings.serverUrl) {
+      showToast('Server is not configured', 'error');
+      return;
+    }
+
+    try {
+      const api = getApiService();
+      await api.triggerScan();
+      showToast('Library scan started', 'success');
+
+      // Check for invalid playlists after a short delay to allow scan to complete
+      setTimeout(async () => {
+        try {
+          const status = await api.getScanStatus();
+          if (status.invalidPlaylists) {
+            setInvalidPlaylists(status.invalidPlaylists);
+          }
+        } catch (error) {
+          console.error('Failed to check for invalid playlists:', error);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Failed to trigger library scan:', error);
+      showToast('Failed to trigger library scan', 'error');
+    }
+  }, [isOnline, settings.serverUrl, showToast]);
 
   const syncPlaylists = useCallback(async () => {
     await syncPlaylistsInternal();
