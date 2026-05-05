@@ -52,7 +52,6 @@ export class AudioPlayerService {
   private quality: StreamingQuality = { format: 'raw' };
   private replayGainMode: ReplayGainMode = 'off';
   private replayGainPreamp: number = 0;
-  private scrobbleEnabled: boolean = true;
   private preventDownloadOnLowData: boolean = false;
   private networkType: 'normal' | 'low-data' | 'unknown' = 'unknown';
   private cachedTrackIds: Set<string> = new Set();
@@ -355,51 +354,12 @@ export class AudioPlayerService {
   }
 
   private async handleScrobble(trackId: string, submission: boolean): Promise<void> {
-    if (!this.scrobbleEnabled) return;
-
-    if (this.isOnline) {
-      try {
-        await getApiService().scrobble(trackId, submission);
-      } catch (error) {
-        console.error('Scrobble failed, saving for later', error);
-        // Only save submissions (actual scrobbles) to pending, not "now playing" notifications
-        if (submission) {
-          await storageService.addPendingScrobble(trackId, submission);
-        }
-      }
-    } else {
-      // Only save submissions (actual scrobbles) to pending when offline, not "now playing" notifications
-      if (submission) {
-        await storageService.addPendingScrobble(trackId, submission);
-      }
-    }
+    void trackId;
+    void submission;
   }
 
   private async processPendingScrobbles(): Promise<void> {
-    if (!this.isOnline) return;
-
-    try {
-      const pending = await storageService.getPendingScrobbles();
-      if (pending.length === 0) return;
-
-      console.log(`Processing ${pending.length} pending scrobbles`);
-      const api = getApiService();
-
-      for (const item of pending) {
-        try {
-          await api.scrobble(item.trackId, item.submission);
-          if (item.id !== undefined) {
-            await storageService.removePendingScrobble(item.id);
-          }
-        } catch (error) {
-          console.error('Failed to process pending scrobble', error);
-          // Stop processing if we hit an error (likely offline again or API issue)
-          break;
-        }
-      }
-    } catch (error) {
-      console.error('Error processing pending scrobbles', error);
-    }
+    return;
   }
 
   // Idle-release helpers: free the audio Blob URL after a long pause to release
@@ -1016,7 +976,7 @@ export class AudioPlayerService {
   }
 
   setScrobbleEnabled(enabled: boolean): void {
-    this.scrobbleEnabled = enabled;
+    void enabled;
   }
 
   setNetworkType(type: 'normal' | 'low-data' | 'unknown'): void {

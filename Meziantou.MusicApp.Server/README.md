@@ -1,6 +1,6 @@
 # Meziantou MusicServer
 
-This project is a music streaming server that supports both Subsonic and Jellyfin APIs. It allows you to stream your music collection over the network, with features like on-the-fly transcoding, Last.fm scrobbling, and ReplayGain support.
+This project is a music streaming server that supports both Subsonic and Jellyfin APIs. It allows you to stream your music collection over the network, with features like on-the-fly transcoding and ReplayGain support.
 
 ## Features
 
@@ -9,10 +9,9 @@ This project is a music streaming server that supports both Subsonic and Jellyfi
 - ID3 tag reading using Meziantou.Framework.MediaTags
 - Lyrics support from file metadata
 - Cover art extraction from files or folders
-- Simple token-based authentication
-- Single-user mode (hardcoded token)
+- Read-only API surface (no server-side write actions)
+- Token values are accepted without validation
 - Audio transcoding with FFmpeg support
-- Last.fm Scrobbling: Send play data to Last.fm
 - ReplayGain Support: Read and compute ReplayGain for volume normalization
 
 ## Running the Application
@@ -92,26 +91,7 @@ Enable automatic ReplayGain computation in `appsettings.json`:
 - `ComputeMissingReplayGain`: When `true`, tracks without ReplayGain tags will be analyzed during library scans (default: `false`)
 - `MaxConcurrentReplayGainAnalysis`: Maximum number of concurrent FFmpeg analysis processes (default: `2`)
 
-## Last.fm Scrobbling
-
-The server supports scrobbling (sending track play data) to Last.fm. This allows you to track your listening history on Last.fm.
-
-### Configuration
-
-Add your Last.fm credentials to `appsettings.json`:
-
-```json
-{
-  "LastFm": {
-    "ApiKey": "your-api-key",
-    "ApiSecret": "your-api-secret",
-    "SessionKey": "your-session-key"
-  }
-}
-```
-
 ## References
 
 - [Subsonic API Documentation](https://subsonic.org/pages/api.jsp)
 - [Jellyfin API Documentation](https://api.jellyfin.org/)
-- [Last.fm API Documentation](https://www.last.fm/api/)

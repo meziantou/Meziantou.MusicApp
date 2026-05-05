@@ -9,15 +9,14 @@ This repository contains a complete music streaming solution consisting of a bac
 A dual-API music server supporting both **Subsonic** and **Jellyfin** protocols. It serves music files from a local directory and provides features like:
 - Dual API support (Subsonic & Jellyfin)
 - On-the-fly transcoding with FFmpeg
-- Last.fm scrobbling
 - ReplayGain support
+- Read-only API surface
 
 ### [Meziantou.MusicApp.WebPlayer](Meziantou.MusicApp.WebPlayer/README.md)
 
 A modern, web-based music player designed to work with the server. Features include:
 - Progressive Web App (PWA) support
 - Offline mode with caching
-- Drag and drop playlist management
 - Dark theme
 - Background sync and auto-resume
 

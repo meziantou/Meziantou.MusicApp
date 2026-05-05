@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import type { PlaylistSummary } from '../types';
 import { formatDuration } from '../utils';
 import { useApp } from '../hooks';
@@ -13,69 +13,14 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
     currentPlaylistId,
     playingPlaylistId,
     selectPlaylist,
-    addTrackToPlaylist,
     offlinePlaylistIds,
     playlistDownloadProgress,
     startPlaylistCaching,
     stopPlaylistCaching,
     isOnline,
     networkType,
-    createPlaylist,
-    deletePlaylist,
     invalidPlaylists,
   } = useApp();
-
-  const [isCreating, setIsCreating] = useState(false);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-
-  const handleCreateClick = useCallback(() => {
-    setIsCreating(true);
-    setNewPlaylistName('');
-  }, []);
-
-  const handleCancelCreate = useCallback(() => {
-    setIsCreating(false);
-    setNewPlaylistName('');
-  }, []);
-
-  const handleConfirmCreate = useCallback(async () => {
-    if (!newPlaylistName.trim()) return;
-
-    const playlist = await createPlaylist(newPlaylistName);
-    if (playlist) {
-      setIsCreating(false);
-      setNewPlaylistName('');
-      selectPlaylist(playlist);
-    }
-  }, [newPlaylistName, createPlaylist, selectPlaylist]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleConfirmCreate();
-    } else if (e.key === 'Escape') {
-      handleCancelCreate();
-    }
-  }, [handleConfirmCreate, handleCancelCreate]);
-
-  const handleDragOver = (e: React.DragEvent, _playlist: PlaylistSummary) => {
-    const hasTrackId = e.dataTransfer.types.includes('application/x-meziantou-song-id') ||
-      e.dataTransfer.types.includes('text/plain');
-    if (!hasTrackId) return;
-
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDrop = (e: React.DragEvent, playlist: PlaylistSummary) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const trackId = e.dataTransfer.getData('application/x-meziantou-song-id') ||
-      e.dataTransfer.getData('text/plain');
-    if (!trackId) return;
-
-    addTrackToPlaylist(playlist, trackId);
-  };
 
   return (
     <aside className="sidebar">
@@ -83,53 +28,7 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
       <div className="sidebar-section">
         <div className="sidebar-section-header">
           <h2 className="sidebar-section-title">Playlists</h2>
-          {isOnline && !isCreating && (
-            <button
-              className="new-playlist-btn"
-              onClick={handleCreateClick}
-              title="Create new playlist"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-              </svg>
-            </button>
-          )}
         </div>
-
-        {isCreating && (
-          <div className="new-playlist-form">
-            <input
-              type="text"
-              className="new-playlist-input"
-              placeholder="Playlist name"
-              value={newPlaylistName}
-              onChange={(e) => setNewPlaylistName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-            />
-            <div className="new-playlist-actions">
-              <button
-                className="new-playlist-confirm"
-                onClick={handleConfirmCreate}
-                disabled={!newPlaylistName.trim()}
-                title="Create"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                </svg>
-              </button>
-              <button
-                className="new-playlist-cancel"
-                onClick={handleCancelCreate}
-                title="Cancel"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="playlist-list">
           {playlists.length === 0 ? (
@@ -149,11 +48,8 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
                   progress={progress}
                   isOnline={isOnline}
                   onSelect={() => selectPlaylist(playlist)}
-                  onDragOver={(e) => handleDragOver(e, playlist)}
-                  onDrop={(e) => handleDrop(e, playlist)}
                   onStartCaching={() => startPlaylistCaching(playlist.id)}
                   onStopCaching={() => stopPlaylistCaching(playlist.id)}
-                  onDelete={() => deletePlaylist(playlist.id)}
                 />
               );
             })
@@ -224,11 +120,8 @@ interface PlaylistItemProps {
   progress?: { cached: number; total: number };
   isOnline: boolean;
   onSelect: () => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
   onStartCaching: () => void;
   onStopCaching: () => void;
-  onDelete: () => void;
 }
 
 function PlaylistItem({
@@ -239,40 +132,17 @@ function PlaylistItem({
   progress,
   isOnline,
   onSelect,
-  onDragOver,
-  onDrop,
   onStartCaching,
   onStopCaching,
-  onDelete,
 }: PlaylistItemProps) {
-  const [isDragOver, setIsDragOver] = useState(false);
   const duration = useMemo(() => formatDuration(playlist.duration), [playlist.duration]);
-
-  const isVirtual = playlist.id.startsWith('virtual:');
 
   const className = [
     'playlist-item',
     isSelected && 'selected',
     isPlaying && 'playing',
     isOffline && 'offline',
-    isDragOver && 'drag-over',
   ].filter(Boolean).join(' ');
-
-  const handleDragOver = (e: React.DragEvent) => {
-    onDragOver(e);
-    if (e.dataTransfer.dropEffect !== 'none') {
-      setIsDragOver(true);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    setIsDragOver(false);
-    onDrop(e);
-  };
 
   const handleDownloadClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -283,11 +153,6 @@ function PlaylistItem({
     }
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete();
-  };
-
   const isFullyCached = progress && progress.cached >= progress.total;
   const isCaching = isOffline && progress && progress.cached < progress.total;
 
@@ -295,9 +160,6 @@ function PlaylistItem({
     <div
       className={className}
       onClick={onSelect}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -348,17 +210,6 @@ function PlaylistItem({
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
             )}
-          </button>
-        )}
-        {isOnline && !isVirtual && (
-          <button
-            className="playlist-delete-btn"
-            onClick={handleDeleteClick}
-            title="Delete playlist"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-            </svg>
           </button>
         )}
       </div>

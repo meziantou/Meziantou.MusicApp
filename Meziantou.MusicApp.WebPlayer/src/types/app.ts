@@ -4,12 +4,10 @@ import type { PlaylistSummary, TrackInfo } from './api';
 
 export interface AppSettings {
   serverUrl: string;
-  authToken: string;
   normalQuality: StreamingQuality;
   lowDataQuality: StreamingQuality;
   downloadQuality: StreamingQuality;
   preventDownloadOnLowData: boolean;
-  scrobbleEnabled: boolean;
   hideCoverArt: boolean;
   replayGainMode: ReplayGainMode;
   replayGainPreamp: number; // in dB

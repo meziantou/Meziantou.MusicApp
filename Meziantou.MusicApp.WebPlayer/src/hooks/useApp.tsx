@@ -141,7 +141,7 @@ export function AppProvider({ children }: AppProviderProps) {
         const loadedSettings = await storageService.getSettings(DEFAULT_SETTINGS);
         console.log('[useApp] Settings loaded:', loadedSettings);
         setSettings(loadedSettings);
-        initApiService(loadedSettings.serverUrl, loadedSettings.authToken);
+        initApiService(loadedSettings.serverUrl);
 
         // Apply loaded settings to audio player
         playerActions.setReplayGainMode(loadedSettings.replayGainMode);
@@ -661,18 +661,16 @@ export function AppProvider({ children }: AppProviderProps) {
 
   const updateSettings = useCallback(async (newSettings: AppSettings) => {
     console.log('[useApp] updateSettings called with:', newSettings);
-    const serverChanged = newSettings.serverUrl !== settings.serverUrl ||
-      newSettings.authToken !== settings.authToken;
+    const serverChanged = newSettings.serverUrl !== settings.serverUrl;
 
     setSettings(newSettings);
     console.log('[useApp] Calling storageService.saveSettings');
     await storageService.saveSettings(newSettings);
     console.log('[useApp] storageService.saveSettings completed');
-    initApiService(newSettings.serverUrl, newSettings.authToken);
+    initApiService(newSettings.serverUrl);
 
     playerActions.setReplayGainMode(newSettings.replayGainMode);
     playerActions.setReplayGainPreamp(newSettings.replayGainPreamp);
-    playerActions.setScrobbleEnabled(newSettings.scrobbleEnabled);
     playerActions.setPreventDownloadOnLowData(newSettings.preventDownloadOnLowData);
 
     const networkType = getNetworkType();
@@ -794,157 +792,18 @@ export function AppProvider({ children }: AppProviderProps) {
     showToast('All cached data cleared');
   }, [playerActions, showToast]);
 
-  const addTrackToPlaylist = useCallback(async (playlist: PlaylistSummary, trackId: string) => {
-    if (!isOnline) {
-      showToast('Cannot modify playlists while offline', 'error');
-      return;
-    }
+  const addTrackToPlaylist = useCallback(async (_playlist: PlaylistSummary, _trackId: string) => {
+    showToast('Server is read-only');
+  }, [showToast]);
 
-    if (!settings.serverUrl) {
-      showToast('Server is not configured', 'error');
-      return;
-    }
-
-    if (playlist.id.startsWith('virtual:')) {
-      showToast('Cannot add tracks to this playlist', 'error');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const api = getApiService();
-      const existing = await api.getPlaylistTracks(playlist.id);
-
-      const isAlreadyInPlaylist = existing.tracks.some(t => t.id === trackId);
-      if (isAlreadyInPlaylist) {
-        const shouldAddAgain = window.confirm('This track is already in this playlist. Add it again?');
-        if (!shouldAddAgain) {
-          return;
-        }
-      }
-
-      const updated = await api.addTrackToPlaylist(playlist.id, trackId);
-
-      setPlaylists(prev => prev.map(p =>
-        p.id === playlist.id
-          ? { ...p, name: updated.name, trackCount: updated.trackCount, duration: updated.duration, changed: updated.changed }
-          : p
-      ));
-
-      const updatedSummary = playlists.find(p => p.id === playlist.id);
-      if (updatedSummary) {
-        await storageService.saveCachedPlaylist(updatedSummary, updated.tracks);
-      }
-
-      if (currentPlaylistId === playlist.id) {
-        setCurrentPlaylistTracks(updated.tracks);
-      }
-
-      // If this playlist is marked for offline, refresh progress and download the new track
-      if (offlinePlaylistIds.has(playlist.id)) {
-        let cachedCount = 0;
-        for (const t of updated.tracks) {
-          if (cachedTrackIds.has(t.id)) cachedCount++;
-        }
-        const total = updated.tracks.length;
-        setPlaylistDownloadProgress(prev => {
-          const next = new Map(prev);
-          next.set(playlist.id, { cached: cachedCount, total });
-          return next;
-        });
-
-        // Download the new track if not already cached
-        if (!cachedTrackIds.has(trackId)) {
-          const newTrack = updated.tracks.find(t => t.id === trackId);
-          if (newTrack) {
-            await downloadService.queueDownload(newTrack, playlist.id, settings.downloadQuality);
-          }
-        }
-      }
-
-      showToast('Added track to playlist', 'success');
-    } catch (error) {
-      console.error('Failed to add track to playlist:', error);
-      showToast('Failed to add track to playlist', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isOnline, settings.serverUrl, settings.downloadQuality, playlists, currentPlaylistId, offlinePlaylistIds, cachedTrackIds, showToast]);
-
-  const removeTrackFromPlaylist = useCallback(async (playlistId: string, trackIndex: number) => {
-    if (!isOnline) {
-      showToast('Cannot modify playlists while offline', 'error');
-      return;
-    }
-
-    if (!settings.serverUrl) {
-      showToast('Server is not configured', 'error');
-      return;
-    }
-
-    if (playlistId.startsWith('virtual:')) {
-      showToast('Cannot remove tracks from this playlist', 'error');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const api = getApiService();
-
-      let tracks = currentPlaylistTracks;
-      if (currentPlaylistId !== playlistId) {
-         const response = await api.getPlaylistTracks(playlistId);
-         tracks = response.tracks;
-      }
-
-      if (trackIndex < 0 || trackIndex >= tracks.length) {
-          showToast('Invalid track index', 'error');
-          return;
-      }
-
-      const updated = await api.removeTrackFromPlaylist(playlistId, trackIndex);
-
-      setPlaylists(prev => prev.map(p =>
-        p.id === playlistId
-          ? { ...p, name: updated.name, trackCount: updated.trackCount, duration: updated.duration, changed: updated.changed }
-          : p
-      ));
-
-      const updatedSummary = playlists.find(p => p.id === playlistId);
-      if (updatedSummary) {
-        await storageService.saveCachedPlaylist(updatedSummary, updated.tracks);
-      }
-
-      if (currentPlaylistId === playlistId) {
-        setCurrentPlaylistTracks(updated.tracks);
-      }
-
-      if (offlinePlaylistIds.has(playlistId)) {
-        let cachedCount = 0;
-        for (const t of updated.tracks) {
-          if (cachedTrackIds.has(t.id)) cachedCount++;
-        }
-        const total = updated.tracks.length;
-        setPlaylistDownloadProgress(prev => {
-          const next = new Map(prev);
-          next.set(playlistId, { cached: cachedCount, total });
-          return next;
-        });
-      }
-
-      showToast('Removed track from playlist', 'success');
-    } catch (error) {
-      console.error('Failed to remove track from playlist:', error);
-      showToast('Failed to remove track from playlist', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isOnline, settings.serverUrl, currentPlaylistId, currentPlaylistTracks, playlists, offlinePlaylistIds, cachedTrackIds, showToast]);
+  const removeTrackFromPlaylist = useCallback(async (_playlistId: string, _trackIndex: number) => {
+    showToast('Server is read-only');
+  }, [showToast]);
 
   const testConnection = useCallback(async () => {
     try {
       const api = getApiService();
-      api.updateConfig(settings.serverUrl, settings.authToken);
+      api.updateConfig(settings.serverUrl);
       return await api.testConnection();
     } catch {
       return false;
@@ -952,170 +811,23 @@ export function AppProvider({ children }: AppProviderProps) {
   }, [settings]);
 
   const triggerLibraryScan = useCallback(async () => {
-    if (!isOnline) {
-      showToast('Cannot trigger scan while offline', 'error');
-      return;
-    }
-
-    if (!settings.serverUrl) {
-      showToast('Server is not configured', 'error');
-      return;
-    }
-
-    try {
-      const api = getApiService();
-      await api.triggerScan();
-      showToast('Library scan started', 'success');
-
-      // Check for invalid playlists after a short delay to allow scan to complete
-      setTimeout(async () => {
-        try {
-          const status = await api.getScanStatus();
-          if (status.invalidPlaylists) {
-            setInvalidPlaylists(status.invalidPlaylists);
-          }
-        } catch (error) {
-          console.error('Failed to check for invalid playlists:', error);
-        }
-      }, 3000);
-    } catch (error) {
-      console.error('Failed to trigger library scan:', error);
-      showToast('Failed to trigger library scan', 'error');
-    }
-  }, [isOnline, settings.serverUrl, showToast]);
+    showToast('Server is read-only');
+  }, [showToast]);
 
   const syncPlaylists = useCallback(async () => {
     await syncPlaylistsInternal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline]);
 
-  const createPlaylist = useCallback(async (name: string): Promise<PlaylistSummary | null> => {
-    if (!isOnline) {
-      showToast('Cannot create playlists while offline', 'error');
-      return null;
-    }
+  const createPlaylist = useCallback(async (_name: string): Promise<PlaylistSummary | null> => {
+    showToast('Server is read-only');
+    return null;
+  }, [showToast]);
 
-    if (!settings.serverUrl) {
-      showToast('Server is not configured', 'error');
-      return null;
-    }
-
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      showToast('Playlist name is required', 'error');
-      return null;
-    }
-
-    setIsLoading(true);
-    try {
-      const api = getApiService();
-      const response = await api.createPlaylist({ name: trimmedName });
-
-      const newPlaylist: PlaylistSummary = {
-        id: response.id,
-        name: response.name,
-        trackCount: response.trackCount,
-        duration: response.duration,
-        created: response.created,
-        changed: response.changed,
-        sortOrder: playlists.length,
-      };
-
-      // Refetch playlists to get correct sort order from server
-      await syncPlaylistsInternal();
-
-      showToast(`Created playlist "${trimmedName}"`, 'success');
-      return newPlaylist;
-    } catch (error) {
-      console.error('Failed to create playlist:', error);
-      showToast('Failed to create playlist', 'error');
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isOnline, settings.serverUrl, playlists.length, showToast]);
-
-  const deletePlaylist = useCallback(async (playlistId: string): Promise<boolean> => {
-    if (!isOnline) {
-      showToast('Cannot delete playlists while offline', 'error');
-      return false;
-    }
-
-    if (!settings.serverUrl) {
-      showToast('Server is not configured', 'error');
-      return false;
-    }
-
-    if (playlistId.startsWith('virtual:')) {
-      showToast('Cannot delete this playlist', 'error');
-      return false;
-    }
-
-    const playlist = playlists.find(p => p.id === playlistId);
-    if (!playlist) {
-      showToast('Playlist not found', 'error');
-      return false;
-    }
-
-    const confirmed = window.confirm(`Are you sure you want to delete "${playlist.name}"?`);
-    if (!confirmed) {
-      return false;
-    }
-
-    setIsLoading(true);
-    try {
-      const api = getApiService();
-      await api.deletePlaylist(playlistId);
-
-      // If this playlist was marked for offline, clean up
-      if (offlinePlaylistIds.has(playlistId)) {
-        downloadService.cancelPlaylistDownloads(playlistId);
-        await storageService.setPlaylistOffline(playlistId, false);
-        await downloadService.deletePlaylistTracks(playlistId);
-        setOfflinePlaylistIds(prev => {
-          const next = new Set(prev);
-          next.delete(playlistId);
-          return next;
-        });
-        setPlaylistDownloadProgress(prev => {
-          if (!prev.has(playlistId)) return prev;
-          const next = new Map(prev);
-          next.delete(playlistId);
-          return next;
-        });
-      }
-
-      // Remove from cached playlists
-      await storageService.deleteCachedPlaylist(playlistId);
-
-      // Cleanup orphaned tracks
-      await storageService.cleanupOrphanedTracks();
-
-      // Update local state
-      setPlaylists(prev => prev.filter(p => p.id !== playlistId));
-
-      // If this was the current playlist, clear selection
-      if (currentPlaylistId === playlistId) {
-        setCurrentPlaylistId(null);
-        setCurrentPlaylistTracks([]);
-      }
-
-      // If this was the playing playlist, stop playback
-      if (playingPlaylistId === playlistId) {
-        playerActions.pause();
-        setPlayingPlaylistId(null);
-      }
-
-      showToast(`Deleted playlist "${playlist.name}"`, 'success');
-      return true;
-    } catch (error) {
-      console.error('Failed to delete playlist:', error);
-      showToast('Failed to delete playlist', 'error');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isOnline, settings.serverUrl, playlists, currentPlaylistId, playingPlaylistId, offlinePlaylistIds, playerActions, showToast]);
+  const deletePlaylist = useCallback(async (_playlistId: string): Promise<boolean> => {
+    showToast('Server is read-only');
+    return false;
+  }, [showToast]);
 
   // Start caching a playlist for offline use
   const startPlaylistCaching = useCallback(async (playlistId: string) => {

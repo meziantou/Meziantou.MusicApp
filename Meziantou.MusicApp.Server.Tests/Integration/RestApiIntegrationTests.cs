@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using Meziantou.MusicApp.Server.Tests.Helpers;
 using Meziantou.Framework.InlineSnapshotTesting;
 
@@ -6,28 +8,21 @@ namespace Meziantou.MusicApp.Server.Tests.Integration;
 public class RestApiIntegrationTests
 {
     [Fact]
-    public async Task TriggerScan_WithValidAuth_ReturnsOk()
+    public async Task TriggerScanRoute_IsNotAvailable()
     {
-        // Act
         await using var app = AppTestContext.Create();
         using var response = await app.Client.PostAsync("/api/scan.json", content: null, app.CancellationToken);
-        InlineSnapshot
-            .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
-            .Validate(response, """
-                StatusCode: 200 (OK)
-                Headers:
-                  Cache-Control: no-store, must-revalidate, no-cache
-                Content:
-                  Headers:
-                    Content-Type: application/json; charset=utf-8
-                  Value:
-                    {
-                      "isScanning": "[redacted]",
-                      "isInitialScanCompleted": true,
-                      "scanCount": 0,
-                      "invalidPlaylists": []
-                    }
-                """);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ScrobbleRoute_IsNotAvailable()
+    {
+        await using var app = AppTestContext.Create();
+        using var response = await app.Client.PostAsJsonAsync("/api/scrobble.json", new { id = "song-1", submission = true }, app.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
