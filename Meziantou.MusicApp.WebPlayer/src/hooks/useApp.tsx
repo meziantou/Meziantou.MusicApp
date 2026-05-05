@@ -410,7 +410,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isOnline, settings.serverUrl, cachedTrackIds, currentPlaylistId]);
+  }, [isOnline, settings.serverUrl]);
 
   // Sync playlists periodically
   useEffect(() => {
@@ -423,7 +423,7 @@ export function AppProvider({ children }: AppProviderProps) {
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [isInitialized, settings.serverUrl, isOnline, cachedTrackIds, currentPlaylistId]);
+  }, [isInitialized, settings.serverUrl, isOnline]);
 
   async function syncPlaylistsInternal() {
     if (!isOnline) return;
