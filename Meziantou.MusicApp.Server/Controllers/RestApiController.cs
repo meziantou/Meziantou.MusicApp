@@ -352,10 +352,10 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
     /// <summary>Trigger a library scan</summary>
     [HttpPost("scan.json")]
     [ProducesResponseType<ScanStatusResponse>(StatusCodes.Status200OK)]
-    public ActionResult<ScanStatusResponse> TriggerScan()
+    public ActionResult<ScanStatusResponse> TriggerScan([FromQuery] bool force = false)
     {
         // Trigger scan in background
-        _ = Task.Run(() => library.ScanMusicLibrary());
+        _ = Task.Run(() => library.ScanMusicLibrary(force));
 
         return Ok(new ScanStatusResponse
         {

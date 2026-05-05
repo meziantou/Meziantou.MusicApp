@@ -33,6 +33,30 @@ public class RestApiIntegrationTests
     }
 
     [Fact]
+    public async Task TriggerScan_WithForceQuery_WithValidAuth_ReturnsOk()
+    {
+        await using var app = AppTestContext.Create();
+        using var response = await app.Client.PostAsync("/api/scan.json?force=true", content: null, app.CancellationToken);
+        InlineSnapshot
+            .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
+            .Validate(response, """
+                StatusCode: 200 (OK)
+                Headers:
+                  Cache-Control: no-store, must-revalidate, no-cache
+                Content:
+                  Headers:
+                    Content-Type: application/json; charset=utf-8
+                  Value:
+                    {
+                      "isScanning": "[redacted]",
+                      "isInitialScanCompleted": true,
+                      "scanCount": 0,
+                      "invalidPlaylists": []
+                    }
+                """);
+    }
+
+    [Fact]
     public async Task ScrobbleRoute_IsNotAvailable()
     {
         await using var app = AppTestContext.Create();

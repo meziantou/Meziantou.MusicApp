@@ -145,7 +145,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         return await MusicCatalog.Create(content, RootFolder, coverArtCachePath);
     }
 
-    public async Task ScanMusicLibrary()
+    public async Task ScanMusicLibrary(bool force = false)
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicLibrary");
         var rootFolder = RootFolder;
@@ -186,11 +186,13 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             activity?.SetTag("music.library.audio_files", audioFiles.Length);
 
             // Build a lookup dictionary from cached songs for incremental scanning
-            var cachedSongsByPath = _cachedSerializableCatalog?.Songs
-                .ToImmutableDictionary(s => s.RelativePath, s => s, StringComparer.Ordinal)
+            var cachedSongsByPath = force
+                ? ImmutableDictionary<string, SerializableSong>.Empty
+                : _cachedSerializableCatalog?.Songs.ToImmutableDictionary(s => s.RelativePath, s => s, StringComparer.Ordinal)
                 ?? [];
 
             activity?.SetTag("music.library.cached_songs", cachedSongsByPath.Count);
+            activity?.SetTag("music.library.force_rescan", force);
 
             IndexerContext CreateContext(FullPath path) => new IndexerContext(rootFolder, path, library, cachedSongsByPath);
 
@@ -326,7 +328,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             // Check if we have a cached version of this song and if the file hasn't changed
             if (context.CachedSongsByPath.TryGetValue(relativePath, out var cachedSong) &&
                 TruncateMilliseconds(cachedSong.FileLastWriteTime) >= TruncateMilliseconds(fileLastWriteTime) &&
-                cachedSong.FileSize == fileInfo.Length)
+                cachedSong.FileSize == fileInfo.Length &&
+                !HasMissingCoreMetadata(cachedSong))
             {
                 activity?.SetTag("music.file.from_cache", true);
 
@@ -419,6 +422,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 newSong.Year = tags.Year ?? 0;
                 newSong.Track = tags.TrackNumber ?? 0;
                 newSong.Lyrics = tags.Lyrics;
+                newSong.Duration = tags.Duration ?? TimeSpan.Zero;
 
                 newSong.Isrc = tags.Isrc;
 
@@ -710,6 +714,14 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             playlists.Insert(1, missingTracksPlaylist);
         }
 
+        // Add "Needs Rescan" virtual playlist if there are tracks with missing core metadata
+        var needsRescanPlaylist = CreateNeedsRescanVirtualPlaylist();
+        if (needsRescanPlaylist.SongCount > 0)
+        {
+            var needsRescanInsertIndex = missingTracksPlaylist.SongCount > 0 ? 2 : 1;
+            playlists.Insert(Math.Min(needsRescanInsertIndex, playlists.Count), needsRescanPlaylist);
+        }
+
         // Add "No Replay Gain" virtual playlist if there are songs without replay gain
         var noReplayGainPlaylist = CreateNoReplayGainVirtualPlaylist();
         if (noReplayGainPlaylist.SongCount > 0)
@@ -738,6 +750,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             if (id == Playlist.NoReplayGainPlaylistId)
             {
                 return CreateNoReplayGainVirtualPlaylist();
+            }
+
+            if (id == Playlist.NeedsRescanPlaylistId)
+            {
+                return CreateNeedsRescanVirtualPlaylist();
             }
 
             // Future virtual playlists can be added here
@@ -848,6 +865,37 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             Changed = DateTime.UtcNow,
             CoverArt = items.FirstOrDefault()?.Song.CoverArt,
             Comment = "Virtual playlist containing tracks without replay gain information",
+            Items = items,
+        };
+    }
+
+    private Playlist CreateNeedsRescanVirtualPlaylist()
+    {
+        var songsWithMissingCoreMetadata = _catalog.Songs
+            .Where(HasMissingCoreMetadata)
+            .OrderBy(s => s.Artist, StringComparer.Ordinal)
+            .ThenBy(s => s.Album, StringComparer.Ordinal)
+            .ThenBy(s => s.Track ?? 0)
+            .ThenBy(s => s.Title, StringComparer.Ordinal)
+            .ToList();
+
+        var items = songsWithMissingCoreMetadata.Select(song => new PlaylistItem
+        {
+            Song = song,
+            AddedDate = song.Created,
+        }).ToList();
+
+        return new Playlist
+        {
+            Id = Playlist.NeedsRescanPlaylistId,
+            Name = "⚠️ Needs Rescan",
+            Path = string.Empty,
+            SongCount = items.Count,
+            Duration = items.Sum(i => i.Song.Duration),
+            Created = DateTime.UtcNow,
+            Changed = DateTime.UtcNow,
+            CoverArt = items.FirstOrDefault()?.Song.CoverArt,
+            Comment = "Virtual playlist containing tracks with missing core metadata that should be rescanned",
             Items = items,
         };
     }
@@ -1511,6 +1559,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     public IEnumerable<Song> GetRandomSongs(int count) => _catalog.GetRandomSongs(count);
     public (IEnumerable<Artist> artists, IEnumerable<Album> albums, IEnumerable<Song> songs) SearchAll(string query) => _catalog.SearchAll(query);
     public CoverArtData? GetCoverArt(string? id) => _catalog.GetCoverArt(id);
+
+    private static bool HasMissingCoreMetadata(SerializableSong song) => song.Duration <= TimeSpan.Zero;
+    private static bool HasMissingCoreMetadata(Song song) => song.Duration <= 0;
+
     private static DateTime TruncateMilliseconds(DateTime dt)
     {
         return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind);

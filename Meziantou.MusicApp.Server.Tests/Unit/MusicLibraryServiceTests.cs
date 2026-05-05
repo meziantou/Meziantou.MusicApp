@@ -574,6 +574,101 @@ public partial class MusicLibraryServiceTests
     }
 
     [Fact]
+    public async Task ScanMusicLibrary_IncrementalScan_ReScansCachedFilesWithMissingCoreMetadata()
+    {
+        using var tempDir = TemporaryDirectory.Create();
+        var musicPath = tempDir / "music";
+        var cachePath = tempDir / "cache";
+        Directory.CreateDirectory(musicPath);
+
+        var musicLibrary = new MusicLibraryTestContext(musicPath);
+        musicLibrary.CreateTestMp3File("TestSong.mp3", title: "Original Title", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
+
+        {
+            await using var initialContext = AppTestContext.Create();
+            initialContext.Configure<MusicServerSettings>(settings =>
+            {
+                settings.CachePath = cachePath;
+                settings.MusicFolderPath = musicPath;
+            });
+
+            _ = await initialContext.ScanCatalog();
+        }
+
+        var musicCachePath = cachePath / "cache.json";
+        var cacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
+        var cacheJson = JsonNode.Parse(cacheContent);
+        Assert.NotNull(cacheJson);
+        Assert.NotNull(cacheJson["Songs"]);
+        Assert.NotNull(cacheJson["Songs"]![0]);
+
+        cacheJson["Songs"]![0]!["Title"] = "Stale Cached Title";
+        cacheJson["Songs"]![0]!["Duration"] = "00:00:00";
+        await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
+
+        await using var testContext = AppTestContext.Create();
+        testContext.Configure<MusicServerSettings>(settings =>
+        {
+            settings.CachePath = cachePath;
+            settings.MusicFolderPath = musicPath;
+        });
+
+        var service = await testContext.ScanCatalog();
+        var song = Assert.Single(service.GetAllSongs());
+        Assert.Equal("Original Title", song.Title);
+    }
+
+    [Fact]
+    public async Task ScanMusicLibrary_ForceScan_IgnoresReusableCache()
+    {
+        using var tempDir = TemporaryDirectory.Create();
+        var musicPath = tempDir / "music";
+        var cachePath = tempDir / "cache";
+        Directory.CreateDirectory(musicPath);
+
+        var musicLibrary = new MusicLibraryTestContext(musicPath);
+        musicLibrary.CreateTestMp3File("TestSong.mp3", title: "Original Title", artist: "Test Artist", albumArtist: "Test Artist", album: "Test Album", genre: "Rock", year: 2024, track: 1);
+
+        {
+            await using var initialContext = AppTestContext.Create();
+            initialContext.Configure<MusicServerSettings>(settings =>
+            {
+                settings.CachePath = cachePath;
+                settings.MusicFolderPath = musicPath;
+            });
+
+            _ = await initialContext.ScanCatalog();
+        }
+
+        var musicCachePath = cachePath / "cache.json";
+        var cacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
+        var cacheJson = JsonNode.Parse(cacheContent);
+        Assert.NotNull(cacheJson);
+        Assert.NotNull(cacheJson["Songs"]);
+        Assert.NotNull(cacheJson["Songs"]![0]);
+
+        cacheJson["Songs"]![0]!["Title"] = "Stale Cached Title";
+        cacheJson["Songs"]![0]!["Duration"] = "00:01:00";
+        await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
+
+        await using var testContext = AppTestContext.Create();
+        testContext.Configure<MusicServerSettings>(settings =>
+        {
+            settings.CachePath = cachePath;
+            settings.MusicFolderPath = musicPath;
+        });
+
+        var service = await testContext.ScanCatalog();
+        var cachedSong = Assert.Single(service.GetAllSongs());
+        Assert.Equal("Stale Cached Title", cachedSong.Title);
+
+        await service.ScanMusicLibrary(force: true);
+
+        var refreshedSong = Assert.Single(service.GetAllSongs());
+        Assert.Equal("Original Title", refreshedSong.Title);
+    }
+
+    [Fact]
     public async Task ScanMusicLibrary_IncrementalScan_DetectsNewFiles()
     {
         await using var testContext = AppTestContext.Create();
@@ -1177,6 +1272,42 @@ public partial class MusicLibraryServiceTests
         Assert.Equal("virtual:no-replay-gain", noReplayGainPlaylist.Id);
         Assert.Equal("⚠️ No Replay Gain", noReplayGainPlaylist.Name);
         Assert.Equal(1, noReplayGainPlaylist.SongCount);
+    }
+
+    [Fact]
+    public async Task GetPlaylists_IncludesNeedsRescanVirtualPlaylist_WhenSongsWithMissingCoreMetadataExist()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.AddFolder("music");
+        testContext.MusicLibrary.AddFile("music/invalid.mp3", [0x00, 0x01, 0x02, 0x03]);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlists = service.GetPlaylists().ToList();
+
+        var needsRescanPlaylist = playlists.FirstOrDefault(p => p.Id == Playlist.NeedsRescanPlaylistId);
+        Assert.NotNull(needsRescanPlaylist);
+        Assert.Equal(Playlist.NeedsRescanPlaylistId, needsRescanPlaylist.Id);
+        Assert.Equal("⚠️ Needs Rescan", needsRescanPlaylist.Name);
+        Assert.Equal(1, needsRescanPlaylist.SongCount);
+    }
+
+    [Fact]
+    public async Task GetPlaylist_NeedsRescanVirtualPlaylist_ReturnsOnlySongsWithMissingCoreMetadata()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.AddFolder("music");
+        testContext.MusicLibrary.AddFile("music/invalid.mp3", [0x00, 0x01, 0x02, 0x03]);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlist = service.GetPlaylist(Playlist.NeedsRescanPlaylistId);
+
+        Assert.NotNull(playlist);
+        Assert.Equal("⚠️ Needs Rescan", playlist.Name);
+        Assert.Equal(1, playlist.SongCount);
+        Assert.Equal(1, playlist.Items.Count);
+        Assert.All(playlist.Items, item => Assert.Equal(0, item.Song.Duration));
     }
 
     [Fact]

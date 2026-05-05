@@ -32,7 +32,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
 
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning'>('idle');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'force-scanning'>('idle');
   const settingsRef = useRef(settings);
   const prevIsOpenRef = useRef(isOpen);
 
@@ -71,6 +71,15 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     setScanStatus('scanning');
     try {
       await triggerLibraryScan();
+    } finally {
+      setScanStatus('idle');
+    }
+  };
+
+  const handleForceRescanLibrary = async () => {
+    setScanStatus('force-scanning');
+    try {
+      await triggerLibraryScan(true);
     } finally {
       setScanStatus('idle');
     }
@@ -297,10 +306,20 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                 <button
                   className="secondary-button"
                   onClick={handleRescanLibrary}
-                  disabled={scanStatus === 'scanning'}
+                  disabled={scanStatus !== 'idle'}
                   style={{ width: '100%', marginBottom: '8px' }}
                 >
                   {scanStatus === 'scanning' ? 'Scanning...' : 'Rescan Music Library'}
+                </button>
+              </div>
+              <div className="form-group">
+                <button
+                  className="secondary-button"
+                  onClick={handleForceRescanLibrary}
+                  disabled={scanStatus !== 'idle'}
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {scanStatus === 'force-scanning' ? 'Force Scanning...' : 'Force Rescan (Ignore Cache)'}
                 </button>
               </div>
               <div className="form-group">
