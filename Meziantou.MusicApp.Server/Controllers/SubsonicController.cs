@@ -16,7 +16,6 @@ public class SubsonicController : ControllerBase
     private readonly MusicServerSettings _commonSettings;
     private readonly TranscodingService _transcodingService;
     private readonly ImageResizingService _imageResizingService;
-    private readonly LastFmService _lastFmService;
     private readonly ILogger<SubsonicController> _logger;
     private static readonly XNamespace SubsonicNamespace = "http://subsonic.org/restapi";
 
@@ -25,14 +24,12 @@ public class SubsonicController : ControllerBase
         IOptions<MusicServerSettings> commonSettings,
         TranscodingService transcodingService,
         ImageResizingService imageResizingService,
-        LastFmService lastFmService,
         ILogger<SubsonicController> logger)
     {
         _libraryService = libraryService;
         _commonSettings = commonSettings.Value;
         _transcodingService = transcodingService;
         _imageResizingService = imageResizingService;
-        _lastFmService = lastFmService;
         _logger = logger;
     }
 
@@ -582,19 +579,6 @@ public class SubsonicController : ControllerBase
         return Ok(response);
     }
 
-    [HttpGet("startScan.view")]
-    public IActionResult StartScan()
-    {
-        _ = Task.Run(async () => await _libraryService.ScanMusicLibrary());
-
-        var response = CreateResponse();
-        response.Root!.Add(new XElement(SubsonicNamespace + "scanStatus",
-            new XAttribute("scanning", "true"),
-            new XAttribute("count", 0)
-        ));
-        return Ok(response);
-    }
-
     [HttpGet("getIndexes.view")]
     public IActionResult GetIndexes([FromQuery] string? musicFolderId)
     {
@@ -697,18 +681,6 @@ public class SubsonicController : ControllerBase
         return Ok(response);
     }
 
-    [HttpGet("scrobble.view")]
-    public async Task<IActionResult> Scrobble([FromQuery] string id, [FromQuery] bool? submission)
-    {
-        var song = _libraryService.GetSong(id);
-        if (song is not null)
-        {
-            await _lastFmService.ScrobbleAsync(song, submission ?? true, HttpContext.RequestAborted);
-        }
-
-        return Ok(CreateResponse());
-    }
-
     [HttpGet("getStarred2.view")]
     public IActionResult GetStarred2()
     {
@@ -743,143 +715,10 @@ public class SubsonicController : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("startScan.view")]
     [HttpGet("createPlaylist.view")]
-    public async Task<IActionResult> CreatePlaylist(
-        [FromQuery] string? name,
-        [FromQuery] string? playlistId,
-        [FromQuery] string? comment,
-        [FromQuery] string[]? songId)
-    {
-        if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(playlistId))
-        {
-            return Ok(CreateError(10, "Required parameter is missing: name or playlistId"));
-        }
-
-        try
-        {
-            var playlistName = name ?? "New Playlist";
-            var songIds = songId?.ToList() ?? new List<string>();
-
-            var playlist = await _libraryService.CreatePlaylist(playlistName, comment, songIds);
-
-            var response = CreateResponse();
-            var playlistElement = new XElement(SubsonicNamespace + "playlist",
-                new XAttribute("id", playlist.Id),
-                new XAttribute("name", playlist.Name),
-                new XAttribute("songCount", playlist.SongCount),
-                new XAttribute("duration", playlist.Duration),
-                new XAttribute("created", playlist.Created.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)),
-                new XAttribute("changed", playlist.Changed.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)),
-                new XAttribute("owner", "admin"),
-                new XAttribute("public", "false")
-            );
-
-            if (playlist.CoverArt is not null)
-                playlistElement.Add(new XAttribute("coverArt", playlist.CoverArt.Id));
-            if (!string.IsNullOrEmpty(playlist.Comment))
-                playlistElement.Add(new XAttribute("comment", playlist.Comment));
-
-            response.Root!.Add(playlistElement);
-            return Ok(response);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create playlist");
-            return Ok(CreateError(0, "Failed to create playlist"));
-        }
-    }
-
     [HttpGet("updatePlaylist.view")]
-    public async Task<IActionResult> UpdatePlaylist(
-        [FromQuery] string? playlistId,
-        [FromQuery] string? name,
-        [FromQuery] string? comment,
-        [FromQuery] string[]? songIdToAdd,
-        [FromQuery] int[]? songIndexToRemove)
-    {
-        if (string.IsNullOrEmpty(playlistId))
-        {
-            return Ok(CreateError(10, "Required parameter is missing: playlistId"));
-        }
-
-        try
-        {
-            var playlist = _libraryService.GetPlaylist(playlistId);
-            if (playlist is null)
-            {
-                return Ok(CreateError(70, "Playlist not found"));
-            }
-
-            // Build the updated song list
-            List<string>? updatedSongIds = null;
-
-            // If we need to modify the song list
-            if (songIdToAdd?.Length > 0 || songIndexToRemove?.Length > 0)
-            {
-                updatedSongIds = playlist.Items.Select(i => i.Song.Id).ToList();
-
-                // Remove songs by index (in reverse order to maintain indices)
-                if (songIndexToRemove?.Length > 0)
-                {
-                    foreach (var index in songIndexToRemove.OrderByDescending(i => i))
-                    {
-                        if (index >= 0 && index < updatedSongIds.Count)
-                        {
-                            updatedSongIds.RemoveAt(index);
-                        }
-                    }
-                }
-
-                // Add new songs
-                if (songIdToAdd?.Length > 0)
-                {
-                    updatedSongIds.AddRange(songIdToAdd);
-                }
-            }
-
-            var updatedPlaylist = await _libraryService.UpdatePlaylist(
-                playlistId,
-                name,
-                comment,
-                updatedSongIds);
-
-            return Ok(CreateResponse());
-        }
-        catch (FileNotFoundException)
-        {
-            return Ok(CreateError(70, "Playlist not found"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update playlist");
-            return Ok(CreateError(0, "Failed to update playlist"));
-        }
-    }
-
     [HttpGet("deletePlaylist.view")]
-    public async Task<IActionResult> DeletePlaylist([FromQuery] string? id)
-    {
-        if (string.IsNullOrEmpty(id))
-        {
-            return Ok(CreateError(10, "Required parameter is missing: id"));
-        }
-
-        try
-        {
-            await _libraryService.DeletePlaylist(id);
-            return Ok(CreateResponse());
-        }
-        catch (FileNotFoundException)
-        {
-            return Ok(CreateError(70, "Playlist not found"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete playlist");
-            return Ok(CreateError(0, "Failed to delete playlist"));
-        }
-    }
-
     [HttpGet("star.view")]
     [HttpGet("unstar.view")]
     [HttpGet("setRating.view")]

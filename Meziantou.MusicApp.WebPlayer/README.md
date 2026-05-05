@@ -5,7 +5,6 @@ This project is a web-based music player that connects to a compatible server an
 The features
 
 - Playlist Management: Browse and play playlists with thousands of tracks
-- Drag and drop: Drag a track onto a playlist to add it (online only)
 - PWA Support: Install as a native app on mobile and desktop
 - Offline Mode: Full offline support with automatic caching
 - Quality Control: Different streaming quality for Normal/Low Data connections
@@ -15,7 +14,7 @@ The features
 - AirPlay: Stream audio to AirPlay devices on Safari/macOS
 - Media Session API: System-level media controls and notifications
 - Dark Theme: Easy on the eyes
-- Scrobbler Support
+- Read-only server interaction (except manual library rescan)
 - State persistence: Playback state saved in IndexedDB
 - Auto-resume: Continues playback on app reopen
 - Background sync: Periodic playlist refresh (5 min intervals)
@@ -23,7 +22,7 @@ The features
 
 Configuration
 - Server URL: The URL of your Meziantou Music Server
-- Auth Token (optional): Your REST API authentication token
+- Authentication token is not required
 - Normal Data Quality: Streaming format and bitrate when on WiFi/Ethernet
 - Low Data Quality: Lower bitrate for cellular/slow networks
 - Download Quality: Quality for offline cached tracks
@@ -57,15 +56,13 @@ In the future, I want to support more backend servers like Subsonic, Airsonic, s
 - Playlist metadata: name, track count, duration
 - When a playlist is selected, its tracks are displayed in the main area
 - When a music is playint an indicator
-- Drop a track onto a playlist to add it (online only)
 
 # Track list
 - List of tracks with cover, title, artist, album, duration
 - Double-click on a track to play it
-- Drag a track onto a playlist in the sidebar to add it
 - Support playlists with thousands of tracks (performance optimized)
 - Search to filter tracks by title, artist, album (accent insensitive, case insensitive, partial matches, etc.)
-- Context menu on tracks for actions (download, add to playlist, remove from playlist, etc.)
+- Context menu on tracks for actions (download, queue, details, etc.)
 - Show indicator when a track is currently playing (the same track can be in multiple playlists, show the indicator only when the track is playing from that playlist)
 
 # Player bar

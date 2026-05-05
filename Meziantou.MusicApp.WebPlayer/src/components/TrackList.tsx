@@ -39,7 +39,6 @@ export function TrackList() {
     playTrack,
     downloadTrack,
     deleteDownloadedTrack,
-    removeTrackFromPlaylist,
     playerActions,
     showToast,
   } = useApp();
@@ -224,12 +223,6 @@ export function TrackList() {
     setContextMenu({ x: e.clientX, y: e.clientY, track, index });
   };
 
-  const handleDragStart = (e: React.DragEvent, track: TrackInfo) => {
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('application/x-meziantou-song-id', track.id);
-    e.dataTransfer.setData('text/plain', track.id);
-  };
-
   const handleDownloadRawFile = useCallback(async (track: TrackInfo) => {
     try {
       const apiService = getApiService();
@@ -353,7 +346,6 @@ export function TrackList() {
                   settings={settings}
                   onDoubleClick={() => handleTrackDoubleClick(track, originalIndex)}
                   onContextMenu={(e) => handleContextMenu(e, track, originalIndex)}
-                  onDragStart={(e) => handleDragStart(e, track)}
                   onTogglePlay={() => {
                     if (isPlaying) {
                       playerActions.togglePlayPause();
@@ -396,14 +388,6 @@ export function TrackList() {
             deleteDownloadedTrack(contextMenu.track);
             setContextMenu(null);
           }}
-          onRemoveFromPlaylist={
-            currentPlaylistId && !currentPlaylistId.startsWith('virtual:')
-              ? () => {
-                  removeTrackFromPlaylist(currentPlaylistId, contextMenu.index);
-                  setContextMenu(null);
-                }
-              : undefined
-          }
           onCopyFilePath={() => {
             navigator.clipboard.writeText(contextMenu.track.path).then(() => {
               showToast(`Copied file path: ${contextMenu.track.path}`);
@@ -432,7 +416,6 @@ interface TrackItemProps {
   settings: AppSettings;
   onDoubleClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
-  onDragStart: (e: React.DragEvent) => void;
   onTogglePlay: () => void;
 }
 
@@ -446,7 +429,6 @@ function TrackItem({
   settings,
   onDoubleClick,
   onContextMenu,
-  onDragStart,
   onTogglePlay,
 }: TrackItemProps) {
   const className = [
@@ -482,10 +464,8 @@ function TrackItem({
   return (
     <div
       className={className}
-      draggable={isAvailable}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
-      onDragStart={onDragStart}
     >
       <div className="track-index-container">
         <span className="track-index">{index + 1}</span>

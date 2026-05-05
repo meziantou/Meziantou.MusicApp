@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using Meziantou.MusicApp.Server.Tests.Helpers;
 using Meziantou.Framework.InlineSnapshotTesting;
 
@@ -28,6 +30,15 @@ public class RestApiIntegrationTests
                       "invalidPlaylists": []
                     }
                 """);
+    }
+
+    [Fact]
+    public async Task ScrobbleRoute_IsNotAvailable()
+    {
+        await using var app = AppTestContext.Create();
+        using var response = await app.Client.PostAsJsonAsync("/api/scrobble.json", new { id = "song-1", submission = true }, app.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

@@ -12,7 +12,6 @@ namespace Meziantou.MusicApp.Server.Controllers;
 public class JellyfinController : ControllerBase
 {
     private readonly MusicLibraryService _libraryService;
-    private readonly MusicServerSettings _commonSettings;
     private readonly JellyfinSettings _jellyfinSettings;
     private readonly TranscodingService _transcodingService;
     private readonly ImageResizingService _imageResizingService;
@@ -20,14 +19,12 @@ public class JellyfinController : ControllerBase
 
     public JellyfinController(
         MusicLibraryService libraryService,
-        IOptions<MusicServerSettings> commonSettings,
         IOptions<JellyfinSettings> jellyfinSettings,
         TranscodingService transcodingService,
         ImageResizingService imageResizingService,
         ILogger<JellyfinController> logger)
     {
         _libraryService = libraryService;
-        _commonSettings = commonSettings.Value;
         _jellyfinSettings = jellyfinSettings.Value;
         _transcodingService = transcodingService;
         _imageResizingService = imageResizingService;
@@ -71,18 +68,13 @@ public class JellyfinController : ControllerBase
     {
         _logger.LogInformation("Authentication attempt for user: {Username}", request.Username);
 
-        if (!string.IsNullOrEmpty(_commonSettings.AuthToken) && request.Pw != _commonSettings.AuthToken)
-        {
-            return Unauthorized(new { error = "Invalid username or password" });
-        }
-
         var user = new UserDto
         {
             Name = string.IsNullOrEmpty(request.Username) ? _jellyfinSettings.DefaultUserName : request.Username,
             ServerId = _jellyfinSettings.ServerId,
             Id = _jellyfinSettings.DefaultUserId,
-            HasPassword = !string.IsNullOrEmpty(_commonSettings.AuthToken),
-            HasConfiguredPassword = !string.IsNullOrEmpty(_commonSettings.AuthToken),
+            HasPassword = false,
+            HasConfiguredPassword = false,
             Policy = new UserPolicy
             {
                 IsAdministrator = true,
@@ -95,7 +87,7 @@ public class JellyfinController : ControllerBase
         return Ok(new AuthenticationResult
         {
             User = user,
-            AccessToken = _commonSettings.AuthToken,
+            AccessToken = request.Pw ?? string.Empty,
             ServerId = _jellyfinSettings.ServerId,
         });
     }
@@ -112,8 +104,8 @@ public class JellyfinController : ControllerBase
             Name = _jellyfinSettings.DefaultUserName,
             ServerId = _jellyfinSettings.ServerId,
             Id = userId,
-            HasPassword = !string.IsNullOrEmpty(_commonSettings.AuthToken),
-            HasConfiguredPassword = !string.IsNullOrEmpty(_commonSettings.AuthToken),
+            HasPassword = false,
+            HasConfiguredPassword = false,
             Policy = new UserPolicy
             {
                 IsAdministrator = true,

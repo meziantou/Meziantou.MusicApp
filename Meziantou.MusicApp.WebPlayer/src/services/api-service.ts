@@ -3,8 +3,6 @@ import type {
   PlaylistTracksResponse,
   ScanStatusResponse,
   StreamingQuality,
-  CreatePlaylistRequest,
-  UpdatePlaylistRequest,
   LyricsResponse
 } from '../types';
 
@@ -12,16 +10,13 @@ export class ApiService {
   private static readonly coverAcceptHeader = 'image/avif,image/webp,image/png,image/jpeg;q=0.8,*/*;q=0.5';
 
   private baseUrl: string;
-  private authToken: string;
 
-  constructor(baseUrl: string, authToken: string) {
+  constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.authToken = authToken;
   }
 
-  updateConfig(baseUrl: string, authToken: string): void {
+  updateConfig(baseUrl: string): void {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.authToken = authToken;
   }
 
   private async fetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -33,10 +28,7 @@ export class ApiService {
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
-        headers: {
-          'Authorization': `Bearer ${this.authToken}`,
-          ...options.headers
-        }
+        headers: options.headers
       });
 
       if (!response.ok) {
@@ -58,73 +50,12 @@ export class ApiService {
     return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}.json`);
   }
 
-  async updatePlaylist(playlistId: string, request: UpdatePlaylistRequest): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}.json`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(request)
-    });
-  }
-
-  async createPlaylist(request: CreatePlaylistRequest): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>('/api/playlists.json', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(request)
-    });
-  }
-
-  async deletePlaylist(playlistId: string): Promise<void> {
-    const url = `${this.baseUrl}/api/playlists/${encodeURIComponent(playlistId)}.json`;
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${this.authToken}`
-      }
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || `HTTP ${response.status}`);
-    }
-  }
-
-  async addTrackToPlaylist(playlistId: string, songId: string): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}/tracks.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ songId })
-    });
-  }
-
-  async removeTrackFromPlaylist(playlistId: string, trackIndex: number): Promise<PlaylistTracksResponse> {
-    return this.fetch<PlaylistTracksResponse>(`/api/playlists/${encodeURIComponent(playlistId)}/tracks/${trackIndex}.json`, {
-      method: 'DELETE'
-    });
-  }
-
   async getScanStatus(): Promise<ScanStatusResponse> {
     return this.fetch<ScanStatusResponse>('/api/scan/status.json');
   }
 
   async triggerScan(): Promise<ScanStatusResponse> {
     return this.fetch<ScanStatusResponse>('/api/scan.json', { method: 'POST' });
-  }
-
-  async scrobble(songId: string, submission: boolean): Promise<void> {
-    await this.fetch('/api/scrobble.json', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ id: songId, submission })
-    });
   }
 
   getSongStreamUrl(songId: string, quality: StreamingQuality): string {
@@ -148,23 +79,18 @@ export class ApiService {
   }
 
   getAuthHeaders(): HeadersInit {
-    return {
-      'Authorization': `Bearer ${this.authToken}`
-    };
+    return {};
   }
 
   getCoverHeaders(): HeadersInit {
     return {
-      ...this.getAuthHeaders(),
       'Accept': ApiService.coverAcceptHeader
     };
   }
 
   async fetchSongBlob(songId: string, quality: StreamingQuality): Promise<Blob> {
     const url = this.getSongStreamUrl(songId, quality);
-    const response = await fetch(url, {
-      headers: this.getAuthHeaders()
-    });
+    const response = await fetch(url);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch song: HTTP ${response.status}`);
@@ -192,16 +118,16 @@ let apiServiceInstance: ApiService | null = null;
 
 export function getApiService(): ApiService {
   if (!apiServiceInstance) {
-    apiServiceInstance = new ApiService('', '');
+    apiServiceInstance = new ApiService('');
   }
   return apiServiceInstance;
 }
 
-export function initApiService(baseUrl: string, authToken: string): ApiService {
+export function initApiService(baseUrl: string): ApiService {
   if (!apiServiceInstance) {
-    apiServiceInstance = new ApiService(baseUrl, authToken);
+    apiServiceInstance = new ApiService(baseUrl);
   } else {
-    apiServiceInstance.updateConfig(baseUrl, authToken);
+    apiServiceInstance.updateConfig(baseUrl);
   }
   return apiServiceInstance;
 }

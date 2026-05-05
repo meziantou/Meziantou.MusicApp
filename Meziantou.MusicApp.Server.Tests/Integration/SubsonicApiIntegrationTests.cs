@@ -46,7 +46,7 @@ public class SubsonicApiIntegrationTests
     }
 
     [Fact]
-    public async Task Ping_WithInvalidToken_ReturnsAuthError()
+    public async Task Ping_WithInvalidToken_IsAccepted()
     {
         // Arrange
         await using var app = AppTestContext.Create();
@@ -65,11 +65,8 @@ public class SubsonicApiIntegrationTests
               Cache-Control: no-store, must-revalidate, no-cache
             Content:
               Headers:
-                Content-Type: application/xml
-              Value:
-                <subsonic-response status="failed" version="1.16.1" xmlns="http://subsonic.org/restapi">
-                  <error code="40" message="Wrong username or password" />
-                </subsonic-response>
+                Content-Type: application/xml; charset=utf-8
+              Value: <subsonic-response status="ok" version="1.16.1" xmlns="http://subsonic.org/restapi" />
             """);
     }
 
@@ -400,13 +397,12 @@ public class SubsonicApiIntegrationTests
     }
 
     [Fact]
-    public async Task CreatePlaylist_ReturnsPlaylistId()
+    public async Task CreatePlaylist_ReturnsReadOnlyError()
     {
         // Arrange
         await using var app = AppTestContext.Create();
         app.SetAuthToken(AuthToken);
-        var playlistName = "Test Playlist " + Guid.NewGuid();
-        var url = BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(playlistName)}");
+        var url = BuildAuthenticatedUrl("/rest/createPlaylist.view?name=Test");
 
         // Act
         using var response = await app.Client.GetAsync(url, app.CancellationToken);
@@ -417,12 +413,8 @@ public class SubsonicApiIntegrationTests
         var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
         var xml = XDocument.Parse(content);
 
-        Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-        var playlist = xml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"));
-        Assert.NotNull(playlist);
-        Assert.NotNull(playlist.Attribute("id")?.Value);
-        Assert.Equal(playlistName, playlist.Attribute("name")?.Value);
+        Assert.Equal("failed", xml.Root?.Attribute("status")?.Value);
+        Assert.Equal("50", xml.Root?.Element(XName.Get("error", "http://subsonic.org/restapi"))?.Attribute("code")?.Value);
     }
 
     [Fact]
@@ -558,7 +550,7 @@ public class SubsonicApiIntegrationTests
     }
 
     [Fact]
-    public async Task Scrobble_WithValidAuth_ReturnsSuccess()
+    public async Task ScrobbleRoute_IsNotAvailable()
     {
         // Arrange
         await using var app = AppTestContext.Create();
@@ -569,12 +561,7 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync(url, app.CancellationToken);
 
         // Assert
-        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-        var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-        var xml = XDocument.Parse(content);
-
-        Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -858,280 +845,42 @@ public class SubsonicApiIntegrationTests
     }
 
     [Fact]
-    public async Task CreatePlaylist_WithValidName_CreatesPlaylist()
+    public async Task UpdatePlaylist_ReturnsReadOnlyError()
     {
-        // Arrange
         await using var app = AppTestContext.Create();
         app.SetAuthToken(AuthToken);
-        var playlistName = $"Test Playlist {Guid.NewGuid()}";
-        var url = BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(playlistName)}");
-
-        // Act
-        using var response = await app.Client.GetAsync(url, app.CancellationToken);
-
-        // Assert
-        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-        var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-        var xml = XDocument.Parse(content);
-
-        Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-        var playlistElement = xml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"));
-        Assert.NotNull(playlistElement);
-        Assert.Equal(playlistName, playlistElement.Attribute("name")?.Value);
-        Assert.Equal("0", playlistElement.Attribute("songCount")?.Value);
-    }
-
-    [Fact]
-    public async Task CreatePlaylist_WithSongs_CreatesPlaylistWithSongs()
-    {
-        // Arrange
-        await using var app = AppTestContext.Create();
-        app.SetAuthToken(AuthToken);
-
-        // Get some songs first
-        var searchUrl = BuildAuthenticatedUrl("/rest/search3.view?query=test&songCount=3");
-        using var searchResponse = await app.Client.GetAsync(searchUrl, app.CancellationToken);
-        var searchContent = await searchResponse.Content.ReadAsStringAsync(app.CancellationToken);
-        var searchXml = XDocument.Parse(searchContent);
-
-        var songs = searchXml.Descendants(XName.Get("song", "http://subsonic.org/restapi")).Take(3).ToList();
-
-        if (songs.Count > 0)
-        {
-            var playlistName = $"Test Playlist {Guid.NewGuid()}";
-            var songIdsParam = string.Join('&', songs.Select(s => $"songId={s.Attribute("id")?.Value}"));
-            using var response = await app.Client.GetAsync(BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(playlistName)}&{songIdsParam}"), app.CancellationToken);
-
-            // Assert
-            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-            var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-            var xml = XDocument.Parse(content);
-
-            Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-            var playlistElement = xml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"));
-            Assert.NotNull(playlistElement);
-            Assert.Equal(playlistName, playlistElement.Attribute("name")?.Value);
-            Assert.Equal(songs.Count.ToString(CultureInfo.InvariantCulture), playlistElement.Attribute("songCount")?.Value);
-        }
-    }
-
-    [Fact]
-    public async Task UpdatePlaylist_WithNewName_UpdatesPlaylistName()
-    {
-        // Arrange
-        await using var app = AppTestContext.Create();
-        app.SetAuthToken(AuthToken);
-
-        // Create a playlist first
-        var originalName = $"Original Playlist {Guid.NewGuid()}";
-        var createUrl = BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(originalName)}");
-        using var createResponse = await app.Client.GetAsync(createUrl, app.CancellationToken);
-        var createContent = await createResponse.Content.ReadAsStringAsync(app.CancellationToken);
-        var createXml = XDocument.Parse(createContent);
-
-        var playlistId = createXml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"))?.Attribute("id")?.Value;
-
-        if (!string.IsNullOrEmpty(playlistId))
-        {
-            // Update the playlist name
-            var newName = $"Updated Playlist {Guid.NewGuid()}";
-            var updateUrl = BuildAuthenticatedUrl($"/rest/updatePlaylist.view?playlistId={Uri.EscapeDataString(playlistId)}&name={Uri.EscapeDataString(newName)}");
-
-            // Act
-            using var response = await app.Client.GetAsync(updateUrl, app.CancellationToken);
-
-            // Assert
-            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-            var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-            var xml = XDocument.Parse(content);
-
-            Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-            // Verify the update by fetching all playlists
-            var playlistsUrl = BuildAuthenticatedUrl("/rest/getPlaylists.view");
-            using var playlistsResponse = await app.Client.GetAsync(playlistsUrl, app.CancellationToken);
-            var playlistsContent = await playlistsResponse.Content.ReadAsStringAsync(app.CancellationToken);
-            var playlistsXml = XDocument.Parse(playlistsContent);
-
-            var playlists = playlistsXml.Root?
-                .Element(XName.Get("playlists", "http://subsonic.org/restapi"))?
-                .Elements(XName.Get("playlist", "http://subsonic.org/restapi"));
-
-            // Verify the original name no longer exists
-            var originalPlaylist = playlists?.FirstOrDefault(p => p.Attribute("name")?.Value == originalName);
-            Assert.Null(originalPlaylist);
-
-            // Verify the new name exists
-            var updatedPlaylist = playlists?.FirstOrDefault(p => p.Attribute("name")?.Value == newName);
-            Assert.NotNull(updatedPlaylist);
-        }
-    }
-
-    [Fact]
-    public async Task UpdatePlaylist_AddingSongs_AddsItemsToPlaylist()
-    {
-        // Arrange
-        await using var app = AppTestContext.Create();
-        app.SetAuthToken(AuthToken);
-
-        // Create an empty playlist
-        var playlistName = $"Test Playlist {Guid.NewGuid()}";
-        var createUrl = BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(playlistName)}");
-        using var createResponse = await app.Client.GetAsync(createUrl, app.CancellationToken);
-        var createContent = await createResponse.Content.ReadAsStringAsync(app.CancellationToken);
-        var createXml = XDocument.Parse(createContent);
-
-        var playlistId = createXml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"))?.Attribute("id")?.Value;
-
-        if (!string.IsNullOrEmpty(playlistId))
-        {
-            // Get some songs
-            var searchUrl = BuildAuthenticatedUrl("/rest/search3.view?query=test&songCount=2");
-            using var searchResponse = await app.Client.GetAsync(searchUrl, app.CancellationToken);
-            var searchContent = await searchResponse.Content.ReadAsStringAsync(app.CancellationToken);
-            var searchXml = XDocument.Parse(searchContent);
-
-            var songs = searchXml.Descendants(XName.Get("song", "http://subsonic.org/restapi")).Take(2).ToList();
-
-            if (songs.Count > 0)
-            {
-                var songIdsParam = string.Join('&', songs.Select(s => $"songIdToAdd={s.Attribute("id")?.Value}"));
-                using var response = await app.Client.GetAsync(BuildAuthenticatedUrl($"/rest/updatePlaylist.view?playlistId={Uri.EscapeDataString(playlistId)}&{songIdsParam}"), app.CancellationToken);
-
-                // Assert
-                Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-                var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-                var xml = XDocument.Parse(content);
-
-                Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-                // Verify the songs were added
-                var getUrl = BuildAuthenticatedUrl($"/rest/getPlaylist.view?id={Uri.EscapeDataString(playlistId)}");
-                using var getResponse = await app.Client.GetAsync(getUrl, app.CancellationToken);
-                var getContent = await getResponse.Content.ReadAsStringAsync(app.CancellationToken);
-                var getXml = XDocument.Parse(getContent);
-
-                var updatedPlaylistElement = getXml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"));
-                Assert.NotNull(updatedPlaylistElement);
-                Assert.Equal(songs.Count.ToString(CultureInfo.InvariantCulture), updatedPlaylistElement.Attribute("songCount")?.Value);
-            }
-        }
-    }
-
-    [Fact]
-    public async Task UpdatePlaylist_RemovingSongs_RemovesItemsFromPlaylist()
-    {
-        // Arrange
-        await using var app = AppTestContext.Create();
-        app.SetAuthToken(AuthToken);
-
-        // Get some songs
-        var searchUrl = BuildAuthenticatedUrl("/rest/search3.view?query=test&songCount=3");
-        using var searchResponse = await app.Client.GetAsync(searchUrl, app.CancellationToken);
-        var searchContent = await searchResponse.Content.ReadAsStringAsync(app.CancellationToken);
-        var searchXml = XDocument.Parse(searchContent);
-
-        var songs = searchXml.Descendants(XName.Get("song", "http://subsonic.org/restapi")).Take(3).ToList();
-
-        if (songs.Count >= 2)
-        {
-            var playlistName = $"Test Playlist {Guid.NewGuid()}";
-            var songIdsParam = string.Join('&', songs.Select(s => $"songId={s.Attribute("id")?.Value}"));
-            using var createResponse = await app.Client.GetAsync(BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(playlistName)}&{songIdsParam}"), app.CancellationToken);
-            var createContent = await createResponse.Content.ReadAsStringAsync(app.CancellationToken);
-            var createXml = XDocument.Parse(createContent);
-
-            var playlistId = createXml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"))?.Attribute("id")?.Value;
-
-            if (!string.IsNullOrEmpty(playlistId))
-            {
-                using var response = await app.Client.GetAsync(BuildAuthenticatedUrl($"/rest/updatePlaylist.view?playlistId={Uri.EscapeDataString(playlistId)}&songIndexToRemove=0"), app.CancellationToken);
-
-                // Assert
-                Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-                var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-                var xml = XDocument.Parse(content);
-
-                Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-                // Verify the song was removed
-                var getUrl = BuildAuthenticatedUrl($"/rest/getPlaylist.view?id={Uri.EscapeDataString(playlistId)}");
-                using var getResponse = await app.Client.GetAsync(getUrl, app.CancellationToken);
-                var getContent = await getResponse.Content.ReadAsStringAsync(app.CancellationToken);
-                var getXml = XDocument.Parse(getContent);
-
-                var updatedPlaylistElement = getXml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"));
-                Assert.NotNull(updatedPlaylistElement);
-                var expectedCount = songs.Count - 1;
-                Assert.Equal(expectedCount.ToString(CultureInfo.InvariantCulture), updatedPlaylistElement.Attribute("songCount")?.Value);
-            }
-        }
-    }
-
-    [Fact]
-    public async Task DeletePlaylist_WithValidId_DeletesPlaylist()
-    {
-        // Arrange
-        await using var app = AppTestContext.Create();
-        app.SetAuthToken(AuthToken);
-
-        // Create a playlist first
-        var playlistName = $"Test Playlist {Guid.NewGuid()}";
-        var createUrl = BuildAuthenticatedUrl($"/rest/createPlaylist.view?name={Uri.EscapeDataString(playlistName)}");
-        using var createResponse = await app.Client.GetAsync(createUrl, app.CancellationToken);
-        var createContent = await createResponse.Content.ReadAsStringAsync(app.CancellationToken);
-        var createXml = XDocument.Parse(createContent);
-
-        var playlistId = createXml.Root?.Element(XName.Get("playlist", "http://subsonic.org/restapi"))?.Attribute("id")?.Value;
-
-        if (!string.IsNullOrEmpty(playlistId))
-        {
-            // Act
-            using var response = await app.Client.GetAsync(BuildAuthenticatedUrl($"/rest/deletePlaylist.view?id={Uri.EscapeDataString(playlistId)}"), app.CancellationToken);
-
-            // Assert
-            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
-            var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
-            var xml = XDocument.Parse(content);
-
-            Assert.Equal("ok", xml.Root?.Attribute("status")?.Value);
-
-            // Verify the playlist no longer exists
-            var getUrl = BuildAuthenticatedUrl($"/rest/getPlaylist.view?id={Uri.EscapeDataString(playlistId)}");
-            using var getResponse = await app.Client.GetAsync(getUrl, app.CancellationToken);
-            var getContent = await getResponse.Content.ReadAsStringAsync(app.CancellationToken);
-            var getXml = XDocument.Parse(getContent);
-
-            Assert.Equal("failed", getXml.Root?.Attribute("status")?.Value);
-        }
-    }
-
-    [Fact]
-    public async Task DeletePlaylist_WithInvalidId_ReturnsError()
-    {
-        // Arrange
-        await using var app = AppTestContext.Create();
-        app.SetAuthToken(AuthToken);
-        var url = BuildAuthenticatedUrl("/rest/deletePlaylist.view?id=invalid-playlist-id");
-
-        // Act
-        using var response = await app.Client.GetAsync(url, app.CancellationToken);
-
-        // Assert
-        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-
+        using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/updatePlaylist.view?playlistId=test"), app.CancellationToken);
         var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
         var xml = XDocument.Parse(content);
 
         Assert.Equal("failed", xml.Root?.Attribute("status")?.Value);
+        Assert.Equal("50", xml.Root?.Element(XName.Get("error", "http://subsonic.org/restapi"))?.Attribute("code")?.Value);
+    }
+
+    [Fact]
+    public async Task DeletePlaylist_ReturnsReadOnlyError()
+    {
+        await using var app = AppTestContext.Create();
+        app.SetAuthToken(AuthToken);
+        using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/deletePlaylist.view?id=test"), app.CancellationToken);
+        var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
+        var xml = XDocument.Parse(content);
+
+        Assert.Equal("failed", xml.Root?.Attribute("status")?.Value);
+        Assert.Equal("50", xml.Root?.Element(XName.Get("error", "http://subsonic.org/restapi"))?.Attribute("code")?.Value);
+    }
+
+    [Fact]
+    public async Task StartScan_ReturnsReadOnlyError()
+    {
+        await using var app = AppTestContext.Create();
+        app.SetAuthToken(AuthToken);
+        using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/startScan.view"), app.CancellationToken);
+        var content = await response.Content.ReadAsStringAsync(app.CancellationToken);
+        var xml = XDocument.Parse(content);
+
+        Assert.Equal("failed", xml.Root?.Attribute("status")?.Value);
+        Assert.Equal("50", xml.Root?.Element(XName.Get("error", "http://subsonic.org/restapi"))?.Attribute("code")?.Value);
     }
 
     [Fact]
