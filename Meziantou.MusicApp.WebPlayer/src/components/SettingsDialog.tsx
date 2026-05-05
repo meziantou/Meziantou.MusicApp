@@ -205,6 +205,42 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
               </label>
               <small>Do not load cover images to save memory and data</small>
             </div>
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="hide-track-index"
+                  checked={formData.hideTrackIndex}
+                  onChange={(e) => handleInputChange('hideTrackIndex', e.target.checked)}
+                />
+                Hide Track Index
+              </label>
+              <small>Hide track numbers and the left playback indicator column</small>
+            </div>
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="hide-track-duration"
+                  checked={formData.hideTrackDuration}
+                  onChange={(e) => handleInputChange('hideTrackDuration', e.target.checked)}
+                />
+                Hide Track Duration
+              </label>
+              <small>Hide the duration column in the track list</small>
+            </div>
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="hide-track-cache-status"
+                  checked={formData.hideTrackCacheStatus}
+                  onChange={(e) => handleInputChange('hideTrackCacheStatus', e.target.checked)}
+                />
+                Hide Cache Status
+              </label>
+              <small>Hide the offline availability icon in the track list</small>
+            </div>
           </section>
 
           <section className="settings-section">

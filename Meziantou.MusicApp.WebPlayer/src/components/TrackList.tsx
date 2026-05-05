@@ -544,14 +544,16 @@ const TrackItem = memo(function TrackItem({
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
     >
-      <div className="track-index-container">
-        <span className="track-index">{index + 1}</span>
-        <PlayingIndicator
-          isPlaying={isPlaying}
-          isPaused={!isPlayerPlaying}
-          onTogglePlay={onTogglePlay}
-        />
-      </div>
+      {!settings.hideTrackIndex && (
+        <div className="track-index-container">
+          <span className="track-index">{index + 1}</span>
+          <PlayingIndicator
+            isPlaying={isPlaying}
+            isPaused={!isPlayerPlaying}
+            onTogglePlay={onTogglePlay}
+          />
+        </div>
+      )}
 
       <CoverImage
         trackId={track.id}
@@ -576,13 +578,15 @@ const TrackItem = memo(function TrackItem({
           {track.artists || 'Unknown Artist'} • {track.album || 'Unknown Album'}
         </span>
       </div>
-      {isCached && (
+      {!settings.hideTrackCacheStatus && isCached && (
         <svg className="cached-icon" viewBox="0 0 24 24" fill="currentColor" aria-label="Available offline">
           <title>Available offline</title>
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
         </svg>
       )}
-      <span className="track-duration">{formatDuration(track.duration)}</span>
+      {!settings.hideTrackDuration && (
+        <span className="track-duration">{formatDuration(track.duration)}</span>
+      )}
       <button
         className="track-options-btn"
         onClick={(e) => {
