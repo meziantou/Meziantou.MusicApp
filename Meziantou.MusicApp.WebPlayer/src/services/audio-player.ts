@@ -286,12 +286,12 @@ export class AudioPlayerService {
       artist: this.currentTrack.artists ?? 'Unknown Artist',
       album: this.currentTrack.album ?? 'Unknown Album',
       artwork: [
-        { src: api.getSongCoverUrl(this.currentTrack.id, 96), sizes: '96x96', type: 'image/jpeg' },
-        { src: api.getSongCoverUrl(this.currentTrack.id, 128), sizes: '128x128', type: 'image/jpeg' },
-        { src: api.getSongCoverUrl(this.currentTrack.id, 192), sizes: '192x192', type: 'image/jpeg' },
-        { src: api.getSongCoverUrl(this.currentTrack.id, 256), sizes: '256x256', type: 'image/jpeg' },
-        { src: api.getSongCoverUrl(this.currentTrack.id, 384), sizes: '384x384', type: 'image/jpeg' },
-        { src: api.getSongCoverUrl(this.currentTrack.id, 512), sizes: '512x512', type: 'image/jpeg' }
+        { src: api.getSongCoverUrl(this.currentTrack.id, 96), sizes: '96x96' },
+        { src: api.getSongCoverUrl(this.currentTrack.id, 128), sizes: '128x128' },
+        { src: api.getSongCoverUrl(this.currentTrack.id, 192), sizes: '192x192' },
+        { src: api.getSongCoverUrl(this.currentTrack.id, 256), sizes: '256x256' },
+        { src: api.getSongCoverUrl(this.currentTrack.id, 384), sizes: '384x384' },
+        { src: api.getSongCoverUrl(this.currentTrack.id, 512), sizes: '512x512' }
       ]
     });
 

@@ -91,7 +91,7 @@ export function CoverImage({
         const api = getApiService();
         const coverUrl = api.getSongCoverUrl(trackId, size);
         
-        const response = await fetch(coverUrl, { headers: api.getAuthHeaders() });
+        const response = await fetch(coverUrl, { headers: api.getCoverHeaders() });
         if (!response.ok) {
           if (response.status === 404) {
             storageService.addMissingCover(trackId).catch(console.error);

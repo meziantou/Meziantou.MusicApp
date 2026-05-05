@@ -360,7 +360,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
 
         ImageCacheHelper.SetImageCacheHeaders(Response, coverArtData.LastModified);
 
-        return File(coverData, "image/jpeg");
+        return File(coverData, ImageCacheHelper.GetImageContentType(coverData));
     }
 
     /// <summary>Get cover image for an album (uses first track)</summary>
@@ -400,7 +400,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
 
         ImageCacheHelper.SetImageCacheHeaders(Response, coverArtData.LastModified);
 
-        return File(coverData, "image/jpeg");
+        return File(coverData, ImageCacheHelper.GetImageContentType(coverData));
     }
 
     /// <summary>Get cover image for an artist (uses first track)</summary>
@@ -452,7 +452,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
 
         ImageCacheHelper.SetImageCacheHeaders(Response, coverArtData.LastModified);
 
-        return File(coverData, "image/jpeg");
+        return File(coverData, ImageCacheHelper.GetImageContentType(coverData));
     }
 
     /// <summary>Get all albums</summary>

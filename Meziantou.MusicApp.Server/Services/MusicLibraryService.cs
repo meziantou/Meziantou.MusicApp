@@ -36,14 +36,16 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private static readonly string[] XspfPlaylistExtensions = [".xspf"];
     private static readonly string[] CoverFiles =
     [
-        "cover.jpg", "cover.jpeg", "cover.png",
-        "folder.jpg", "folder.jpeg", "folder.png",
-        "front.jpg", "front.jpeg", "front.png",
-        "album.jpg", "album.jpeg", "album.png",
-        "Cover.jpg", "Cover.jpeg", "Cover.png",
-        "Folder.jpg", "Folder.jpeg", "Folder.png",
-        "Front.jpg", "Front.jpeg", "Front.png",
-        "Album.jpg", "Album.jpeg", "Album.png",
+        "cover.avif", "folder.avif", "front.avif", "album.avif",
+        "Cover.avif", "Folder.avif", "Front.avif", "Album.avif",
+        "cover.webp", "folder.webp", "front.webp", "album.webp",
+        "Cover.webp", "Folder.webp", "Front.webp", "Album.webp",
+        "cover.png", "folder.png", "front.png", "album.png",
+        "Cover.png", "Folder.png", "Front.png", "Album.png",
+        "cover.jpg", "folder.jpg", "front.jpg", "album.jpg",
+        "Cover.jpg", "Folder.jpg", "Front.jpg", "Album.jpg",
+        "cover.jpeg", "folder.jpeg", "front.jpeg", "album.jpeg",
+        "Cover.jpeg", "Folder.jpeg", "Front.jpeg", "Album.jpeg",
     ];
 
     public MusicCatalog Catalog => _catalog;

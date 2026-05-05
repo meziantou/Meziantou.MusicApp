@@ -180,4 +180,79 @@ public class RestApiIntegrationTests
                 }
             """);
     }
+
+    [Theory]
+    [InlineData("song", "cover.png", "image/png")]
+    [InlineData("song", "cover.jpg", "image/jpeg")]
+    [InlineData("song", "cover.webp", "image/webp")]
+    [InlineData("song", "cover.avif", "image/avif")]
+    [InlineData("album", "cover.png", "image/png")]
+    [InlineData("album", "cover.jpg", "image/jpeg")]
+    [InlineData("album", "cover.webp", "image/webp")]
+    [InlineData("album", "cover.avif", "image/avif")]
+    [InlineData("artist", "cover.png", "image/png")]
+    [InlineData("artist", "cover.jpg", "image/jpeg")]
+    [InlineData("artist", "cover.webp", "image/webp")]
+    [InlineData("artist", "cover.avif", "image/avif")]
+    public async Task GetCover_SupportsMultipleFormats(string entityType, string coverFileName, string expectedContentType)
+    {
+        await using var app = AppTestContext.Create();
+        app.MusicLibrary.CreateTestMp3File("Artist/Album/song.mp3", title: "Song", artist: "Artist", album: "Album");
+        var coverData = GetCoverData(coverFileName);
+        app.MusicLibrary.AddFile($"Artist/Album/{coverFileName}", coverData);
+
+        var library = await app.ScanCatalog();
+        var id = entityType switch
+        {
+            "song" => library.GetAllSongs().Single().Id,
+            "album" => library.GetAllAlbums().Single().Id,
+            "artist" => library.GetAllArtists().Single().Id,
+            _ => throw new InvalidOperationException($"Unsupported entity type: {entityType}"),
+        };
+
+        var endpoint = entityType switch
+        {
+            "song" => $"/api/songs/{id}/cover",
+            "album" => $"/api/albums/{id}/cover",
+            "artist" => $"/api/artists/{id}/cover",
+            _ => throw new InvalidOperationException($"Unsupported entity type: {entityType}"),
+        };
+
+        using var response = await app.Client.GetAsync(endpoint, app.CancellationToken);
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(expectedContentType, response.Content.Headers.ContentType?.MediaType);
+        var returnedCoverData = await response.Content.ReadAsByteArrayAsync(app.CancellationToken);
+        Assert.Equal(coverData, returnedCoverData);
+    }
+
+    private static byte[] GetCoverData(string coverFileName)
+    {
+        return Path.GetExtension(coverFileName).ToLowerInvariant() switch
+        {
+            ".png" =>
+            [
+                0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            ],
+            ".jpg" or ".jpeg" =>
+            [
+                0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46,
+                0x49, 0x46, 0x00, 0x01, 0xFF, 0xD9,
+            ],
+            ".webp" =>
+            [
+                0x52, 0x49, 0x46, 0x46, 0x18, 0x00, 0x00, 0x00,
+                0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20,
+                0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ],
+            ".avif" =>
+            [
+                0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
+                0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00,
+                0x61, 0x76, 0x69, 0x66, 0x6D, 0x69, 0x66, 0x31,
+            ],
+            _ => throw new InvalidOperationException($"Unsupported cover extension for test: {coverFileName}"),
+        };
+    }
 }
