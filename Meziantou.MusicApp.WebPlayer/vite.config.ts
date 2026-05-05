@@ -12,9 +12,13 @@ function getCommitHash(): string {
   }
 }
 
+function getShortCommitHash(commitHash: string): string {
+  return commitHash.slice(0, 7);
+}
+
 export default defineConfig({
   define: {
-    __COMMIT_HASH__: JSON.stringify(process.env.VITE_COMMIT_HASH || getCommitHash()),
+    __COMMIT_HASH__: JSON.stringify(getShortCommitHash(process.env.VITE_COMMIT_HASH || getCommitHash())),
   },
   test: {
     globals: true,
