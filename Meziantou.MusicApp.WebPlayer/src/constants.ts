@@ -7,6 +7,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   downloadQuality: { format: 'opus', maxBitRate: 160 },
   preventDownloadOnLowData: false,
   hideCoverArt: false,
+  hideTrackIndex: false,
+  hideTrackDuration: false,
+  hideTrackCacheStatus: false,
   replayGainMode: 'off',
   replayGainPreamp: 0,
   showReplayGainWarning: true

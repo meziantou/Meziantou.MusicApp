@@ -27,6 +27,7 @@ Configuration
 - Low Data Quality: Lower bitrate for cellular/slow networks
 - Download Quality: Quality for offline cached tracks
 - Auto-download: Enable background downloading of new tracks
+- Interface toggles: Hide cover art, track index, duration, and cache status in the track list
 
 ## Playback Algorithm
 
@@ -58,7 +59,7 @@ In the future, I want to support more backend servers like Subsonic, Airsonic, s
 - When a music is playint an indicator
 
 # Track list
-- List of tracks with cover, title, artist, album, duration
+- List of tracks with configurable columns (cover, track index, title, artist, album, cache status, duration)
 - Double-click on a track to play it
 - Support playlists with thousands of tracks (performance optimized)
 - Search to filter tracks by title, artist, album (accent insensitive, case insensitive, partial matches, etc.)

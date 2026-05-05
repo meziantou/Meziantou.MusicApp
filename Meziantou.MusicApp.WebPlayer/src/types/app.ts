@@ -9,6 +9,9 @@ export interface AppSettings {
   downloadQuality: StreamingQuality;
   preventDownloadOnLowData: boolean;
   hideCoverArt: boolean;
+  hideTrackIndex: boolean;
+  hideTrackDuration: boolean;
+  hideTrackCacheStatus: boolean;
   replayGainMode: ReplayGainMode;
   replayGainPreamp: number; // in dB
   showReplayGainWarning: boolean;
