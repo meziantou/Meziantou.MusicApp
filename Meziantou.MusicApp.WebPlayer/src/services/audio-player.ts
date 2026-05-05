@@ -866,14 +866,16 @@ export class AudioPlayerService {
     this.updatePositionState();
   }
 
-  private linearToLogarithmic(linear: number): number {
-    // Convert linear slider value (0-2) to logarithmic gain value
-    // Using exponential curve: gain = linear^2 for smoother control at lower volumes
-    return linear * linear;
+  private linearToPerceptual(volume: number): number {
+    // Map slider value to amplitude using a -10 dB per halving curve so the
+    // slider percentage matches perceived loudness:
+    //   100% -> 1.0 (0 dB), 50% -> ~0.316 (-10 dB), 25% -> ~0.1 (-20 dB), 200% -> ~3.16 (+10 dB).
+    if (volume <= 0) return 0;
+    return Math.pow(volume, Math.log2(10) / 2);
   }
 
   private applyOutputVolume(): void {
-    const gainValue = this.linearToLogarithmic(this.masterVolume);
+    const gainValue = this.linearToPerceptual(this.masterVolume);
 
     if (this.masterGainNode) {
       // Keep the media element at full volume when using Web Audio gain to avoid compounding attenuation.
