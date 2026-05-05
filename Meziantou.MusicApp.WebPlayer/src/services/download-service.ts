@@ -167,7 +167,7 @@ class DownloadService {
           // Use a reasonable size for caching (256px)
           const coverUrl = api.getSongCoverUrl(track.id, 256);
           const coverResponse = await fetch(coverUrl, {
-            headers: api.getAuthHeaders()
+            headers: api.getCoverHeaders()
           });
           
           if (coverResponse.ok) {

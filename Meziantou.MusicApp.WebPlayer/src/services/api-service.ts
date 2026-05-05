@@ -9,6 +9,8 @@ import type {
 } from '../types';
 
 export class ApiService {
+  private static readonly coverAcceptHeader = 'image/avif,image/webp,image/png,image/jpeg;q=0.8,*/*;q=0.5';
+
   private baseUrl: string;
   private authToken: string;
 
@@ -148,6 +150,13 @@ export class ApiService {
   getAuthHeaders(): HeadersInit {
     return {
       'Authorization': `Bearer ${this.authToken}`
+    };
+  }
+
+  getCoverHeaders(): HeadersInit {
+    return {
+      ...this.getAuthHeaders(),
+      'Accept': ApiService.coverAcceptHeader
     };
   }
 
