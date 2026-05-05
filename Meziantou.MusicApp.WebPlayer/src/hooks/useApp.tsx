@@ -68,7 +68,7 @@ interface AppContextValue {
   playingPlaylistId: string | null;
 
   // Library scan
-  triggerLibraryScan: () => Promise<void>;
+  triggerLibraryScan: (force?: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -810,7 +810,7 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }, [settings]);
 
-  const triggerLibraryScan = useCallback(async () => {
+  const triggerLibraryScan = useCallback(async (force = false) => {
     if (!isOnline) {
       showToast('Cannot trigger scan while offline', 'error');
       return;
@@ -823,8 +823,8 @@ export function AppProvider({ children }: AppProviderProps) {
 
     try {
       const api = getApiService();
-      await api.triggerScan();
-      showToast('Library scan started', 'success');
+      await api.triggerScan(force);
+      showToast(force ? 'Force library scan started' : 'Library scan started', 'success');
 
       // Check for invalid playlists after a short delay to allow scan to complete
       setTimeout(async () => {
@@ -839,7 +839,7 @@ export function AppProvider({ children }: AppProviderProps) {
       }, 3000);
     } catch (error) {
       console.error('Failed to trigger library scan:', error);
-      showToast('Failed to trigger library scan', 'error');
+      showToast(force ? 'Failed to trigger force library scan' : 'Failed to trigger library scan', 'error');
     }
   }, [isOnline, settings.serverUrl, showToast]);
 

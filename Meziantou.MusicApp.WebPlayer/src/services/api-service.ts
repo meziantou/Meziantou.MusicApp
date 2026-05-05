@@ -54,8 +54,9 @@ export class ApiService {
     return this.fetch<ScanStatusResponse>('/api/scan/status.json');
   }
 
-  async triggerScan(): Promise<ScanStatusResponse> {
-    return this.fetch<ScanStatusResponse>('/api/scan.json', { method: 'POST' });
+  async triggerScan(force = false): Promise<ScanStatusResponse> {
+    const query = force ? '?force=true' : '';
+    return this.fetch<ScanStatusResponse>(`/api/scan.json${query}`, { method: 'POST' });
   }
 
   getSongStreamUrl(songId: string, quality: StreamingQuality): string {
