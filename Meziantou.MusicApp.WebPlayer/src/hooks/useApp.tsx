@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import type {
   AppSettings,
   PlaylistSummary,
@@ -950,7 +950,7 @@ export function AppProvider({ children }: AppProviderProps) {
     showToast('Removed offline playlist');
   }, [playlists, showToast]);
 
-  const value: AppContextValue = {
+  const value = useMemo<AppContextValue>(() => ({
     settings,
     updateSettings,
     playlists,
@@ -982,7 +982,39 @@ export function AppProvider({ children }: AppProviderProps) {
     testConnection,
     playingPlaylistId,
     triggerLibraryScan,
-  };
+  }), [
+    settings,
+    updateSettings,
+    playlists,
+    currentPlaylistId,
+    currentPlaylistTracks,
+    selectPlaylist,
+    syncPlaylists,
+    createPlaylist,
+    deletePlaylist,
+    invalidPlaylists,
+    isOnline,
+    networkType,
+    cachedTrackIds,
+    downloadTrack,
+    deleteDownloadedTrack,
+    clearAllCachedTracks,
+    offlinePlaylistIds,
+    playlistDownloadProgress,
+    startPlaylistCaching,
+    stopPlaylistCaching,
+    playerState,
+    playerActions,
+    isLoading,
+    isInitialized,
+    showToast,
+    playTrack,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
+    testConnection,
+    playingPlaylistId,
+    triggerLibraryScan,
+  ]);
 
   return (
     <AppContext.Provider value={value}>

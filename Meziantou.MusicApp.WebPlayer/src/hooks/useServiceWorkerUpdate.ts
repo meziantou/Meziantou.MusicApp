@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 interface ServiceWorkerUpdateState {
@@ -7,6 +8,17 @@ interface ServiceWorkerUpdateState {
 }
 
 export function useServiceWorkerUpdate(): ServiceWorkerUpdateState {
+  const updateIntervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (updateIntervalRef.current !== null) {
+        window.clearInterval(updateIntervalRef.current);
+        updateIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   const {
     needRefresh: [needRefresh],
     offlineReady: [offlineReady],
@@ -17,7 +29,14 @@ export function useServiceWorkerUpdate(): ServiceWorkerUpdateState {
 
       // Check for updates periodically (every hour)
       if (registration) {
-        setInterval(() => {
+        if (updateIntervalRef.current !== null) {
+          window.clearInterval(updateIntervalRef.current);
+        }
+
+        updateIntervalRef.current = window.setInterval(() => {
+          if (!navigator.onLine || document.hidden) {
+            return;
+          }
           registration.update();
         }, 60 * 60 * 1000);
       }
