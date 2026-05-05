@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { QueueItem } from '../types';
 import { useApp } from '../hooks';
 import { PlayingIndicator } from './PlayingIndicator';
@@ -7,18 +8,35 @@ interface QueuePanelProps {
   onClose: () => void;
 }
 
+interface IndexedQueueItem {
+  item: QueueItem;
+  lookaheadIndex: number;
+}
+
 export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
   const { playerState, playerActions, playlists } = useApp();
+  const lookaheadQueue = playerState.lookaheadQueue;
+  const currentTrack = playerState.currentTrack;
+  const { manualItems, playlistItems } = useMemo(() => {
+    const manual: IndexedQueueItem[] = [];
+    const playlist: IndexedQueueItem[] = [];
+
+    for (let i = 0; i < lookaheadQueue.length; i++) {
+      const indexedItem = { item: lookaheadQueue[i], lookaheadIndex: i };
+      if (indexedItem.item.source === 'manual') {
+        manual.push(indexedItem);
+      } else if (indexedItem.item.source === 'playlist') {
+        playlist.push(indexedItem);
+      }
+    }
+
+    return { manualItems: manual, playlistItems: playlist };
+  }, [lookaheadQueue]);
 
   if (!isOpen) return null;
 
-  const lookaheadQueue = playerState.lookaheadQueue;
-  const currentTrack = playerState.currentTrack;
-  const manualItems = lookaheadQueue.filter(item => item.source === 'manual');
-  const playlistItems = lookaheadQueue.filter(item => item.source === 'playlist');
-
   const playlistName = playlistItems.length > 0
-    ? playlists.find(p => p.id === playlistItems[0].playlistId)?.name || 'Playlist'
+    ? playlists.find(p => p.id === playlistItems[0].item.playlistId)?.name || 'Playlist'
     : 'Playlist';
 
   const handleRemoveItem = (lookaheadIndex: number) => {
@@ -78,7 +96,6 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
               <QueueSection
                 title="Next Up"
                 items={manualItems}
-                lookaheadQueue={lookaheadQueue}
                 startNumber={1}
                 onPlay={handlePlayItem}
                 onRemove={handleRemoveItem}
@@ -88,7 +105,6 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
               <QueueSection
                 title={`Next from: ${playlistName}`}
                 items={playlistItems}
-                lookaheadQueue={lookaheadQueue}
                 startNumber={manualItems.length + 1}
                 onPlay={handlePlayItem}
                 onRemove={handleRemoveItem}
@@ -103,19 +119,18 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
 
 interface QueueSectionProps {
   title: string;
-  items: QueueItem[];
-  lookaheadQueue: QueueItem[];
+  items: IndexedQueueItem[];
   startNumber: number;
   onPlay: (lookaheadIndex: number) => void;
   onRemove: (lookaheadIndex: number) => void;
 }
 
-function QueueSection({ title, items, lookaheadQueue, startNumber, onPlay, onRemove }: QueueSectionProps) {
+function QueueSection({ title, items, startNumber, onPlay, onRemove }: QueueSectionProps) {
   return (
     <div className="queue-section">
       <div className="queue-section-header">{title}</div>
-      {items.map((item, i) => {
-        const lookaheadIndex = lookaheadQueue.indexOf(item);
+      {items.map((indexedItem, i) => {
+        const { item, lookaheadIndex } = indexedItem;
         const displayNumber = startNumber + i;
 
         return (

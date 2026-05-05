@@ -53,6 +53,7 @@ export function CoverImage({
   const [coverSrc, setCoverSrc] = useState(COVER_PLACEHOLDER_DATA_URI);
   const coverBlobUrlRef = useRef<string | null>(null);
   const isTrackCached = cachedTrackIds.has(trackId);
+  const imageLoading = size <= 48 ? 'lazy' : 'eager';
 
   // Always revoke any blob URL on unmount so virtualized rows don't leak
   // when they scroll out of view without re-running the main effect.
@@ -156,6 +157,8 @@ export function CoverImage({
       className={className}
       src={coverSrc}
       alt={alt}
+      loading={imageLoading}
+      decoding="async"
       onClick={onClick}
     />
   );
