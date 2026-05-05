@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { RepeatMode } from '../types';
-import { formatDuration, throttle } from '../utils';
+import { formatDuration } from '../utils';
 import { useApp } from '../hooks';
 import { CoverImage } from './CoverImage';
 
@@ -69,6 +69,14 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
   const [isVolumePopoverVisible, setIsVolumePopoverVisible] = useState(false);
   const volumePopoverTimeoutRef = useRef<number | undefined>(undefined);
 
+  useEffect(() => {
+    return () => {
+      if (volumePopoverTimeoutRef.current) {
+        window.clearTimeout(volumePopoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const showVolumePopover = () => {
     setIsVolumePopoverVisible(true);
     if (volumePopoverTimeoutRef.current) {
@@ -118,9 +126,6 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
   const progressPercent = playerState.duration > 0
     ? (playerState.currentTime / playerState.duration) * 100
     : 0;
-
-  const throttledTimeUpdate = throttle(() => {}, 250);
-  throttledTimeUpdate();
 
   return (
     <div className="player-bar">

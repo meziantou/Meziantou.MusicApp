@@ -16,9 +16,18 @@ type DownloadCallback = (progress: DownloadProgress) => void;
 class DownloadService {
   private downloadQueue: Map<string, { track: TrackInfo; playlistIds: Set<string>; quality: StreamingQuality }> = new Map();
   private activeDownloads: Set<string> = new Set();
-  private maxConcurrentDownloads = 8;
+  private maxConcurrentDownloads = this.computeMaxConcurrentDownloads();
   private callbacks: Set<DownloadCallback> = new Set();
   private cachedTrackIds: Set<string> = new Set();
+
+  private computeMaxConcurrentDownloads(): number {
+    const logicalCores = globalThis.navigator?.hardwareConcurrency;
+    if (typeof logicalCores !== 'number' || !Number.isFinite(logicalCores)) {
+      return 6;
+    }
+
+    return Math.max(2, Math.min(8, Math.floor(logicalCores / 2)));
+  }
 
   async init(): Promise<void> {
     this.cachedTrackIds = await storageService.getCachedTrackIds();

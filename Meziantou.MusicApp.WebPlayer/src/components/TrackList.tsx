@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import { memo, useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import type { TrackInfo, AppSettings } from '../types';
 import { formatDuration, normalizeSearch, debounce, sortTracks } from '../utils';
 import { useApp } from '../hooks';
@@ -11,6 +11,7 @@ type SortDirection = Parameters<typeof sortTracks>[2];
 
 const ITEM_HEIGHT = 56;
 const BUFFER_SIZE = 5;
+const SCROLL_SAVE_DELAY_MS = 200;
 
 function getTrackDownloadFileName(track: TrackInfo): string {
   const normalizedPath = track.path.replace(/\\/g, '/');
@@ -48,6 +49,9 @@ export function TrackList() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: TrackInfo; index: number } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastRestoredPlaylistId = useRef<string | null>(null);
+  const scrollPositionsRef = useRef<Record<string, number> | null>(null);
+  const scrollSaveTimeoutRef = useRef<number | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [sortOption, setSortOption] = useState<SortOption>('added');
@@ -97,32 +101,92 @@ export function TrackList() {
     return out;
   }, [searchQuery, sortedTracks, searchHaystacks]);
 
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
+  const trackIndexes = useMemo(() => {
+    const out = new Map<TrackInfo, number>();
+    for (let i = 0; i < currentPlaylistTracks.length; i++) {
+      out.set(currentPlaylistTracks[i], i);
+    }
+    return out;
+  }, [currentPlaylistTracks]);
 
-    const scrollTop = container.scrollTop;
-    const containerHeight = container.clientHeight;
+  const getStoredScrollPositions = useCallback(() => {
+    if (!scrollPositionsRef.current) {
+      try {
+        const raw = localStorage.getItem('playlistScrollPositions');
+        scrollPositionsRef.current = raw ? JSON.parse(raw) as Record<string, number> : {};
+      } catch {
+        scrollPositionsRef.current = {};
+      }
+    }
 
+    return scrollPositionsRef.current;
+  }, []);
+
+  const persistScrollPositions = useCallback(() => {
+    if (!scrollPositionsRef.current) {
+      scrollSaveTimeoutRef.current = null;
+      return;
+    }
+
+    localStorage.setItem('playlistScrollPositions', JSON.stringify(scrollPositionsRef.current));
+    scrollSaveTimeoutRef.current = null;
+  }, []);
+
+  const saveScrollPosition = useCallback((playlistId: string, scrollTop: number) => {
+    const positions = getStoredScrollPositions();
+    positions[playlistId] = scrollTop;
+
+    if (scrollSaveTimeoutRef.current !== null) {
+      window.clearTimeout(scrollSaveTimeoutRef.current);
+    }
+
+    scrollSaveTimeoutRef.current = window.setTimeout(persistScrollPositions, SCROLL_SAVE_DELAY_MS);
+  }, [getStoredScrollPositions, persistScrollPositions]);
+
+  const updateVisibleRange = useCallback((scrollTop: number, containerHeight: number) => {
     const visibleStart = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER_SIZE);
     const visibleEnd = Math.min(
       filteredTracks.length,
       Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + BUFFER_SIZE
     );
 
-    setVisibleRange({ start: visibleStart, end: visibleEnd });
+    setVisibleRange(prev => {
+      if (prev.start === visibleStart && prev.end === visibleEnd) {
+        return prev;
+      }
 
-    // Save scroll position
-    if (currentPlaylistId) {
-      const positions = JSON.parse(localStorage.getItem('playlistScrollPositions') || '{}');
-      positions[currentPlaylistId] = scrollTop;
-      localStorage.setItem('playlistScrollPositions', JSON.stringify(positions));
+      return { start: visibleStart, end: visibleEnd };
+    });
+  }, [filteredTracks.length]);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (scrollRafRef.current !== null) {
+      return;
     }
-  }, [filteredTracks.length, currentPlaylistId]);
+
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+
+      const activeContainer = scrollContainerRef.current;
+      if (!activeContainer) {
+        return;
+      }
+
+      const scrollTop = activeContainer.scrollTop;
+      updateVisibleRange(scrollTop, activeContainer.clientHeight);
+
+      if (currentPlaylistId) {
+        saveScrollPosition(currentPlaylistId, scrollTop);
+      }
+    });
+  }, [currentPlaylistId, saveScrollPosition, updateVisibleRange]);
 
   useEffect(() => {
     handleScroll();
-  }, [filteredTracks, handleScroll]);
+  }, [filteredTracks.length, handleScroll]);
 
   // Handle window resize to recalculate visible range
   useEffect(() => {
@@ -141,9 +205,9 @@ export function TrackList() {
   useEffect(() => {
     if (currentPlaylistId && scrollContainerRef.current && filteredTracks.length > 0) {
       if (lastRestoredPlaylistId.current !== currentPlaylistId) {
-        const positions = JSON.parse(localStorage.getItem('playlistScrollPositions') || '{}');
+        const positions = getStoredScrollPositions();
         const saved = positions[currentPlaylistId];
-        if (saved) {
+        if (typeof saved === 'number') {
           scrollContainerRef.current.scrollTop = saved;
         } else {
           scrollContainerRef.current.scrollTop = 0;
@@ -151,7 +215,20 @@ export function TrackList() {
         lastRestoredPlaylistId.current = currentPlaylistId;
       }
     }
-  }, [currentPlaylistId, filteredTracks]);
+  }, [currentPlaylistId, filteredTracks.length, getStoredScrollPositions]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+      }
+
+      if (scrollSaveTimeoutRef.current !== null) {
+        window.clearTimeout(scrollSaveTimeoutRef.current);
+        persistScrollPositions();
+      }
+    };
+  }, [persistScrollPositions]);
 
   // Listen for focus search input requests
   useEffect(() => {
@@ -328,7 +405,7 @@ export function TrackList() {
         <div className="virtual-content" style={{ height: totalHeight }}>
           <div className="track-list" style={{ transform: `translateY(${visibleRange.start * ITEM_HEIGHT}px)` }}>
             {visibleTracks.map((track, i) => {
-              const originalIndex = currentPlaylistTracks.indexOf(track);
+              const originalIndex = trackIndexes.get(track) ?? (visibleRange.start + i);
               const isCached = cachedTrackIds.has(track.id);
               const isPlaying = track.id === playerState.currentTrack?.id &&
                 currentPlaylistId === playingPlaylistId;
@@ -336,7 +413,7 @@ export function TrackList() {
 
               return (
                 <TrackItem
-                  key={`${track.id}-${visibleRange.start + i}`}
+                  key={`${track.id}-${originalIndex}`}
                   track={track}
                   index={originalIndex}
                   isCached={isCached}
@@ -419,7 +496,7 @@ interface TrackItemProps {
   onTogglePlay: () => void;
 }
 
-function TrackItem({
+const TrackItem = memo(function TrackItem({
   track,
   index,
   isCached,
@@ -520,7 +597,7 @@ function TrackItem({
       </button>
     </div>
   );
-}
+});
 
 interface ContextMenuProps {
   x: number;
