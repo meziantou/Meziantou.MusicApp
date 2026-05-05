@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { QueueItem } from '../types';
-import { useApp } from '../hooks';
+import { useApp, usePlayer } from '../hooks';
 import { PlayingIndicator } from './PlayingIndicator';
 
 interface QueuePanelProps {
@@ -14,7 +14,8 @@ interface IndexedQueueItem {
 }
 
 export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
-  const { playerState, playerActions, playlists } = useApp();
+  const { playlists } = useApp();
+  const { playerState, playerActions } = usePlayer();
   const lookaheadQueue = playerState.lookaheadQueue;
   const currentTrack = playerState.currentTrack;
   const { manualItems, playlistItems } = useMemo(() => {

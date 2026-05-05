@@ -848,6 +848,24 @@ body {
   height: 4px; /* Reset to base height when paused */
 }
 
+/* Pause infinite animations while the tab is hidden — the compositor would
+   otherwise keep ticking them in the background. */
+:root[data-hidden] .playing-animation span,
+:root[data-hidden] .download-icon.spinning {
+  animation-play-state: paused;
+}
+
+/* Honor user/OS reduced-motion preference for all infinite animations. */
+@media (prefers-reduced-motion: reduce) {
+  .playing-animation span {
+    animation: none;
+    height: 8px; /* mid-height static state */
+  }
+  .download-icon.spinning {
+    animation: none;
+  }
+}
+
 @keyframes playing-bar {
   0%, 100% { height: 4px; }
   50% { height: 16px; }

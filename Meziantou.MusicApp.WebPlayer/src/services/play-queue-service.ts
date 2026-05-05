@@ -33,6 +33,19 @@ export class PlayQueueService {
   private static readonly KEEP_LOOKAHEAD_ITEMS = 30; // When trimming, keep this many items after current
   private static readonly MAX_LOOP_OFFSET = 10;
 
+  // Mutation version counter; cached getter results are valid only when their
+  // captured version matches the current `mutationVersion`.
+  private mutationVersion: number = 0;
+  private cachedQueue: { version: number; value: QueueItem[] } | null = null;
+  private cachedLookahead: { version: number; value: QueueItem[] } | null = null;
+  private cachedHistory: { version: number; value: QueueItem[] } | null = null;
+  private cachedPlaylist: { version: number; value: TrackInfo[] } | null = null;
+  private cachedShuffleOrder: { version: number; value: number[] } | null = null;
+
+  private bumpVersion(): void {
+    this.mutationVersion++;
+  }
+
   constructor(config: QueueConfig) {
     this.config = { ...config };
   }
@@ -42,6 +55,8 @@ export class PlayQueueService {
    */
   updateConfig(config: Partial<QueueConfig>): void {
     this.config = { ...this.config, ...config };
+    // updateConfig can change playlist/shuffleOrder, so invalidate caches.
+    this.bumpVersion();
   }
 
   /**
@@ -97,14 +112,24 @@ export class PlayQueueService {
    * Gets the current playlist
    */
   getPlaylist(): TrackInfo[] {
-    return [...this.config.playlist];
+    if (this.cachedPlaylist && this.cachedPlaylist.version === this.mutationVersion) {
+      return this.cachedPlaylist.value;
+    }
+    const value = [...this.config.playlist];
+    this.cachedPlaylist = { version: this.mutationVersion, value };
+    return value;
   }
 
   /**
    * Gets the shuffle order
    */
   getShuffleOrder(): number[] {
-    return [...this.config.shuffleOrder];
+    if (this.cachedShuffleOrder && this.cachedShuffleOrder.version === this.mutationVersion) {
+      return this.cachedShuffleOrder.value;
+    }
+    const value = [...this.config.shuffleOrder];
+    this.cachedShuffleOrder = { version: this.mutationVersion, value };
+    return value;
   }
 
   /**
@@ -125,23 +150,40 @@ export class PlayQueueService {
    * Gets the full queue array (history + current + lookahead)
    */
   getQueue(): QueueItem[] {
-    return [...this.queueArray];
+    if (this.cachedQueue && this.cachedQueue.version === this.mutationVersion) {
+      return this.cachedQueue.value;
+    }
+    const value = [...this.queueArray];
+    this.cachedQueue = { version: this.mutationVersion, value };
+    return value;
   }
 
   /**
    * Gets queue items after the current index (lookahead)
    */
   getLookaheadQueue(): QueueItem[] {
-    if (this.currentIndex < 0) return [...this.queueArray];
-    return this.queueArray.slice(this.currentIndex + 1);
+    if (this.cachedLookahead && this.cachedLookahead.version === this.mutationVersion) {
+      return this.cachedLookahead.value;
+    }
+    const value = this.currentIndex < 0
+      ? [...this.queueArray]
+      : this.queueArray.slice(this.currentIndex + 1);
+    this.cachedLookahead = { version: this.mutationVersion, value };
+    return value;
   }
 
   /**
    * Gets queue items before the current index (history)
    */
   getHistory(): QueueItem[] {
-    if (this.currentIndex < 0) return [];
-    return this.queueArray.slice(0, this.currentIndex);
+    if (this.cachedHistory && this.cachedHistory.version === this.mutationVersion) {
+      return this.cachedHistory.value;
+    }
+    const value = this.currentIndex < 0
+      ? []
+      : this.queueArray.slice(0, this.currentIndex);
+    this.cachedHistory = { version: this.mutationVersion, value };
+    return value;
   }
 
   /**
@@ -162,6 +204,8 @@ export class PlayQueueService {
         this.config.shuffleOrder = this.generateShuffleOrder();
       }
     }
+
+    this.bumpVersion();
   }
 
   /**
@@ -192,6 +236,7 @@ export class PlayQueueService {
     // Fill lookahead
     this.refillLookahead(playlistIndex);
 
+    this.bumpVersion();
     return true;
   }
 
@@ -220,6 +265,7 @@ export class PlayQueueService {
     }
 
     this.trimIfNeeded();
+    this.bumpVersion();
   }
 
   /**
@@ -235,6 +281,7 @@ export class PlayQueueService {
     if (index < this.currentIndex) {
       this.currentIndex--;
     }
+    this.bumpVersion();
   }
 
   /**
@@ -257,6 +304,7 @@ export class PlayQueueService {
       // Item moved from after current to at/before current
       this.currentIndex++;
     }
+    this.bumpVersion();
   }
 
   /**
@@ -279,6 +327,7 @@ export class PlayQueueService {
     this.refillLookahead();
     this.trimIfNeeded();
 
+    this.bumpVersion();
     return true;
   }
 
@@ -297,6 +346,7 @@ export class PlayQueueService {
         this.queueArray.unshift(prevItem);
         // currentIndex stays at 0 (which is now the previous track)
         this.trimIfNeeded();
+        this.bumpVersion();
         return true;
       }
       return false;
@@ -304,6 +354,7 @@ export class PlayQueueService {
 
     // Navigate backward in existing history
     this.currentIndex--;
+    this.bumpVersion();
     return true;
   }
 
@@ -351,6 +402,10 @@ export class PlayQueueService {
    * Sets shuffle enabled/disabled
    */
   setShuffle(enabled: boolean): void {
+    if (this.config.shuffleEnabled === enabled) {
+      // No actual change — don't churn cached arrays.
+      return;
+    }
     this.config.shuffleEnabled = enabled;
     if (enabled) {
       this.config.shuffleOrder = this.generateShuffleOrder();
@@ -362,13 +417,16 @@ export class PlayQueueService {
       this.queueArray = this.queueArray.slice(0, this.currentIndex + 1);
       this.refillLookahead();
     }
+    this.bumpVersion();
   }
 
   /**
    * Sets the repeat mode
    */
   setRepeatMode(mode: RepeatMode): void {
+    if (this.config.repeatMode === mode) return;
     this.config.repeatMode = mode;
+    this.bumpVersion();
   }
 
   /**
@@ -380,6 +438,7 @@ export class PlayQueueService {
 
     // Ensure we have enough lookahead
     this.refillLookahead();
+    this.bumpVersion();
   }
 
   /**

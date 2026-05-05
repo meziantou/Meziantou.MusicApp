@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import type { TrackInfo, AppSettings } from '../types';
 import { formatDuration, normalizeSearch, debounce, sortTracks } from '../utils';
-import { useApp } from '../hooks';
+import { useApp, usePlayer } from '../hooks';
 import { getApiService } from '../services';
 import { PlayingIndicator } from './PlayingIndicator';
 import { CoverImage } from './CoverImage';
@@ -33,16 +33,14 @@ export function TrackList() {
     settings,
     currentPlaylistTracks,
     currentPlaylistId,
-    playingPlaylistId,
-    playerState,
     cachedTrackIds,
     isOnline,
     playTrack,
     downloadTrack,
     deleteDownloadedTrack,
-    playerActions,
     showToast,
   } = useApp();
+  const { playerState, playerActions, playingPlaylistId } = usePlayer();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
@@ -63,10 +61,12 @@ export function TrackList() {
     [currentPlaylistTracks, sortDirection, sortOption]
   );
 
-  // Precomputed normalized search text per sorted track. Built once per
-  // playlist/sort so each keystroke is a cheap string.includes scan instead
-  // of re-normalizing every searchable field on every track.
+  // Precomputed normalized search text per sorted track. Only built when the
+  // user actually starts searching — for backgrounded sessions on huge
+  // playlists this avoids holding several MB of normalized strings in RAM
+  // that nobody is going to read.
   const searchHaystacks = useMemo(() => {
+    if (!searchQuery) return null;
     const out = new Array<string>(sortedTracks.length);
     for (let i = 0; i < sortedTracks.length; i++) {
       const t = sortedTracks[i];
@@ -75,10 +75,10 @@ export function TrackList() {
       );
     }
     return out;
-  }, [sortedTracks]);
+  }, [sortedTracks, searchQuery]);
 
   const filteredTracks = useMemo(() => {
-    if (!searchQuery) {
+    if (!searchQuery || !searchHaystacks) {
       return sortedTracks;
     }
 
