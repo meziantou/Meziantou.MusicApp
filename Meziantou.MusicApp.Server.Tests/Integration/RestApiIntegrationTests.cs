@@ -66,6 +66,44 @@ public class RestApiIntegrationTests
     }
 
     [Fact]
+    public async Task CleanupTranscodingCache_DeletesOnlyTranscodingFiles()
+    {
+        await using var app = AppTestContext.Create();
+
+        app.MusicCachePath.CreateParentDirectory();
+        await File.WriteAllTextAsync(app.MusicCachePath, "{}", app.CancellationToken);
+
+        var coverFilePath = app.CachePath / "cover" / "cover.jpg";
+        coverFilePath.CreateParentDirectory();
+        await File.WriteAllBytesAsync(coverFilePath, [0x01, 0x02], app.CancellationToken);
+
+        var transcodingCacheFile = app.CachePath / $"{new string('a', 64)}.mp3";
+        var transcodingCacheTempFile = app.CachePath / $"{new string('b', 64)}.opus.tmp";
+        await File.WriteAllBytesAsync(transcodingCacheFile, [0x03], app.CancellationToken);
+        await File.WriteAllBytesAsync(transcodingCacheTempFile, [0x04], app.CancellationToken);
+
+        using var response = await app.Client.PostAsync("/api/cache/transcoding/cleanup.json", content: null, app.CancellationToken);
+        InlineSnapshot.Validate(response, """
+            StatusCode: 200 (OK)
+            Headers:
+              Cache-Control: no-store, must-revalidate, no-cache
+            Content:
+              Headers:
+                Content-Type: application/json; charset=utf-8
+              Value:
+                {
+                  "deletedFileCount": 2,
+                  "failedFileCount": 0
+                }
+            """);
+
+        Assert.False(File.Exists(transcodingCacheFile));
+        Assert.False(File.Exists(transcodingCacheTempFile));
+        Assert.True(File.Exists(app.MusicCachePath));
+        Assert.True(File.Exists(coverFilePath));
+    }
+
+    [Fact]
     public async Task GetScanStatus_WithValidAuth_ReturnsStatus()
     {
         // Act

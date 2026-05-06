@@ -38,4 +38,24 @@ describe('ApiService', () => {
       expect.objectContaining({ method: 'POST' }),
     );
   });
+
+  it('cleanupTranscodingCache calls cleanup endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        deletedFileCount: 3,
+        failedFileCount: 0,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = new ApiService('https://example.com');
+    await service.cleanupTranscodingCache();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/api/cache/transcoding/cleanup.json',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 });

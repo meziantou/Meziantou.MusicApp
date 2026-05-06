@@ -2,6 +2,7 @@ import type {
   PlaylistsResponse,
   PlaylistTracksResponse,
   ScanStatusResponse,
+  CacheCleanupResponse,
   StreamingQuality,
   LyricsResponse
 } from '../types';
@@ -57,6 +58,10 @@ export class ApiService {
   async triggerScan(force = false): Promise<ScanStatusResponse> {
     const query = force ? '?force=true' : '';
     return this.fetch<ScanStatusResponse>(`/api/scan.json${query}`, { method: 'POST' });
+  }
+
+  async cleanupTranscodingCache(): Promise<CacheCleanupResponse> {
+    return this.fetch<CacheCleanupResponse>('/api/cache/transcoding/cleanup.json', { method: 'POST' });
   }
 
   getSongStreamUrl(songId: string, quality: StreamingQuality): string {

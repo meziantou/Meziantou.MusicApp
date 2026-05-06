@@ -7,6 +7,8 @@ namespace Meziantou.MusicApp.Server.Services;
 
 public sealed class TranscodingService : IDisposable
 {
+    public readonly record struct CacheCleanupResult(int DeletedFileCount, int FailedFileCount);
+
     private readonly ILogger<TranscodingService> _logger;
     private readonly string _ffmpegPath;
     private readonly SemaphoreSlim _transcodingSemaphore;
@@ -148,6 +150,74 @@ public sealed class TranscodingService : IDisposable
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         var fileName = $"{hash}.{outputFormat ?? "mp3"}";
         return Path.Combine(_settings.CachePath, fileName);
+    }
+
+    public CacheCleanupResult CleanupTranscodingCache()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.CachePath))
+        {
+            return new CacheCleanupResult(DeletedFileCount: 0, FailedFileCount: 0);
+        }
+
+        if (!Directory.Exists(_settings.CachePath))
+        {
+            return new CacheCleanupResult(DeletedFileCount: 0, FailedFileCount: 0);
+        }
+
+        var deletedFileCount = 0;
+        var failedFileCount = 0;
+
+        foreach (var filePath in Directory.EnumerateFiles(_settings.CachePath, "*", SearchOption.TopDirectoryOnly))
+        {
+            var fileName = Path.GetFileName(filePath);
+            if (!IsTranscodingCacheFileName(fileName))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(filePath);
+                deletedFileCount++;
+            }
+            catch (Exception ex)
+            {
+                failedFileCount++;
+                _logger.LogWarning(ex, "Failed to delete transcoding cache file: {Path}", filePath);
+            }
+        }
+
+        return new CacheCleanupResult(DeletedFileCount: deletedFileCount, FailedFileCount: failedFileCount);
+    }
+
+    private static bool IsTranscodingCacheFileName(string fileName)
+    {
+        if (fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = fileName[..^4];
+        }
+
+        var extension = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(extension))
+        {
+            return false;
+        }
+
+        var hash = Path.GetFileNameWithoutExtension(fileName);
+        if (hash.Length != 64)
+        {
+            return false;
+        }
+
+        foreach (var character in hash)
+        {
+            if (!char.IsAsciiHexDigit(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string BuildFFmpegArguments(
