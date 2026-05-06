@@ -87,7 +87,6 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
       }
     };
   }, []);
-
   useEffect(() => {
     const handleTimeUpdate = (detail: PlayerEventDetail) => {
       if (typeof detail.currentTime === 'number') {
@@ -133,6 +132,7 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
   };
 
   const handleVolumeWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
     const step = 0.05;
     const delta = e.deltaY < 0 ? step : -step;
     const newVolume = Math.max(0, Math.min(2, playerState.volume + delta));
