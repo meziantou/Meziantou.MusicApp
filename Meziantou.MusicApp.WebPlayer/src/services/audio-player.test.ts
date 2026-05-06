@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AudioPlayerService } from './audio-player';
 import { TrackInfo } from '../types';
+import { EQUALIZER_FREQUENCIES } from '../constants';
 
 // Mock dependencies
 vi.mock('./api-service', () => ({
@@ -257,6 +258,30 @@ describe('AudioPlayerService Queue Logic', () => {
 
       player.toggleMute();
       expect(audioAfterPlay.muted).toBe(false);
+    });
+  });
+
+  describe('Equalizer', () => {
+    it('should apply configured band gains when AudioContext is initialized', async () => {
+      const expectedGains = EQUALIZER_FREQUENCIES.map((_frequency, index) => index - 4);
+      player.setEqualizerGains(expectedGains);
+
+      await player.play();
+
+      const equalizerNodes = (player as any).equalizerNodes as BiquadFilterNode[];
+      expect(equalizerNodes).toHaveLength(EQUALIZER_FREQUENCIES.length);
+
+      for (let i = 0; i < EQUALIZER_FREQUENCIES.length; i++) {
+        expect(equalizerNodes[i].frequency.value).toBe(EQUALIZER_FREQUENCIES[i]);
+        expect(equalizerNodes[i].gain.value).toBe(expectedGains[i]);
+      }
+    });
+
+    it('should clamp out-of-range equalizer values', () => {
+      player.setEqualizerGains([30, -30]);
+
+      expect(player.getEqualizerGains()[0]).toBe(12);
+      expect(player.getEqualizerGains()[1]).toBe(-12);
     });
   });
 

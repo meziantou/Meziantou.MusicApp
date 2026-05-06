@@ -1081,6 +1081,73 @@ body {
   gap: 4px;
 }
 
+.player-equalizer {
+  position: relative;
+}
+
+.equalizer-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  width: 260px;
+  padding: 12px;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-lg);
+  z-index: 220;
+}
+
+.equalizer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.equalizer-reset-button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.equalizer-reset-button:hover {
+  color: var(--text-primary);
+}
+
+.equalizer-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.equalizer-band {
+  display: grid;
+  grid-template-columns: 36px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+}
+
+.equalizer-frequency {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.equalizer-slider {
+  width: 100%;
+}
+
+.equalizer-gain {
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .volume-btn .hidden {
   display: none;
 }
@@ -1540,6 +1607,11 @@ body {
   
   .player-volume {
     display: none;
+  }
+
+  .equalizer-popover {
+    right: -12px;
+    width: min(280px, 92vw);
   }
   
   .track-list-header {

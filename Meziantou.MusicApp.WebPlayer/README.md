@@ -11,6 +11,7 @@ The features
 - Auto-sync: Background playlist refresh and automatic track downloading
 - Search: Quick search across tracks, artists, and albums
 - Playback Controls: Play, pause, seek, shuffle, repeat modes
+- 10-band Equalizer: Real-time EQ controls (31Hz to 16kHz) in the player bar
 - AirPlay: Stream audio to AirPlay devices on Safari/macOS
 - Media Session API: System-level media controls and notifications
 - Dark Theme: Easy on the eyes
@@ -70,6 +71,7 @@ In the future, I want to support more backend servers like Subsonic, Airsonic, s
 - Play/pause button
 - Seek slider with current time and total duration
 - Volume control slider
+- 10-band equalizer popover with per-band sliders and reset
 - Shuffle and repeat buttons
 - Clicking on the cover shows the current playlist and scrolls to the current track
 
