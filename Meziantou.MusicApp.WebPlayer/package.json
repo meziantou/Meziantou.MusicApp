@@ -38,6 +38,7 @@
     "workbox-window": "7.4.0"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
     "idb": "^8.0.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

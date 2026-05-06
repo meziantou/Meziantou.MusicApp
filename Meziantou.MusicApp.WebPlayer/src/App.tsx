@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { AppProvider, useApp } from './hooks';
 import { audioPlayer } from './services';
 import type { TrackInfo } from './types';
@@ -16,14 +18,98 @@ import { isTauriApp } from './utils';
 import './styles/main.css';
 
 const VOLUME_STEP = 0.05;
+const MENU_CONTROL_EVENT = 'player-menu-control';
+
+interface PlayerMenuControlPayload {
+  action: 'previous' | 'next' | 'volume';
+  delta?: number;
+}
 
 function AppContent() {
-  const { isLoading, settings, isInitialized, playerActions } = useApp();
+  const { isLoading, settings, isInitialized, playerState, playerActions } = useApp();
   const tauriApp = isTauriApp();
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [songDetailsTrack, setSongDetailsTrack] = useState<TrackInfo | null>(null);
+
+  useEffect(() => {
+    if (!tauriApp) {
+      return;
+    }
+
+    let isActive = true;
+    let unlisten: UnlistenFn | null = null;
+
+    void listen<PlayerMenuControlPayload>(MENU_CONTROL_EVENT, async ({ payload }) => {
+      try {
+        switch (payload.action) {
+          case 'previous':
+            await playerActions.previous();
+            break;
+          case 'next':
+            await playerActions.next();
+            break;
+          case 'volume': {
+            const delta = payload.delta ?? 0;
+            if (delta === 0) {
+              break;
+            }
+
+            if (audioPlayer.getIsMuted()) {
+              playerActions.toggleMute();
+            }
+
+            const updatedVolume = Math.max(0, Math.min(2, audioPlayer.getVolume() + delta));
+            playerActions.setVolume(updatedVolume);
+            break;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to process player menu action', error);
+      }
+    })
+      .then((fn) => {
+        if (isActive) {
+          unlisten = fn;
+        } else {
+          void fn();
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to register player menu listener', error);
+      });
+
+    return () => {
+      isActive = false;
+      if (unlisten) {
+        void unlisten();
+      }
+    };
+  }, [tauriApp, playerActions]);
+
+  useEffect(() => {
+    if (!tauriApp) {
+      return;
+    }
+
+    const currentTrack = playerState.currentTrack
+      ? `${playerState.currentTrack.title}${playerState.currentTrack.artists ? ` - ${playerState.currentTrack.artists}` : ''}`
+      : null;
+
+    void invoke('update_menu_bar_state', {
+      currentTrack,
+      volume: playerState.volume,
+    }).catch((error) => {
+      console.error('Failed to update player menu state', error);
+    });
+  }, [
+    tauriApp,
+    playerState.currentTrack?.id,
+    playerState.currentTrack?.title,
+    playerState.currentTrack?.artists,
+    playerState.volume,
+  ]);
 
   // Show settings on first load if not configured (only after initialization)
   useEffect(() => {
