@@ -383,6 +383,7 @@ public class SubsonicController : ControllerBase
                 format,
                 maxBitRate,
                 timeOffset,
+                song.FileLastWriteTimeUtc,
                 HttpContext.RequestAborted);
 
             var contentType = TranscodingService.GetContentType(format);

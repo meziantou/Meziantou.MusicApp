@@ -160,6 +160,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
                 format,
                 maxBitRate,
                 timeOffset,
+                song.FileLastWriteTimeUtc,
                 cancellationToken);
 
             var contentType = format switch
