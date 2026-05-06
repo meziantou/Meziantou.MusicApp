@@ -28,6 +28,7 @@ public sealed class TranscodingService : IDisposable
         string? outputFormat = null,
         int? maxBitRate = null,
         int? timeOffset = null,
+        DateTime? sourceLastWriteTimeUtc = null,
         CancellationToken cancellationToken = default)
     {
         string? cacheFilePath = null;
@@ -36,11 +37,23 @@ public sealed class TranscodingService : IDisposable
             cacheFilePath = GetCacheFilePath(inputPath, outputFormat, maxBitRate);
             if (File.Exists(cacheFilePath))
             {
-                _logger.LogInformation("Serving from cache: {CachePath}", cacheFilePath);
                 try
                 {
-                    // File.SetLastAccessTimeUtc(cacheFilePath, DateTime.UtcNow);
-                    return new FileStream(cacheFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+                    if (!sourceLastWriteTimeUtc.HasValue)
+                    {
+                        _logger.LogInformation("Ignoring cache because source timestamp is missing: {CachePath}", cacheFilePath);
+                    }
+                    else if (!IsCacheFileFresh(sourceLastWriteTimeUtc.Value, cacheFilePath))
+                    {
+                        _logger.LogInformation("Ignoring stale cache: {CachePath}", cacheFilePath);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Serving from cache: {CachePath}", cacheFilePath);
+
+                        // File.SetLastAccessTimeUtc(cacheFilePath, DateTime.UtcNow);
+                        return new FileStream(cacheFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -109,6 +122,24 @@ public sealed class TranscodingService : IDisposable
             _transcodingSemaphore.Release();
             throw;
         }
+    }
+
+    private bool IsCacheFileFresh(DateTime sourceLastWriteTimeUtc, string cacheFilePath)
+    {
+        var cacheLastWriteTimeUtc = File.GetLastWriteTimeUtc(cacheFilePath);
+
+        if (cacheLastWriteTimeUtc < sourceLastWriteTimeUtc)
+        {
+            _logger.LogInformation(
+                "Cached transcoded file is stale. Cache: {CachePath}, CacheLastWriteTimeUtc: {CacheLastWriteTimeUtc}, SourceLastWriteTimeUtc: {SourceLastWriteTimeUtc}",
+                cacheFilePath,
+                cacheLastWriteTimeUtc,
+                sourceLastWriteTimeUtc);
+
+            return false;
+        }
+
+        return true;
     }
 
     private string GetCacheFilePath(string inputPath, string? outputFormat, int? maxBitRate)

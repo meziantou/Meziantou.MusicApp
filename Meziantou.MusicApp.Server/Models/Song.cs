@@ -19,6 +19,7 @@ public sealed class Song
     public int Duration { get; init; }
     public int? BitRate { get; init; }
     public DateTime Created { get; init; }
+    public DateTime FileLastWriteTimeUtc { get; init; }
     public string? ParentId { get; set; }
     public CoverArt? CoverArt { get; set; }
     public Lyrics? Lyrics { get; init; }
