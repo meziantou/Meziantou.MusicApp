@@ -7,8 +7,6 @@ namespace Meziantou.MusicApp.Server.Services;
 
 public sealed class TranscodingService : IDisposable
 {
-    public readonly record struct CacheCleanupResult(int DeletedFileCount, int FailedFileCount);
-
     private readonly ILogger<TranscodingService> _logger;
     private readonly string _ffmpegPath;
     private readonly SemaphoreSlim _transcodingSemaphore;
@@ -152,16 +150,16 @@ public sealed class TranscodingService : IDisposable
         return Path.Combine(_settings.CachePath, fileName);
     }
 
-    public CacheCleanupResult CleanupTranscodingCache()
+    public (int DeletedFileCount, int FailedFileCount) CleanupTranscodingCache()
     {
         if (string.IsNullOrWhiteSpace(_settings.CachePath))
         {
-            return new CacheCleanupResult(DeletedFileCount: 0, FailedFileCount: 0);
+            return (DeletedFileCount: 0, FailedFileCount: 0);
         }
 
         if (!Directory.Exists(_settings.CachePath))
         {
-            return new CacheCleanupResult(DeletedFileCount: 0, FailedFileCount: 0);
+            return (DeletedFileCount: 0, FailedFileCount: 0);
         }
 
         var deletedFileCount = 0;
@@ -187,7 +185,7 @@ public sealed class TranscodingService : IDisposable
             }
         }
 
-        return new CacheCleanupResult(DeletedFileCount: deletedFileCount, FailedFileCount: failedFileCount);
+        return (DeletedFileCount: deletedFileCount, FailedFileCount: failedFileCount);
     }
 
     private static bool IsTranscodingCacheFileName(string fileName)
