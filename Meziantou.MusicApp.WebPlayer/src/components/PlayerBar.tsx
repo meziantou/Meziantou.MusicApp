@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { RepeatMode } from '../types';
+import {
+  EQUALIZER_FREQUENCIES,
+  EQUALIZER_MAX_GAIN_DB,
+  EQUALIZER_MIN_GAIN_DB,
+  DEFAULT_EQUALIZER_GAINS,
+} from '../constants';
 import { formatDuration } from '../utils';
 import { useApp, usePlayer } from '../hooks';
 import { audioPlayer, type PlayerEventDetail } from '../services';
@@ -22,8 +28,30 @@ const getFormatColor = (format: string) => {
   }
 };
 
+const formatEqualizerFrequency = (frequency: number): string => {
+  if (frequency >= 1000) {
+    return `${frequency / 1000}k`;
+  }
+
+  return `${frequency}`;
+};
+
+const formatEqualizerGain = (gain: number): string => {
+  if (gain > 0) {
+    return `+${gain} dB`;
+  }
+
+  return `${gain} dB`;
+};
+
 export function PlayerBar({ onQueueClick }: PlayerBarProps) {
-  const { currentPlaylistId, selectPlaylist, playlists } = useApp();
+  const {
+    currentPlaylistId,
+    selectPlaylist,
+    playlists,
+    settings,
+    setEqualizerGains,
+  } = useApp();
   const { playerState, playerActions } = usePlayer();
   const [currentTime, setCurrentTime] = useState(() => audioPlayer.getCurrentTime());
   const [duration, setDuration] = useState(() => audioPlayer.getDuration());
@@ -72,6 +100,8 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
   }, [isDragging, handleSeek]);
 
   const [isVolumePopoverVisible, setIsVolumePopoverVisible] = useState(false);
+  const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
+  const [equalizerGains, setEqualizerGainsState] = useState<number[]>(() => settings.equalizerGains);
   const volumePopoverTimeoutRef = useRef<number | undefined>(undefined);
   const volumeRafRef = useRef<number | null>(null);
   const pendingVolumeRef = useRef<number | null>(null);
@@ -186,9 +216,28 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
     }
   }, [playerState.currentTrack]);
 
+  useEffect(() => {
+    setEqualizerGainsState(settings.equalizerGains);
+  }, [settings.equalizerGains]);
+
   const progressPercent = duration > 0
     ? (currentTime / duration) * 100
     : 0;
+
+  const handleEqualizerChange = (bandIndex: number, gainValue: number) => {
+    setEqualizerGainsState(prev => {
+      const next = [...prev];
+      next[bandIndex] = gainValue;
+      setEqualizerGains(next);
+      return next;
+    });
+  };
+
+  const handleResetEqualizer = () => {
+    const resetGains = [...DEFAULT_EQUALIZER_GAINS];
+    setEqualizerGainsState(resetGains);
+    setEqualizerGains(resetGains);
+  };
 
   return (
     <div className="player-bar">
@@ -308,6 +357,40 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
               onClick={() => playerActions.showAirPlayPicker()}
             />
           )}
+          <div className="player-equalizer">
+            <EqualizerButton
+              active={isEqualizerOpen}
+              onClick={() => setIsEqualizerOpen(prev => !prev)}
+            />
+            {isEqualizerOpen && (
+              <div className="equalizer-popover" role="dialog" aria-label="Equalizer settings">
+                <div className="equalizer-header">
+                  <strong>Equalizer</strong>
+                  <button className="equalizer-reset-button" onClick={handleResetEqualizer}>
+                    Reset
+                  </button>
+                </div>
+                <div className="equalizer-bands">
+                  {EQUALIZER_FREQUENCIES.map((frequency, index) => (
+                    <label className="equalizer-band" key={frequency}>
+                      <span className="equalizer-frequency">{formatEqualizerFrequency(frequency)}</span>
+                      <input
+                        type="range"
+                        min={EQUALIZER_MIN_GAIN_DB}
+                        max={EQUALIZER_MAX_GAIN_DB}
+                        step="1"
+                        value={equalizerGains[index] ?? 0}
+                        aria-label={`${frequency} Hz`}
+                        className="equalizer-slider"
+                        onChange={(e) => handleEqualizerChange(index, parseInt(e.target.value, 10))}
+                      />
+                      <span className="equalizer-gain">{formatEqualizerGain(equalizerGains[index] ?? 0)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <QueueButton
             queueLength={playerState.queue.length}
             onClick={onQueueClick}
@@ -469,6 +552,21 @@ function QueueButton({ queueLength, onClick }: { queueLength: number; onClick: (
           {queueLength > 99 ? '99+' : queueLength}
         </span>
       )}
+    </button>
+  );
+}
+
+function EqualizerButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      className={`icon-button equalizer-btn ${active ? 'active' : ''}`}
+      title="Equalizer"
+      aria-label="Toggle equalizer"
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M4 21h2v-7H4v7zm7 0h2V3h-2v18zm7 0h2v-11h-2v11zM4 10h2V3H4v7zm14-3h2V3h-2v4zm0 14h2v-10h-2v10zM11 9h2V7h-2v2z" />
+      </svg>
     </button>
   );
 }

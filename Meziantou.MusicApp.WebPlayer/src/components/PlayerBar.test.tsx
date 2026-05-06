@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerBar } from './PlayerBar';
+import { DEFAULT_EQUALIZER_GAINS } from '../constants';
 
 const useAppMock = vi.fn();
 const usePlayerMock = vi.fn();
@@ -32,6 +33,10 @@ describe('PlayerBar', () => {
       currentPlaylistId: null,
       selectPlaylist: vi.fn().mockResolvedValue(undefined),
       playlists: [],
+      settings: {
+        equalizerGains: [...DEFAULT_EQUALIZER_GAINS],
+      },
+      setEqualizerGains: vi.fn(),
     });
 
     usePlayerMock.mockReturnValue({
@@ -73,6 +78,28 @@ describe('PlayerBar', () => {
     const element = container.querySelector('[data-testid="player-cover-placeholder-optin"]');
     expect(element).not.toBeNull();
     expect(element).toHaveTextContent('true');
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it('shows 10 equalizer sliders when toggled open', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(<PlayerBar onQueueClick={() => undefined} />);
+    });
+
+    const toggleButton = container.querySelector('button[aria-label="Toggle equalizer"]') as HTMLButtonElement;
+    expect(toggleButton).not.toBeNull();
+
+    act(() => {
+      toggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.querySelectorAll('.equalizer-slider')).toHaveLength(10);
 
     act(() => {
       root.unmount();

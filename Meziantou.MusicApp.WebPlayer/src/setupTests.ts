@@ -53,6 +53,16 @@ class MockAudioContext {
     };
   }
 
+  createBiquadFilter() {
+    return {
+      connect: vi.fn(),
+      gain: { value: 0 },
+      frequency: { value: 0 },
+      Q: { value: 1 },
+      type: 'peaking' as BiquadFilterType,
+    };
+  }
+
   async resume() {
     return undefined;
   }
