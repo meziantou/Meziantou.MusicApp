@@ -150,6 +150,74 @@ public sealed class TranscodingService : IDisposable
         return Path.Combine(_settings.CachePath, fileName);
     }
 
+    public (int DeletedFileCount, int FailedFileCount) CleanupTranscodingCache()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.CachePath))
+        {
+            return (DeletedFileCount: 0, FailedFileCount: 0);
+        }
+
+        if (!Directory.Exists(_settings.CachePath))
+        {
+            return (DeletedFileCount: 0, FailedFileCount: 0);
+        }
+
+        var deletedFileCount = 0;
+        var failedFileCount = 0;
+
+        foreach (var filePath in Directory.EnumerateFiles(_settings.CachePath, "*", SearchOption.TopDirectoryOnly))
+        {
+            var fileName = Path.GetFileName(filePath);
+            if (!IsTranscodingCacheFileName(fileName))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(filePath);
+                deletedFileCount++;
+            }
+            catch (Exception ex)
+            {
+                failedFileCount++;
+                _logger.LogWarning(ex, "Failed to delete transcoding cache file: {Path}", filePath);
+            }
+        }
+
+        return (DeletedFileCount: deletedFileCount, FailedFileCount: failedFileCount);
+    }
+
+    private static bool IsTranscodingCacheFileName(string fileName)
+    {
+        if (fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = fileName[..^4];
+        }
+
+        var extension = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(extension))
+        {
+            return false;
+        }
+
+        var hash = Path.GetFileNameWithoutExtension(fileName);
+        if (hash.Length != 64)
+        {
+            return false;
+        }
+
+        foreach (var character in hash)
+        {
+            if (!char.IsAsciiHexDigit(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static string BuildFFmpegArguments(
         string inputPath,
         string? outputFormat,

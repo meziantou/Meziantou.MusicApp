@@ -61,6 +61,7 @@ interface AppContextValue {
 
   // Library scan
   triggerLibraryScan: (force?: boolean) => Promise<void>;
+  cleanupTranscodingCache: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -844,6 +845,40 @@ function AppDataProvider({ children }: AppProviderProps) {
     }
   }, [isOnline, settings.serverUrl, showToast]);
 
+  const cleanupTranscodingCache = useCallback(async () => {
+    if (!isOnline) {
+      showToast('Cannot clean transcoding cache while offline', 'error');
+      return;
+    }
+
+    if (!settings.serverUrl) {
+      showToast('Server is not configured', 'error');
+      return;
+    }
+
+    try {
+      const api = getApiService();
+      const response = await api.cleanupTranscodingCache();
+
+      if (response.failedFileCount > 0) {
+        showToast(
+          `Transcoding cache cleanup completed (${response.deletedFileCount} deleted, ${response.failedFileCount} failed)`,
+          'error',
+        );
+        return;
+      }
+
+      if (response.deletedFileCount > 0) {
+        showToast(`Transcoding cache cleaned (${response.deletedFileCount} files removed)`, 'success');
+      } else {
+        showToast('Transcoding cache is already clean', 'info');
+      }
+    } catch (error) {
+      console.error('Failed to clean transcoding cache:', error);
+      showToast('Failed to clean transcoding cache', 'error');
+    }
+  }, [isOnline, settings.serverUrl, showToast]);
+
   const syncPlaylists = useCallback(async () => {
     await syncPlaylistsInternal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -980,6 +1015,7 @@ function AppDataProvider({ children }: AppProviderProps) {
     removeTrackFromPlaylist,
     testConnection,
     triggerLibraryScan,
+    cleanupTranscodingCache,
   }), [
     settings,
     updateSettings,
@@ -1009,6 +1045,7 @@ function AppDataProvider({ children }: AppProviderProps) {
     removeTrackFromPlaylist,
     testConnection,
     triggerLibraryScan,
+    cleanupTranscodingCache,
   ]);
 
   return (

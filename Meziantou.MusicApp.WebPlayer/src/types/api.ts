@@ -100,6 +100,11 @@ export interface ScanStatusResponse {
   invalidPlaylists: InvalidPlaylistInfo[];
 }
 
+export interface CacheCleanupResponse {
+  deletedFileCount: number;
+  failedFileCount: number;
+}
+
 export interface ErrorResponse {
   error: string;
 }

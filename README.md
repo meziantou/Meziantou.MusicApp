@@ -10,7 +10,7 @@ A dual-API music server supporting both **Subsonic** and **Jellyfin** protocols.
 - Dual API support (Subsonic & Jellyfin)
 - On-the-fly transcoding with FFmpeg
 - ReplayGain support
-- Read-only API surface with manual library rescan support
+- Read-only API surface with manual library rescan and transcoding cache cleanup support
 
 ### [Meziantou.MusicApp.WebPlayer](Meziantou.MusicApp.WebPlayer/README.md)
 

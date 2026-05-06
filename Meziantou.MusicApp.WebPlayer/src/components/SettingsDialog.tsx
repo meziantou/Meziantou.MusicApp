@@ -28,12 +28,13 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsDialogProps) {
-  const { settings, updateSettings, testConnection, triggerLibraryScan, isOnline } = useApp();
+  const { settings, updateSettings, testConnection, triggerLibraryScan, cleanupTranscodingCache, isOnline } = useApp();
   const { checkForUpdate, needRefresh, updateServiceWorker } = useServiceWorkerUpdate();
 
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'force-scanning'>('idle');
+  const [cacheCleanupStatus, setCacheCleanupStatus] = useState<'idle' | 'cleaning'>('idle');
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'error'>('idle');
   const settingsRef = useRef(settings);
   const prevIsOpenRef = useRef(isOpen);
@@ -84,6 +85,15 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
       await triggerLibraryScan(true);
     } finally {
       setScanStatus('idle');
+    }
+  };
+
+  const handleCleanupTranscodingCache = async () => {
+    setCacheCleanupStatus('cleaning');
+    try {
+      await cleanupTranscodingCache();
+    } finally {
+      setCacheCleanupStatus('idle');
     }
   };
 
@@ -387,6 +397,16 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                   style={{ width: '100%' }}
                 >
                   Cache Diagnostics
+                </button>
+              </div>
+              <div className="form-group">
+                <button
+                  className="secondary-button"
+                  onClick={handleCleanupTranscodingCache}
+                  disabled={cacheCleanupStatus !== 'idle'}
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {cacheCleanupStatus === 'cleaning' ? 'Cleaning...' : 'Clean Transcoding Cache'}
                 </button>
               </div>
             </section>

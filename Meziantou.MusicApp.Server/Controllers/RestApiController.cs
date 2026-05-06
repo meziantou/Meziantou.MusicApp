@@ -390,6 +390,19 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
         });
     }
 
+    /// <summary>Delete cached transcoded files</summary>
+    [HttpPost("cache/transcoding/cleanup.json")]
+    [ProducesResponseType<CacheCleanupResponse>(StatusCodes.Status200OK)]
+    public ActionResult<CacheCleanupResponse> CleanupTranscodingCache()
+    {
+        var result = transcoding.CleanupTranscodingCache();
+        return Ok(new CacheCleanupResponse
+        {
+            DeletedFileCount = result.DeletedFileCount,
+            FailedFileCount = result.FailedFileCount,
+        });
+    }
+
     /// <summary>Get lyrics for a song</summary>
     [HttpGet("songs/{id}/lyrics.json")]
     [ProducesResponseType<LyricsResponse>(StatusCodes.Status200OK)]

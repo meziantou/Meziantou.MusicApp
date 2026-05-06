@@ -9,7 +9,7 @@ This project is a music streaming server that supports both Subsonic and Jellyfi
 - ID3 tag reading using Meziantou.Framework.MediaTags
 - Lyrics support from file metadata
 - Cover art extraction from files or folders
-- Read-only API surface (except manual library rescan endpoint)
+- Read-only API surface (except manual library rescan and transcoding cache cleanup endpoints)
 - Token values are accepted without validation
 - Audio transcoding with FFmpeg support
 - ReplayGain Support: Read and compute ReplayGain for volume normalization
