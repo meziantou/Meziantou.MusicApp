@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+// Enable React act() support for createRoot-based tests.
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 // Mock HTMLMediaElement
 Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
   configurable: true,

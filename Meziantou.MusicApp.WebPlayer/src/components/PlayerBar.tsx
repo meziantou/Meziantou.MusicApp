@@ -199,6 +199,7 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
           className="player-cover"
           alt=""
           onClick={handleCoverClick}
+          showPlaceholderWhenHidden
         />
         <div className="player-track-details">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>

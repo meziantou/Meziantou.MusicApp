@@ -40,6 +40,7 @@ interface CoverImageProps {
   className?: string;
   alt?: string;
   onClick?: () => void;
+  showPlaceholderWhenHidden?: boolean;
 }
 
 export function CoverImage({
@@ -48,6 +49,7 @@ export function CoverImage({
   className = '',
   alt = '',
   onClick,
+  showPlaceholderWhenHidden = false,
 }: CoverImageProps) {
   const { cachedTrackIds, settings } = useApp();
   const [coverSrc, setCoverSrc] = useState(COVER_PLACEHOLDER_DATA_URI);
@@ -148,7 +150,7 @@ export function CoverImage({
     };
   }, [trackId, size, isTrackCached, settings.hideCoverArt]);
 
-  if (settings.hideCoverArt) {
+  if (settings.hideCoverArt && !showPlaceholderWhenHidden) {
     return null;
   }
 
