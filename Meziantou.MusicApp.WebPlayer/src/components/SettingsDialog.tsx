@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AppSettings, StreamingQuality, ReplayGainMode } from '../types';
 import { DEFAULT_SETTINGS } from '../constants';
-import { useApp } from '../hooks';
+import { useApp, useServiceWorkerUpdate } from '../hooks';
 
 const QUALITY_OPTIONS: { label: string; value: StreamingQuality }[] = [
   { label: 'Original (Raw)', value: { format: 'raw' } },
@@ -28,11 +28,14 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsDialogProps) {
-  const { settings, updateSettings, testConnection, triggerLibraryScan } = useApp();
+  const { settings, updateSettings, testConnection, triggerLibraryScan, cleanupTranscodingCache, isOnline } = useApp();
+  const { checkForUpdate, needRefresh, updateServiceWorker } = useServiceWorkerUpdate();
 
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'force-scanning'>('idle');
+  const [cacheCleanupStatus, setCacheCleanupStatus] = useState<'idle' | 'cleaning'>('idle');
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'error'>('idle');
   const settingsRef = useRef(settings);
   const prevIsOpenRef = useRef(isOpen);
 
@@ -83,6 +86,29 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     } finally {
       setScanStatus('idle');
     }
+  };
+
+  const handleCleanupTranscodingCache = async () => {
+    setCacheCleanupStatus('cleaning');
+    try {
+      await cleanupTranscodingCache();
+    } finally {
+      setCacheCleanupStatus('idle');
+    }
+  };
+
+  const handleCheckForUpdate = async () => {
+    setUpdateStatus('checking');
+    try {
+      const ok = await checkForUpdate();
+      setUpdateStatus(ok ? 'up-to-date' : 'error');
+    } catch {
+      setUpdateStatus('error');
+    }
+  };
+
+  const handleApplyUpdate = () => {
+    updateServiceWorker(true);
   };
 
   const handleSave = async () => {
@@ -250,6 +276,18 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
               </label>
               <small>Hide the offline availability icon in the track list</small>
             </div>
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="disable-playing-animation"
+                  checked={formData.disablePlayingAnimation}
+                  onChange={(e) => handleInputChange('disablePlayingAnimation', e.target.checked)}
+                />
+                Disable Playing Track Animation
+              </label>
+              <small>Hide the animated bars that indicate the currently playing track. Reduces background CPU.</small>
+            </div>
           </section>
 
           <section className="settings-section">
@@ -299,6 +337,36 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
             </div>
           </section>
 
+          <section className="settings-section">
+            <h3>Updates</h3>
+            <div className="form-group">
+              <button
+                className="secondary-button"
+                onClick={handleCheckForUpdate}
+                disabled={updateStatus === 'checking' || !isOnline}
+                style={{ width: '100%', marginBottom: '8px' }}
+              >
+                {updateStatus === 'checking' ? 'Checking…' : 'Check for Updates'}
+              </button>
+              <small>
+                {!isOnline && 'Offline — connect to check for updates.'}
+                {isOnline && updateStatus === 'idle' && 'The app checks automatically every hour while visible.'}
+                {isOnline && updateStatus === 'up-to-date' && !needRefresh && '✓ App is up to date.'}
+                {isOnline && updateStatus === 'error' && '✗ Update check failed.'}
+                {needRefresh && 'A new version is available.'}
+              </small>
+              {needRefresh && (
+                <button
+                  className="primary-button"
+                  onClick={handleApplyUpdate}
+                  style={{ width: '100%', marginTop: '8px' }}
+                >
+                  Reload to Apply Update
+                </button>
+              )}
+            </div>
+          </section>
+
           {onOpenDiagnostics && (
             <section className="settings-section">
               <h3>Advanced</h3>
@@ -329,6 +397,16 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                   style={{ width: '100%' }}
                 >
                   Cache Diagnostics
+                </button>
+              </div>
+              <div className="form-group">
+                <button
+                  className="secondary-button"
+                  onClick={handleCleanupTranscodingCache}
+                  disabled={cacheCleanupStatus !== 'idle'}
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {cacheCleanupStatus === 'cleaning' ? 'Cleaning...' : 'Clean Transcoding Cache'}
                 </button>
               </div>
             </section>

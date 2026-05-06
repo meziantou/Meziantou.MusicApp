@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { TrackInfo, RepeatMode, QueueItem, StreamingQuality, ReplayGainMode, PlaybackState } from '../types';
 import { audioPlayer, type PlayerEventType, type PlayerEventDetail } from '../services';
 
@@ -6,7 +6,6 @@ export interface AudioPlayerState {
   currentTrack: TrackInfo | null;
   currentQuality: StreamingQuality | null;
   isPlaying: boolean;
-  currentTime: number;
   duration: number;
   volume: number;
   isMuted: boolean;
@@ -56,7 +55,6 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     currentTrack: audioPlayer.getCurrentTrack(),
     currentQuality: audioPlayer.getCurrentQuality(),
     isPlaying: audioPlayer.isPlaying(),
-    currentTime: audioPlayer.getCurrentTime(),
     duration: audioPlayer.getDuration(),
     volume: audioPlayer.getVolume(),
     isMuted: audioPlayer.getIsMuted(),
@@ -70,8 +68,6 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     isAirPlayActive: audioPlayer.isAirPlayActive(),
   });
 
-  const timeUpdateThrottleRef = useRef<number>(0);
-
   useEffect(() => {
     const handlers: { event: PlayerEventType; handler: (detail: PlayerEventDetail) => void }[] = [
       {
@@ -81,20 +77,6 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
       {
         event: 'pause',
         handler: () => setState(prev => ({ ...prev, isPlaying: false })),
-      },
-      {
-        event: 'timeupdate',
-        handler: (detail) => {
-          const now = Date.now();
-          if (now - timeUpdateThrottleRef.current > 250) {
-            timeUpdateThrottleRef.current = now;
-            setState(prev => ({
-              ...prev,
-              currentTime: detail.currentTime ?? prev.currentTime,
-              duration: detail.duration ?? prev.duration,
-            }));
-          }
-        },
       },
       {
         event: 'durationchange',
@@ -121,11 +103,16 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
       },
       {
         event: 'queuechange',
-        handler: () => setState(prev => ({
-          ...prev,
-          queue: audioPlayer.getQueue(),
-          lookaheadQueue: audioPlayer.getLookaheadQueue()
-        })),
+        handler: () => setState(prev => {
+          const queue = audioPlayer.getQueue();
+          const lookaheadQueue = audioPlayer.getLookaheadQueue();
+          // PlayQueueService returns stable references when nothing changed —
+          // bail out of the setState to skip the AppContext fanout entirely.
+          if (prev.queue === queue && prev.lookaheadQueue === lookaheadQueue) {
+            return prev;
+          }
+          return { ...prev, queue, lookaheadQueue };
+        }),
       },
       {
         event: 'loadstart',

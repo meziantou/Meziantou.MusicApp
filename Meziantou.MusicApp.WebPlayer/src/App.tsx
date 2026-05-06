@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { AppProvider, useApp } from './hooks';
+import { AppProvider, useApp, usePlayer } from './hooks';
 import { audioPlayer } from './services';
 import type { TrackInfo } from './types';
 import {
@@ -26,7 +26,8 @@ interface PlayerMenuControlPayload {
 }
 
 function AppContent() {
-  const { isLoading, settings, isInitialized, playerState, playerActions } = useApp();
+  const { isLoading, settings, isInitialized } = useApp();
+  const { playerState, playerActions } = usePlayer();
   const tauriApp = isTauriApp();
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -122,12 +123,12 @@ function AppContent() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const action = url.searchParams.get('action');
-    
+
     if (action) {
       // Remove the action parameter from URL to avoid repeated execution
       url.searchParams.delete('action');
       window.history.replaceState({}, '', url.toString());
-      
+
       // Execute the shortcut action
       switch (action) {
         case 'play':
@@ -255,18 +256,18 @@ function AppContent() {
         <QueuePanel isOpen={queueOpen} onClose={() => setQueueOpen(false)} />
       </div>
 
-      <SettingsDialog 
-        isOpen={settingsOpen} 
-        onClose={() => setSettingsOpen(false)} 
+      <SettingsDialog
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
         onOpenDiagnostics={() => {
           setSettingsOpen(false);
           setDiagnosticsOpen(true);
         }}
       />
 
-      <CacheDiagnosticsDialog 
-        isOpen={diagnosticsOpen} 
-        onClose={() => setDiagnosticsOpen(false)} 
+      <CacheDiagnosticsDialog
+        isOpen={diagnosticsOpen}
+        onClose={() => setDiagnosticsOpen(false)}
       />
 
       <SongDetailsDialog

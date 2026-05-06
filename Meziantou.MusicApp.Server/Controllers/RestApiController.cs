@@ -160,6 +160,7 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
                 format,
                 maxBitRate,
                 timeOffset,
+                song.FileLastWriteTimeUtc,
                 cancellationToken);
 
             var contentType = format switch
@@ -386,6 +387,19 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
                 Path = p.Path,
                 ErrorMessage = p.ErrorMessage,
             }).ToList(),
+        });
+    }
+
+    /// <summary>Delete cached transcoded files</summary>
+    [HttpPost("cache/transcoding/cleanup.json")]
+    [ProducesResponseType<CacheCleanupResponse>(StatusCodes.Status200OK)]
+    public ActionResult<CacheCleanupResponse> CleanupTranscodingCache()
+    {
+        var result = transcoding.CleanupTranscodingCache();
+        return Ok(new CacheCleanupResponse
+        {
+            DeletedFileCount = result.DeletedFileCount,
+            FailedFileCount = result.FailedFileCount,
         });
     }
 

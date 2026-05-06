@@ -28,6 +28,7 @@ public sealed class TranscodingService : IDisposable
         string? outputFormat = null,
         int? maxBitRate = null,
         int? timeOffset = null,
+        DateTime? sourceLastWriteTimeUtc = null,
         CancellationToken cancellationToken = default)
     {
         string? cacheFilePath = null;
@@ -36,11 +37,23 @@ public sealed class TranscodingService : IDisposable
             cacheFilePath = GetCacheFilePath(inputPath, outputFormat, maxBitRate);
             if (File.Exists(cacheFilePath))
             {
-                _logger.LogInformation("Serving from cache: {CachePath}", cacheFilePath);
                 try
                 {
-                    // File.SetLastAccessTimeUtc(cacheFilePath, DateTime.UtcNow);
-                    return new FileStream(cacheFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+                    if (!sourceLastWriteTimeUtc.HasValue)
+                    {
+                        _logger.LogInformation("Ignoring cache because source timestamp is missing: {CachePath}", cacheFilePath);
+                    }
+                    else if (!IsCacheFileFresh(sourceLastWriteTimeUtc.Value, cacheFilePath))
+                    {
+                        _logger.LogInformation("Ignoring stale cache: {CachePath}", cacheFilePath);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Serving from cache: {CachePath}", cacheFilePath);
+
+                        // File.SetLastAccessTimeUtc(cacheFilePath, DateTime.UtcNow);
+                        return new FileStream(cacheFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -111,12 +124,98 @@ public sealed class TranscodingService : IDisposable
         }
     }
 
+    private bool IsCacheFileFresh(DateTime sourceLastWriteTimeUtc, string cacheFilePath)
+    {
+        var cacheLastWriteTimeUtc = File.GetLastWriteTimeUtc(cacheFilePath);
+
+        if (cacheLastWriteTimeUtc < sourceLastWriteTimeUtc)
+        {
+            _logger.LogInformation(
+                "Cached transcoded file is stale. Cache: {CachePath}, CacheLastWriteTimeUtc: {CacheLastWriteTimeUtc}, SourceLastWriteTimeUtc: {SourceLastWriteTimeUtc}",
+                cacheFilePath,
+                cacheLastWriteTimeUtc,
+                sourceLastWriteTimeUtc);
+
+            return false;
+        }
+
+        return true;
+    }
+
     private string GetCacheFilePath(string inputPath, string? outputFormat, int? maxBitRate)
     {
         var key = $"{inputPath}|{outputFormat}|{maxBitRate?.ToString(CultureInfo.InvariantCulture)}";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         var fileName = $"{hash}.{outputFormat ?? "mp3"}";
         return Path.Combine(_settings.CachePath, fileName);
+    }
+
+    public (int DeletedFileCount, int FailedFileCount) CleanupTranscodingCache()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.CachePath))
+        {
+            return (DeletedFileCount: 0, FailedFileCount: 0);
+        }
+
+        if (!Directory.Exists(_settings.CachePath))
+        {
+            return (DeletedFileCount: 0, FailedFileCount: 0);
+        }
+
+        var deletedFileCount = 0;
+        var failedFileCount = 0;
+
+        foreach (var filePath in Directory.EnumerateFiles(_settings.CachePath, "*", SearchOption.TopDirectoryOnly))
+        {
+            var fileName = Path.GetFileName(filePath);
+            if (!IsTranscodingCacheFileName(fileName))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(filePath);
+                deletedFileCount++;
+            }
+            catch (Exception ex)
+            {
+                failedFileCount++;
+                _logger.LogWarning(ex, "Failed to delete transcoding cache file: {Path}", filePath);
+            }
+        }
+
+        return (DeletedFileCount: deletedFileCount, FailedFileCount: failedFileCount);
+    }
+
+    private static bool IsTranscodingCacheFileName(string fileName)
+    {
+        if (fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = fileName[..^4];
+        }
+
+        var extension = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(extension))
+        {
+            return false;
+        }
+
+        var hash = Path.GetFileNameWithoutExtension(fileName);
+        if (hash.Length != 64)
+        {
+            return false;
+        }
+
+        foreach (var character in hash)
+        {
+            if (!char.IsAsciiHexDigit(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string BuildFFmpegArguments(

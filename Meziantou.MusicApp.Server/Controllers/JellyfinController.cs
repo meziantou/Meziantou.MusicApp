@@ -285,6 +285,7 @@ public class JellyfinController : ControllerBase
                 targetFormat,
                 targetBitRate,
                 null,
+                song.FileLastWriteTimeUtc,
                 HttpContext.RequestAborted);
 #pragma warning restore CA2000
 

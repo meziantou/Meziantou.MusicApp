@@ -128,6 +128,7 @@ public sealed class MusicCatalog
                     BitRate = serializableSong.BitRate == 0 ? null : serializableSong.BitRate,
                     Size = serializableSong.FileSize,
                     Created = serializableSong.FileCreatedAt,
+                    FileLastWriteTimeUtc = serializableSong.FileLastWriteTime,
                     Suffix = Path.GetExtension(serializableSong.RelativePath).TrimStart('.').ToLowerInvariant(),
                     ContentType = GetContentType(Path.GetExtension(serializableSong.RelativePath)),
                     Lyrics = lyrics,

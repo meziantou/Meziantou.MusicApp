@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import type {
   AppSettings,
   PlaylistSummary,
@@ -10,11 +10,10 @@ import {
   initApiService,
   getApiService,
   storageService,
-  audioPlayer,
   downloadService,
 } from '../services';
 import { getNetworkType } from '../utils';
-import { useAudioPlayer, type AudioPlayerState, type AudioPlayerActions } from './useAudioPlayer';
+import { PlayerProvider, usePlayer } from './usePlayer';
 
 interface AppContextValue {
   // Settings
@@ -47,10 +46,6 @@ interface AppContextValue {
   startPlaylistCaching: (playlistId: string) => Promise<void>;
   stopPlaylistCaching: (playlistId: string) => Promise<void>;
 
-  // Audio player
-  playerState: AudioPlayerState;
-  playerActions: AudioPlayerActions;
-
   // UI state
   isLoading: boolean;
   isInitialized: boolean;
@@ -64,11 +59,9 @@ interface AppContextValue {
   // Test connection
   testConnection: () => Promise<boolean>;
 
-  // Playing state
-  playingPlaylistId: string | null;
-
   // Library scan
   triggerLibraryScan: (force?: boolean) => Promise<void>;
+  cleanupTranscodingCache: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -84,6 +77,14 @@ interface AppProviderProps {
 }
 
 export function AppProvider({ children }: AppProviderProps) {
+  return (
+    <PlayerProvider>
+      <AppDataProvider>{children}</AppDataProvider>
+    </PlayerProvider>
+  );
+}
+
+function AppDataProvider({ children }: AppProviderProps) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
@@ -104,9 +105,8 @@ export function AppProvider({ children }: AppProviderProps) {
   const isLoading = loadingCount > 0;
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [playingPlaylistId, setPlayingPlaylistId] = useState<string | null>(null);
 
-  const [playerState, playerActions] = useAudioPlayer();
+  const { playerActions } = usePlayer();
 
   const setIsLoading = useCallback((loading: boolean) => {
     setLoadingCount(prev => Math.max(0, prev + (loading ? 1 : -1)));
@@ -270,7 +270,7 @@ export function AppProvider({ children }: AppProviderProps) {
              }
 
              if (tracks.length > 0) {
-                 setPlayingPlaylistId(state.currentPlaylistId);
+                 // playingPlaylistId is derived from queuechange/trackchange in PlayerProvider.
                  playerActions.setPlaylist(state.currentPlaylistId, tracks, state.shuffleOrder);
 
                  // Find the correct track index using the track ID for more reliable restoration
@@ -390,24 +390,26 @@ export function AppProvider({ children }: AppProviderProps) {
     return unsubscribe;
   }, [showToast]);
 
-  // Track change handler - update playing playlist
+  // Refresh playlists when app becomes visible, and reflect visibility on
+  // <html data-hidden> so CSS can pause infinite animations off-screen.
   useEffect(() => {
-    const handler = () => {
-      const playlistId = playerActions.getCurrentPlaylistId();
-      setPlayingPlaylistId(playlistId);
+    const applyHiddenAttr = () => {
+      const root = document.documentElement;
+      if (document.hidden) {
+        root.setAttribute('data-hidden', 'true');
+      } else {
+        root.removeAttribute('data-hidden');
+      }
     };
-    audioPlayer.on('trackchange', handler);
-    return () => audioPlayer.off('trackchange', handler);
-  }, [playerActions]);
 
-  // Refresh playlists when app becomes visible
-  useEffect(() => {
     const handleVisibilityChange = () => {
+      applyHiddenAttr();
       if (!document.hidden && isOnline && settings.serverUrl) {
         syncPlaylistsInternal();
       }
     };
 
+    applyHiddenAttr();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isOnline, settings.serverUrl]);
@@ -742,8 +744,8 @@ export function AppProvider({ children }: AppProviderProps) {
     playerActions.setQuality(quality);
 
     playerActions.setPlaylist(currentPlaylistId, tracks || currentPlaylistTracks);
-    setPlayingPlaylistId(currentPlaylistId);
     await playerActions.playTrack(_track);
+    // playingPlaylistId is updated via the trackchange event in PlayerProvider
   }, [currentPlaylistId, currentPlaylistTracks, settings, playerActions]);
 
   const downloadTrack = useCallback(async (track: TrackInfo) => {
@@ -840,6 +842,40 @@ export function AppProvider({ children }: AppProviderProps) {
     } catch (error) {
       console.error('Failed to trigger library scan:', error);
       showToast(force ? 'Failed to trigger force library scan' : 'Failed to trigger library scan', 'error');
+    }
+  }, [isOnline, settings.serverUrl, showToast]);
+
+  const cleanupTranscodingCache = useCallback(async () => {
+    if (!isOnline) {
+      showToast('Cannot clean transcoding cache while offline', 'error');
+      return;
+    }
+
+    if (!settings.serverUrl) {
+      showToast('Server is not configured', 'error');
+      return;
+    }
+
+    try {
+      const api = getApiService();
+      const response = await api.cleanupTranscodingCache();
+
+      if (response.failedFileCount > 0) {
+        showToast(
+          `Transcoding cache cleanup completed (${response.deletedFileCount} deleted, ${response.failedFileCount} failed)`,
+          'error',
+        );
+        return;
+      }
+
+      if (response.deletedFileCount > 0) {
+        showToast(`Transcoding cache cleaned (${response.deletedFileCount} files removed)`, 'success');
+      } else {
+        showToast('Transcoding cache is already clean', 'info');
+      }
+    } catch (error) {
+      console.error('Failed to clean transcoding cache:', error);
+      showToast('Failed to clean transcoding cache', 'error');
     }
   }, [isOnline, settings.serverUrl, showToast]);
 
@@ -950,7 +986,7 @@ export function AppProvider({ children }: AppProviderProps) {
     showToast('Removed offline playlist');
   }, [playlists, showToast]);
 
-  const value: AppContextValue = {
+  const value = useMemo<AppContextValue>(() => ({
     settings,
     updateSettings,
     playlists,
@@ -971,8 +1007,6 @@ export function AppProvider({ children }: AppProviderProps) {
     playlistDownloadProgress,
     startPlaylistCaching,
     stopPlaylistCaching,
-    playerState,
-    playerActions,
     isLoading,
     isInitialized,
     showToast,
@@ -980,9 +1014,39 @@ export function AppProvider({ children }: AppProviderProps) {
     addTrackToPlaylist,
     removeTrackFromPlaylist,
     testConnection,
-    playingPlaylistId,
     triggerLibraryScan,
-  };
+    cleanupTranscodingCache,
+  }), [
+    settings,
+    updateSettings,
+    playlists,
+    currentPlaylistId,
+    currentPlaylistTracks,
+    selectPlaylist,
+    syncPlaylists,
+    createPlaylist,
+    deletePlaylist,
+    invalidPlaylists,
+    isOnline,
+    networkType,
+    cachedTrackIds,
+    downloadTrack,
+    deleteDownloadedTrack,
+    clearAllCachedTracks,
+    offlinePlaylistIds,
+    playlistDownloadProgress,
+    startPlaylistCaching,
+    stopPlaylistCaching,
+    isLoading,
+    isInitialized,
+    showToast,
+    playTrack,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
+    testConnection,
+    triggerLibraryScan,
+    cleanupTranscodingCache,
+  ]);
 
   return (
     <AppContext.Provider value={value}>

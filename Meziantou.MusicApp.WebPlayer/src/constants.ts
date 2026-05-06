@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideTrackIndex: false,
   hideTrackDuration: false,
   hideTrackCacheStatus: false,
+  disablePlayingAnimation: false,
   replayGainMode: 'off',
   replayGainPreamp: 0,
   showReplayGainWarning: true

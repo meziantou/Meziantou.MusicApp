@@ -78,6 +78,11 @@ export class AudioPlayerService {
   private eventListeners: Map<PlayerEventType, Set<PlayerEventCallback>> = new Map();
   private saveStateDebounced: ReturnType<typeof setTimeout> | null = null;
   private lastSaveTime: number = 0;
+  private static readonly SAVE_INTERVAL_VISIBLE_MS = 5000;
+  private static readonly SAVE_INTERVAL_HIDDEN_MS = 15000;
+  private visibilityListenerAttached: boolean = false;
+  private onVisibilityChange: (() => void) | null = null;
+  private onPageHide: (() => void) | null = null;
 
   // Recently played tracks for filtering out recently heard songs from the queue
   private recentlyPlayedIds: Set<string> = new Set();
@@ -93,6 +98,7 @@ export class AudioPlayerService {
     this.updateAirPlayStateFromAudio(this.audioInstance.audio);
     this.setupAudioEvents(this.audioInstance);
     this.setupMediaSession();
+    this.setupVisibilityHandling();
     this.queueService = new PlayQueueService({
       currentPlaylistId: null,
       playlist: [],
@@ -167,14 +173,24 @@ export class AudioPlayerService {
     audio.addEventListener('pause', () => {
       this.scheduleIdleRelease();
       this.emit('pause', {});
+      // Force-flush so the latest position is durable when the user pauses,
+      // even if the throttle window has not elapsed yet.
+      this.flushState();
     });
 
     audio.addEventListener('timeupdate', () => {
-      this.emit('timeupdate', {
-        currentTime: audio.currentTime,
-        duration: audio.duration
-      });
-      this.saveStateThrottled();
+      const isHidden = typeof document !== 'undefined' && document.hidden;
+
+      // Skip the React fanout when the tab is hidden — PlayerBar resyncs on
+      // visibilitychange. Keep the cheap scrobble + preload checks running.
+      if (!isHidden) {
+        this.emit('timeupdate', {
+          currentTime: audio.currentTime,
+          duration: audio.duration
+        });
+      }
+
+      this.saveStateThrottled(isHidden);
 
       if (!this.hasScrobbled && this.currentTrack && audio.duration > 0) {
         const progress = audio.currentTime / audio.duration;
@@ -197,9 +213,8 @@ export class AudioPlayerService {
       this.emit('error', { error });
     });
 
-    audio.addEventListener('volumechange', () => {
-      this.emit('volumechange', { volume: this.masterVolume });
-    });
+    // Volume changes are emitted explicitly from setVolume/setMuted/applyOutputVolume.
+    // The audio element's native 'volumechange' event would double-emit here.
 
     audio.addEventListener('durationchange', () => {
       this.emit('durationchange', { duration: audio.duration });
@@ -275,6 +290,58 @@ export class AudioPlayerService {
     });
   }
 
+  private setupVisibilityHandling(): void {
+    if (typeof document === 'undefined') return;
+    if (this.visibilityListenerAttached) return;
+
+    this.onVisibilityChange = () => {
+      if (document.hidden) {
+        // Force the latest position to durable storage as the user backgrounds the app.
+        this.flushState();
+      } else {
+        // Resync any UI subscribers that suppressed updates while we were hidden.
+        this.emit('timeupdate', {
+          currentTime: this.audio.currentTime,
+          duration: this.audio.duration
+        });
+      }
+    };
+
+    this.onPageHide = () => {
+      this.flushState();
+    };
+
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', this.onPageHide);
+    }
+    this.visibilityListenerAttached = true;
+  }
+
+  private teardownVisibilityHandling(): void {
+    if (!this.visibilityListenerAttached) return;
+    if (typeof document !== 'undefined' && this.onVisibilityChange) {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    if (typeof window !== 'undefined' && this.onPageHide) {
+      window.removeEventListener('pagehide', this.onPageHide);
+    }
+    this.onVisibilityChange = null;
+    this.onPageHide = null;
+    this.visibilityListenerAttached = false;
+  }
+
+  private flushState(): void {
+    if (this.saveStateDebounced) {
+      clearTimeout(this.saveStateDebounced);
+      this.saveStateDebounced = null;
+    }
+    // Fire and forget — the IDB transaction can complete while the tab unloads.
+    this.saveState().catch(() => {
+      /* swallow: we're tearing down or backgrounded */
+    });
+  }
+
   private updateMediaSession(): void {
     if (!('mediaSession' in navigator) || !this.currentTrack) return;
 
@@ -343,14 +410,16 @@ export class AudioPlayerService {
 
     gainNode.gain.value = appliedGain;
 
-    console.log(`Playing track: ${track.title} - ${track.artists}`, {
-      replayGainMode: this.replayGainMode,
-      trackGain: track.replayGainTrackGain,
-      albumGain: track.replayGainAlbumGain,
-      usedGain: gainDb,
-      preamp: this.replayGainPreamp,
-      appliedGain: appliedGain
-    });
+    if (import.meta.env.DEV) {
+      console.log(`Playing track: ${track.title} - ${track.artists}`, {
+        replayGainMode: this.replayGainMode,
+        trackGain: track.replayGainTrackGain,
+        albumGain: track.replayGainAlbumGain,
+        usedGain: gainDb,
+        preamp: this.replayGainPreamp,
+        appliedGain: appliedGain
+      });
+    }
   }
 
   private async handleScrobble(trackId: string, submission: boolean): Promise<void> {
@@ -413,6 +482,14 @@ export class AudioPlayerService {
     this.isPreloading = false;
 
     this.isIdleReleased = true;
+
+    // Suspend the AudioContext so it doesn't keep its render thread alive
+    // through the idle period. play() already resumes a suspended context.
+    if (this.audioContext && this.audioContext.state === 'running') {
+      this.audioContext.suspend().catch(() => {
+        /* ignore — we'll try again on resume */
+      });
+    }
   }
 
   private async restoreFromIdleReleaseIfNeeded(): Promise<void> {
@@ -434,6 +511,11 @@ export class AudioPlayerService {
 
   private checkForPreload(): void {
     if (this.isPreloading || this.preloadedTrack) return;
+
+    // Don't preload while the tab is hidden — a second audio Blob in memory
+    // is wasted weight when the user isn't watching. The next track will be
+    // fetched on demand when it becomes current.
+    if (typeof document !== 'undefined' && document.hidden) return;
 
     const duration = this.audio.duration;
     const currentTime = this.audio.currentTime;
@@ -675,9 +757,12 @@ export class AudioPlayerService {
     this.saveStateDebounced = setTimeout(() => this.saveState(), 1000);
   }
 
-  private saveStateThrottled(): void {
+  private saveStateThrottled(isHidden: boolean = false): void {
+    const interval = isHidden
+      ? AudioPlayerService.SAVE_INTERVAL_HIDDEN_MS
+      : AudioPlayerService.SAVE_INTERVAL_VISIBLE_MS;
     const now = Date.now();
-    if (now - this.lastSaveTime >= 1000) {
+    if (now - this.lastSaveTime >= interval) {
       this.saveState();
     }
   }
@@ -866,14 +951,16 @@ export class AudioPlayerService {
     this.updatePositionState();
   }
 
-  private linearToLogarithmic(linear: number): number {
-    // Convert linear slider value (0-2) to logarithmic gain value
-    // Using exponential curve: gain = linear^2 for smoother control at lower volumes
-    return linear * linear;
+  private linearToPerceptual(volume: number): number {
+    // Map slider value to amplitude using a -10 dB per halving curve so the
+    // slider percentage matches perceived loudness:
+    //   100% -> 1.0 (0 dB), 50% -> ~0.316 (-10 dB), 25% -> ~0.1 (-20 dB), 200% -> ~3.16 (+10 dB).
+    if (volume <= 0) return 0;
+    return Math.pow(volume, Math.log2(10) / 2);
   }
 
   private applyOutputVolume(): void {
-    const gainValue = this.linearToLogarithmic(this.masterVolume);
+    const gainValue = this.linearToPerceptual(this.masterVolume);
 
     if (this.masterGainNode) {
       // Keep the media element at full volume when using Web Audio gain to avoid compounding attenuation.
@@ -1109,7 +1196,18 @@ export class AudioPlayerService {
     this.eventListeners.clear();
     if (this.saveStateDebounced) {
       clearTimeout(this.saveStateDebounced);
+      this.saveStateDebounced = null;
     }
+    this.cancelIdleRelease();
+    if (this.preloadAbortController) {
+      this.preloadAbortController.abort();
+      this.preloadAbortController = null;
+    }
+    if (this.preloadBlobUrl) {
+      URL.revokeObjectURL(this.preloadBlobUrl);
+      this.preloadBlobUrl = null;
+    }
+    this.teardownVisibilityHandling();
   }
 }
 

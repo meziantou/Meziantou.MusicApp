@@ -230,8 +230,11 @@ describe('AudioPlayerService Queue Logic', () => {
     it('should reset media element volume when AudioContext is initialized', async () => {
       player.setVolume(0.3);
 
+      // Perceptual curve: amplitude = volume ^ (log2(10) / 2)
+      const expectedAmplitude = Math.pow(0.3, Math.log2(10) / 2);
+
       const audioBeforePlay = (player as any).audioInstance.audio as HTMLAudioElement;
-      expect(audioBeforePlay.volume).toBeCloseTo(0.09, 5);
+      expect(audioBeforePlay.volume).toBeCloseTo(expectedAmplitude, 5);
 
       await player.play();
 
@@ -239,7 +242,7 @@ describe('AudioPlayerService Queue Logic', () => {
       expect(audioAfterPlay.volume).toBe(1);
 
       const gainNode = (player as any).masterGainNode as GainNode;
-      expect(gainNode.gain.value).toBeCloseTo(0.09, 5);
+      expect(gainNode.gain.value).toBeCloseTo(expectedAmplitude, 5);
     });
 
     it('should keep media element unmuted when using gain-node muting', async () => {

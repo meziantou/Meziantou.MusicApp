@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { RepeatMode } from '../types';
 import { formatDuration } from '../utils';
-import { useApp } from '../hooks';
+import { useApp, usePlayer } from '../hooks';
+import { audioPlayer, type PlayerEventDetail } from '../services';
 import { CoverImage } from './CoverImage';
 
 interface PlayerBarProps {
@@ -22,7 +23,10 @@ const getFormatColor = (format: string) => {
 };
 
 export function PlayerBar({ onQueueClick }: PlayerBarProps) {
-  const { playerState, playerActions, currentPlaylistId, selectPlaylist, playlists } = useApp();
+  const { currentPlaylistId, selectPlaylist, playlists } = useApp();
+  const { playerState, playerActions } = usePlayer();
+  const [currentTime, setCurrentTime] = useState(() => audioPlayer.getCurrentTime());
+  const [duration, setDuration] = useState(() => audioPlayer.getDuration());
 
   const [isDragging, setIsDragging] = useState(false);
   const [showRemainingTime, setShowRemainingTime] = useState(() => {
@@ -42,9 +46,10 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
 
     const rect = bar.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const time = percent * playerState.duration;
+    const time = percent * duration;
+    setCurrentTime(time);
     playerActions.seek(time);
-  }, [playerState.duration, playerActions]);
+  }, [duration, playerActions]);
 
   const handleProgressMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -68,12 +73,51 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
 
   const [isVolumePopoverVisible, setIsVolumePopoverVisible] = useState(false);
   const volumePopoverTimeoutRef = useRef<number | undefined>(undefined);
+  const volumeRafRef = useRef<number | null>(null);
+  const pendingVolumeRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (volumePopoverTimeoutRef.current) {
         window.clearTimeout(volumePopoverTimeoutRef.current);
       }
+      if (volumeRafRef.current !== null) {
+        window.cancelAnimationFrame(volumeRafRef.current);
+        volumeRafRef.current = null;
+      }
+    };
+  }, []);
+  useEffect(() => {
+    const handleTimeUpdate = (detail: PlayerEventDetail) => {
+      if (typeof detail.currentTime === 'number') {
+        setCurrentTime(detail.currentTime);
+      }
+      if (typeof detail.duration === 'number' && Number.isFinite(detail.duration)) {
+        setDuration(detail.duration);
+      }
+    };
+
+    const handleDurationChange = (detail: PlayerEventDetail) => {
+      if (typeof detail.duration === 'number' && Number.isFinite(detail.duration)) {
+        setDuration(detail.duration);
+      } else {
+        setDuration(audioPlayer.getDuration());
+      }
+    };
+
+    const handleTrackChange = () => {
+      setCurrentTime(0);
+      setDuration(audioPlayer.getDuration());
+    };
+
+    audioPlayer.on('timeupdate', handleTimeUpdate);
+    audioPlayer.on('durationchange', handleDurationChange);
+    audioPlayer.on('trackchange', handleTrackChange);
+
+    return () => {
+      audioPlayer.off('timeupdate', handleTimeUpdate);
+      audioPlayer.off('durationchange', handleDurationChange);
+      audioPlayer.off('trackchange', handleTrackChange);
     };
   }, []);
 
@@ -100,12 +144,23 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
     showVolumePopover();
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const volume = parseInt(e.target.value, 10) / 100;
+  const flushPendingVolume = useCallback(() => {
+    volumeRafRef.current = null;
+    const volume = pendingVolumeRef.current;
+    pendingVolumeRef.current = null;
+    if (volume === null) return;
     if (playerState.isMuted && volume > 0) {
       playerActions.toggleMute();
     }
     playerActions.setVolume(volume);
+  }, [playerActions, playerState.isMuted]);
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const volume = parseInt(e.target.value, 10) / 100;
+    pendingVolumeRef.current = volume;
+    if (volumeRafRef.current === null) {
+      volumeRafRef.current = window.requestAnimationFrame(flushPendingVolume);
+    }
     showVolumePopover();
   };
 
@@ -124,8 +179,15 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
     window.dispatchEvent(new CustomEvent('scrollToCurrentTrack'));
   };
 
-  const progressPercent = playerState.duration > 0
-    ? (playerState.currentTime / playerState.duration) * 100
+  useEffect(() => {
+    if (!playerState.currentTrack) {
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [playerState.currentTrack]);
+
+  const progressPercent = duration > 0
+    ? (currentTime / duration) * 100
     : 0;
 
   return (
@@ -206,7 +268,7 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
 
         <div className="player-progress">
           <span className="progress-time current-time">
-            {formatDuration(playerState.currentTime)}
+            {formatDuration(currentTime)}
           </span>
           <div
             className="progress-bar-container"
@@ -230,9 +292,9 @@ export function PlayerBar({ onQueueClick }: PlayerBarProps) {
             style={{ cursor: 'pointer' }}
             title={showRemainingTime ? 'Show total time' : 'Show remaining time'}
           >
-            {showRemainingTime && playerState.duration > 0
-              ? `-${formatDuration(playerState.duration - playerState.currentTime)}`
-              : formatDuration(playerState.duration)}
+            {showRemainingTime && duration > 0
+              ? `-${formatDuration(duration - currentTime)}`
+              : formatDuration(duration)}
           </span>
         </div>
       </div>
