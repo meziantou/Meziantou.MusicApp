@@ -1,5 +1,4 @@
 <Project Sdk="Meziantou.NET.Sdk.Web">
-
 	<PropertyGroup>
 		<EnableSdkContainerSupport>true</EnableSdkContainerSupport>
     <ContainerBaseImage>localhost:5000/meziantou-music-app-server-base:latest</ContainerBaseImage>
@@ -14,9 +13,4 @@
     <PackageReference Include="Meziantou.Framework.StronglyTypedId" Version="2.3.13" />
     <PackageReference Include="Meziantou.Framework.MediaTags" Version="1.1.6" />
   </ItemGroup>
-	
-  <ItemGroup>
-    <Folder Include="wwwroot\" />
-  </ItemGroup>
-
 </Project>
