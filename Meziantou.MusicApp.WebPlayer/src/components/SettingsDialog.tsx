@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { AppSettings, StreamingQuality, ReplayGainMode } from '../types';
 import { DEFAULT_SETTINGS } from '../constants';
 import { useApp, useServiceWorkerUpdate } from '../hooks';
+import { getApiService } from '../services';
 
 const QUALITY_OPTIONS: { label: string; value: StreamingQuality }[] = [
   { label: 'Original (Raw)', value: { format: 'raw' } },
@@ -34,6 +35,8 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'force-scanning'>('idle');
+  const [lastScanDate, setLastScanDate] = useState<string | null>(null);
+  const [isLoadingScanStatus, setIsLoadingScanStatus] = useState(false);
   const [cacheCleanupStatus, setCacheCleanupStatus] = useState<'idle' | 'cleaning'>('idle');
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'error'>('idle');
   const settingsRef = useRef(settings);
@@ -56,7 +59,52 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     settingsRef.current = settings;
   }, [isOpen, settings]);
 
+  const loadScanStatus = useCallback(async () => {
+    if (!settings.serverUrl || !isOnline) {
+      setLastScanDate(null);
+      return;
+    }
+
+    setIsLoadingScanStatus(true);
+    try {
+      const api = getApiService();
+      const status = await api.getScanStatus();
+      setLastScanDate(status.lastScanDate);
+    } catch (error) {
+      console.error('Failed to load scan status:', error);
+    } finally {
+      setIsLoadingScanStatus(false);
+    }
+  }, [isOnline, settings.serverUrl]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    void loadScanStatus();
+  }, [isOpen, loadScanStatus]);
+
   if (!isOpen) return null;
+
+  const formatLastScanDate = (dateStr: string | null): string => {
+    if (!dateStr) {
+      return 'Never';
+    }
+
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) {
+      return dateStr;
+    }
+
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   const getQualityIndex = (quality: StreamingQuality): number => {
     return QUALITY_OPTIONS.findIndex(
@@ -76,6 +124,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
       await triggerLibraryScan();
     } finally {
       setScanStatus('idle');
+      await loadScanStatus();
     }
   };
 
@@ -85,6 +134,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
       await triggerLibraryScan(true);
     } finally {
       setScanStatus('idle');
+      await loadScanStatus();
     }
   };
 
@@ -371,14 +421,19 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
             <section className="settings-section">
               <h3>Advanced</h3>
               <div className="form-group">
-                <button
-                  className="secondary-button"
-                  onClick={handleRescanLibrary}
-                  disabled={scanStatus !== 'idle'}
-                  style={{ width: '100%', marginBottom: '8px' }}
-                >
-                  {scanStatus === 'scanning' ? 'Scanning...' : 'Rescan Music Library'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    className="secondary-button"
+                    onClick={handleRescanLibrary}
+                    disabled={scanStatus !== 'idle'}
+                    style={{ flex: 1, marginBottom: '8px' }}
+                  >
+                    {scanStatus === 'scanning' ? 'Scanning...' : 'Rescan Music Library'}
+                  </button>
+                  <small style={{ marginBottom: '8px', whiteSpace: 'nowrap' }}>
+                    Last scan: {isLoadingScanStatus ? 'Loading...' : formatLastScanDate(lastScanDate)}
+                  </small>
+                </div>
               </div>
               <div className="form-group">
                 <button
