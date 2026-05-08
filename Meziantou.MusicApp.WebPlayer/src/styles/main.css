@@ -1440,6 +1440,66 @@ body {
   color: var(--error);
 }
 
+.scan-progress {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-tertiary);
+}
+
+.scan-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.scan-progress-header span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.scan-progress-bar {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-primary);
+}
+
+.scan-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-gradient);
+  transition: width var(--transition-fast);
+}
+
+.scan-progress-bar.indeterminate .scan-progress-fill {
+  width: 35%;
+  animation: scan-progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes scan-progress-indeterminate {
+  0% {
+    transform: translateX(-140%);
+  }
+
+  50% {
+    transform: translateX(30%);
+  }
+
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.scan-progress small {
+  margin-top: 8px;
+}
+
 /* Buttons */
 .primary-button,
 .secondary-button {
