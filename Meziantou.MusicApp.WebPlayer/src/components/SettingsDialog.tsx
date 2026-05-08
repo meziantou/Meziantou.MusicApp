@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { AppSettings, StreamingQuality, ReplayGainMode } from '../types';
+import type { AppSettings, StreamingQuality, ReplayGainMode, ScanStatusResponse } from '../types';
 import { DEFAULT_SETTINGS } from '../constants';
 import { useApp, useServiceWorkerUpdate } from '../hooks';
 import { getApiService } from '../services';
@@ -35,6 +35,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'force-scanning'>('idle');
+  const [scanDetails, setScanDetails] = useState<ScanStatusResponse | null>(null);
   const [lastScanDate, setLastScanDate] = useState<string | null>(null);
   const [isLoadingScanStatus, setIsLoadingScanStatus] = useState(false);
   const [cacheCleanupStatus, setCacheCleanupStatus] = useState<'idle' | 'cleaning'>('idle');
@@ -61,6 +62,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
 
   const loadScanStatus = useCallback(async () => {
     if (!settings.serverUrl || !isOnline) {
+      setScanDetails(null);
       setLastScanDate(null);
       return;
     }
@@ -69,6 +71,7 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     try {
       const api = getApiService();
       const status = await api.getScanStatus();
+      setScanDetails(status);
       setLastScanDate(status.lastScanDate);
     } catch (error) {
       console.error('Failed to load scan status:', error);
@@ -83,7 +86,19 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
     }
 
     void loadScanStatus();
-  }, [isOpen, loadScanStatus]);
+
+    if (!settings.serverUrl || !isOnline) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadScanStatus();
+    }, 2000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isOnline, isOpen, loadScanStatus, settings.serverUrl]);
 
   if (!isOpen) return null;
 
@@ -105,6 +120,34 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
       minute: '2-digit',
     });
   };
+
+  const formatEstimatedCompletionTime = (dateStr: string | null): string | null => {
+    if (!dateStr) {
+      return null;
+    }
+
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) {
+      return dateStr;
+    }
+
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const isServerScanning = scanDetails?.isScanning ?? false;
+  const isScanActionRunning = scanStatus !== 'idle';
+  const isAnyScanRunning = isScanActionRunning || isServerScanning;
+  const scanPercentage = typeof scanDetails?.percentage === 'number'
+    ? Math.max(0, Math.min(100, scanDetails.percentage))
+    : null;
+  const roundedScanPercentage = scanPercentage === null ? null : Math.round(scanPercentage);
+  const estimatedCompletionTime = formatEstimatedCompletionTime(scanDetails?.estimatedCompletionTime ?? null);
 
   const getQualityIndex = (quality: StreamingQuality): number => {
     return QUALITY_OPTIONS.findIndex(
@@ -425,24 +468,61 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                   <button
                     className="secondary-button"
                     onClick={handleRescanLibrary}
-                    disabled={scanStatus !== 'idle'}
+                    disabled={isAnyScanRunning}
                     style={{ flex: 1, marginBottom: '8px' }}
                   >
-                    {scanStatus === 'scanning' ? 'Scanning...' : 'Rescan Music Library'}
+                    {scanStatus === 'scanning'
+                      ? 'Scanning...'
+                      : isServerScanning
+                        ? 'Scan in Progress...'
+                        : 'Rescan Music Library'}
                   </button>
                   <small style={{ marginBottom: '8px', whiteSpace: 'nowrap' }}>
                     Last scan: {isLoadingScanStatus ? 'Loading...' : formatLastScanDate(lastScanDate)}
                   </small>
                 </div>
               </div>
+              {isServerScanning && (
+                <div className="form-group">
+                  <div className="scan-progress" role="status" aria-live="polite">
+                    <div className="scan-progress-header">
+                      <span>Library scan in progress</span>
+                      <span>{roundedScanPercentage === null ? 'In progress' : `${roundedScanPercentage}%`}</span>
+                    </div>
+                    <div
+                      className={`scan-progress-bar ${roundedScanPercentage === null ? 'indeterminate' : ''}`}
+                      role="progressbar"
+                      aria-label="Library scan progress"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={roundedScanPercentage ?? undefined}
+                      aria-valuetext={roundedScanPercentage === null ? 'In progress' : `${roundedScanPercentage}%`}
+                    >
+                      <div
+                        className="scan-progress-fill"
+                        style={roundedScanPercentage === null ? undefined : { width: `${roundedScanPercentage}%` }}
+                      />
+                    </div>
+                    <small>
+                      {estimatedCompletionTime
+                        ? `Estimated completion: ${estimatedCompletionTime}`
+                        : 'Estimated completion time unavailable'}
+                    </small>
+                  </div>
+                </div>
+              )}
               <div className="form-group">
                 <button
                   className="secondary-button"
                   onClick={handleForceRescanLibrary}
-                  disabled={scanStatus !== 'idle'}
+                  disabled={isAnyScanRunning}
                   style={{ width: '100%', marginBottom: '8px' }}
                 >
-                  {scanStatus === 'force-scanning' ? 'Force Scanning...' : 'Force Rescan (Ignore Cache)'}
+                  {scanStatus === 'force-scanning'
+                    ? 'Force Scanning...'
+                    : isServerScanning
+                      ? 'Scan in Progress...'
+                      : 'Force Rescan (Ignore Cache)'}
                 </button>
               </div>
               <div className="form-group">
