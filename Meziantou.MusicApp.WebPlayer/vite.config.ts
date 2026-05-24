@@ -39,6 +39,9 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'any',
         start_url: '/',
+        launch_handler: {
+          client_mode: 'focus-existing',
+        },
         icons: [
           {
             src: 'pwa-192x192.png',
