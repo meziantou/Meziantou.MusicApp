@@ -65,11 +65,11 @@ describe('SettingsDialog', () => {
     });
 
     expect(container.querySelector('.scan-progress')).not.toBeNull();
-    expect(container).toHaveTextContent('Library scan in progress');
-    expect(container).toHaveTextContent('42%');
-    expect(container).toHaveTextContent('Estimated completion:');
-    expect(container.querySelector('.scan-progress-bar')).not.toHaveClass('indeterminate');
-    expect(container.querySelector('[role="progressbar"]')).toHaveAttribute('aria-valuenow', '42');
+    expect(container.textContent).toContain('Library scan in progress');
+    expect(container.textContent).toContain('42%');
+    expect(container.textContent).toContain('Estimated completion:');
+    expect(container.querySelector('.scan-progress-bar')?.classList.contains('indeterminate')).toBe(false);
+    expect(container.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
 
     await act(async () => {
       root.unmount();
@@ -101,9 +101,9 @@ describe('SettingsDialog', () => {
     });
 
     expect(container.querySelector('.scan-progress')).not.toBeNull();
-    expect(container).toHaveTextContent('In progress');
-    expect(container.querySelector('.scan-progress-bar')).toHaveClass('indeterminate');
-    expect(container.querySelector('[role="progressbar"]')).not.toHaveAttribute('aria-valuenow');
+    expect(container.textContent).toContain('In progress');
+    expect(container.querySelector('.scan-progress-bar')?.classList.contains('indeterminate')).toBe(true);
+    expect(container.querySelector('[role="progressbar"]')?.hasAttribute('aria-valuenow')).toBe(false);
 
     await act(async () => {
       root.unmount();

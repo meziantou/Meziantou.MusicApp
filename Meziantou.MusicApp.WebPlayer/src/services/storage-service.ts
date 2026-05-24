@@ -1,4 +1,4 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from './idb-compat';
 import type {
   AppSettings,
   PlaybackState,
@@ -86,7 +86,7 @@ class StorageService {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = openDB<MusicPlayerDB>(DB_NAME, DB_VERSION, {
-      async upgrade(db, oldVersion, _newVersion, transaction) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         console.log('[StorageService] Running upgrade, version:', db.version);
         // Settings store
         if (!db.objectStoreNames.contains('settings')) {
@@ -107,7 +107,7 @@ class StorageService {
           const tracksStore = transaction.objectStore('cachedTracks');
           if (oldVersion < 5) {
             // Clear cache to avoid migration issues with schema change
-            await tracksStore.clear();
+            tracksStore.clear();
             if (tracksStore.indexNames.contains('by-playlist')) {
               tracksStore.deleteIndex('by-playlist');
             }
@@ -122,7 +122,7 @@ class StorageService {
           if (oldVersion < 5) {
             // Clear cached playlists to match cleared tracks
             const playlistsStore = transaction.objectStore('cachedPlaylists');
-            await playlistsStore.clear();
+            playlistsStore.clear();
           }
         }
 
@@ -143,7 +143,7 @@ class StorageService {
           if (oldVersion < 5) {
             // Clear offline playlists to prevent orphaned references
             const offlineStore = transaction.objectStore('offlinePlaylists');
-            await offlineStore.clear();
+            offlineStore.clear();
           }
         }
 

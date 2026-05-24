@@ -58,7 +58,7 @@ describe('CoverImage', () => {
 
     const image = container.querySelector('img');
     expect(image).not.toBeNull();
-    expect(image).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
+    expect(image?.getAttribute('src')).toContain('data:image/svg+xml');
 
     act(() => {
       root.unmount();

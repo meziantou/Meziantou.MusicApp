@@ -77,7 +77,7 @@ describe('PlayerBar', () => {
 
     const element = container.querySelector('[data-testid="player-cover-placeholder-optin"]');
     expect(element).not.toBeNull();
-    expect(element).toHaveTextContent('true');
+    expect(element?.textContent).toContain('true');
 
     act(() => {
       root.unmount();
