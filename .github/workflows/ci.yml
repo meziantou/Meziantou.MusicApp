@@ -91,37 +91,3 @@ jobs:
           tags: |
             ghcr.io/meziantou/meziantou-music-app-web-player:1.0.${{ github.run_number }}
             ghcr.io/meziantou/meziantou-music-app-web-player:latest
-
-  player-desktop-macos:
-    runs-on: macos-latest
-    permissions:
-        contents: read
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: 'npm'
-          cache-dependency-path: Meziantou.MusicApp.WebPlayer/package-lock.json
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        working-directory: Meziantou.MusicApp.WebPlayer
-        run: npm ci
-
-      - name: Build Tauri application
-        working-directory: Meziantou.MusicApp.WebPlayer
-        run: npm run tauri:build
-        env:
-          VITE_COMMIT_HASH: ${{ github.sha }}
-
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: webplayer-tauri-macos-${{ github.run_number }}
-          path: Meziantou.MusicApp.WebPlayer/src-tauri/target/release/bundle/**/*
-          if-no-files-found: error
