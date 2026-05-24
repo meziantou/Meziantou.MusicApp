@@ -20,7 +20,6 @@ A modern, web-based music player designed to work with the server. Features incl
 - Dark theme
 - Background sync and auto-resume
 - 10-band equalizer in the player bar
-- macOS desktop wrapper using Tauri
 
 ## Getting Started
 

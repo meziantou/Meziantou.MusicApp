@@ -184,13 +184,6 @@ export function getNetworkType(): 'normal' | 'low-data' | 'unknown' {
   return 'normal'; // Default to normal for better quality
 }
 
-export function isTauriApp(
-  windowLike: (Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown }) | undefined =
-    typeof window === 'undefined' ? undefined : window
-): boolean {
-  return Boolean(windowLike?.__TAURI__ || windowLike?.__TAURI_INTERNALS__);
-}
-
 export function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;

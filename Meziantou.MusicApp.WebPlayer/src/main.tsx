@@ -1,7 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
-import { isTauriApp } from './utils';
 import './styles/main.css';
 
 // PWA install prompt
@@ -10,14 +9,12 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-if (!isTauriApp()) {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    // Store the prompt for later use
-    const deferredPrompt = e as BeforeInstallPromptEvent;
-    console.log('PWA install available', deferredPrompt);
-  });
-}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  // Store the prompt for later use
+  const deferredPrompt = e as BeforeInstallPromptEvent;
+  console.log('PWA install available', deferredPrompt);
+});
 
 // Render the React app
 const container = document.getElementById('app');
