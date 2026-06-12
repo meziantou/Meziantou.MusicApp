@@ -5,7 +5,7 @@
     <PackageReference Include="Meziantou.Extensions.Logging.Xunit.v3" Version="2.0.1" />
     <PackageReference Include="Meziantou.Framework.InlineSnapshotTesting" Version="5.0.4" />
     <PackageReference Include="Meziantou.Framework.TemporaryDirectory" Version="2.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.8" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
