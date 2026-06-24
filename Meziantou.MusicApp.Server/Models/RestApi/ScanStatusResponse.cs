@@ -8,5 +8,9 @@ public class ScanStatusResponse
     public DateTime? LastScanDate { get; set; }
     public double? Percentage { get; set; }
     public TimeSpan? EstimatedCompletionTime { get; set; }
+    public int? ProcessedFiles { get; set; }
+    public int? TotalFiles { get; set; }
+    public int? ProcessedPlaylists { get; set; }
+    public int? TotalPlaylists { get; set; }
     public List<InvalidPlaylistInfo> InvalidPlaylists { get; set; } = [];
 }

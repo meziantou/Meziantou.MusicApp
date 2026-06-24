@@ -503,6 +503,16 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
                         style={roundedScanPercentage === null ? undefined : { width: `${roundedScanPercentage}%` }}
                       />
                     </div>
+                    {scanDetails?.totalFiles !== null && scanDetails?.totalFiles !== undefined && (
+                      <small>
+                        Files: {scanDetails.processedFiles ?? 0} / {scanDetails.totalFiles}
+                      </small>
+                    )}
+                    {scanDetails?.totalPlaylists !== null && scanDetails?.totalPlaylists !== undefined && (
+                      <small>
+                        Playlists: {scanDetails.processedPlaylists ?? 0} / {scanDetails.totalPlaylists}
+                      </small>
+                    )}
                     <small>
                       {estimatedCompletionTime
                         ? `Estimated completion: ${estimatedCompletionTime}`

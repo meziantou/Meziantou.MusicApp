@@ -97,6 +97,10 @@ export interface ScanStatusResponse {
   lastScanDate: string | null;
   percentage: number | null;
   estimatedCompletionTime: string | null;
+  processedFiles: number | null;
+  totalFiles: number | null;
+  processedPlaylists: number | null;
+  totalPlaylists: number | null;
   invalidPlaylists: InvalidPlaylistInfo[];
 }
 
