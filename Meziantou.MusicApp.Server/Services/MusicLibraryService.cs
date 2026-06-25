@@ -228,13 +228,15 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 : Environment.ProcessorCount;
 
             activity?.SetTag("music.library.max_degree_of_parallelism", maxDegreeOfParallelism);
-
-            await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism, CancellationToken = _cancellationToken }, async (file, cancellationToken) =>
+            using (var playlistActivity = MusicLibraryActivitySource.Instance.StartActivity("ScanAudioFiles"))
             {
-                await ScanMusicFile(CreateContext(file));
-                var count = Interlocked.Increment(ref _processedFilesCount);
-                logger.LogInformation("Processed file {Count}/{Total}: {Path}", count, _totalFilesToScan, file);
-            });
+                await Parallel.ForEachAsync(audioFiles, new ParallelOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism, CancellationToken = _cancellationToken }, async (file, cancellationToken) =>
+                {
+                    await ScanAudioFile(CreateContext(file));
+                    var count = Interlocked.Increment(ref _processedFilesCount);
+                    logger.LogInformation("Processed file {Count}/{Total}: {Path}", count, _totalFilesToScan, file);
+                });
+            }
 
             // Scan existing XSPF playlists
             using (var playlistActivity = MusicLibraryActivitySource.Instance.StartActivity("ScanXspfPlaylists"))
@@ -334,11 +336,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         }
     }
 
-    private async Task ScanMusicFile(IndexerContext context)
+    private async Task ScanAudioFile(IndexerContext context)
     {
         var startTimestamp = Stopwatch.GetTimestamp();
         var hasError = false;
-        using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicFile");
+        using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanAudioFile");
         activity?.SetTag("music.file.path", context.RelativePath);
 
         try
