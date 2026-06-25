@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Meziantou.Framework;
 using Meziantou.Framework.MediaTags;
@@ -186,6 +187,7 @@ public sealed class MusicCatalog
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("BuildAlbumsAndArtists");
 
         var albumDict = new Dictionary<string, List<Song>>(StringComparer.OrdinalIgnoreCase);
+        var albumCoverArtDict = new Dictionary<string, CoverArt?>(StringComparer.OrdinalIgnoreCase);
         var artistDict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var song in Songs)
@@ -201,6 +203,12 @@ public sealed class MusicCatalog
             }
 
             value.Add(song);
+
+            // Track first non-null cover art for this album
+            if (!albumCoverArtDict.ContainsKey(albumKey) && song.CoverArt is not null)
+            {
+                albumCoverArtDict[albumKey] = song.CoverArt;
+            }
 
             if (!artistDict.ContainsKey(artistKey))
             {
@@ -224,8 +232,8 @@ public sealed class MusicCatalog
 
             var firstSong = songs[0];
 
-            // Use the cover art from the first song that has one
-            var albumCoverArt = songs.Select(s => s.CoverArt).FirstOrDefault(c => c is not null);
+            // Use the cover art that was cached during iteration
+            albumCoverArtDict.TryGetValue(albumKey, out var albumCoverArt);
 
             var album = new Album
             {
@@ -446,8 +454,11 @@ public sealed class MusicCatalog
         }
 
         // Build subdirectory relationships
-        foreach (var dir in directoryDict.Values.Where(d => d.Path != RootPath))
+        foreach (var dir in directoryDict.Values)
         {
+            if (dir.Path == RootPath)
+                continue;
+
             var parentPath = Path.GetDirectoryName(dir.Path);
             if (!string.IsNullOrEmpty(parentPath) && directoryDict.TryGetValue(parentPath, out var parentDir))
             {
@@ -546,9 +557,28 @@ public sealed class MusicCatalog
     public IEnumerable<Song> GetSongsByGenre(string genre) =>
         _genreIndex.TryGetValue(genre, out var ids) ? ids.Select(id => _songsById[id]) : [];
 
-    public IEnumerable<Album> GetRandomAlbums(int count) => Albums.OrderBy(_ => Random.Shared.Next()).Take(count);
+
+    public IEnumerable<Album> GetRandomAlbums(int count)
+    {
+        if (Albums.Count <= count)
+            return Albums;
+
+        var shuffled = Albums.ToList();
+        Random.Shared.Shuffle(CollectionsMarshal.AsSpan(shuffled));
+        return shuffled.Take(count);
+    }
+
     public IEnumerable<Album> GetNewestAlbums(int count) => Albums.OrderByDescending(a => a.Created).Take(count);
-    public IEnumerable<Song> GetRandomSongs(int count) => Songs.OrderBy(_ => Random.Shared.Next()).Take(count);
+
+    public IEnumerable<Song> GetRandomSongs(int count)
+    {
+        if (Songs.Count <= count)
+            return Songs;
+
+        var shuffled = Songs.ToList();
+        Random.Shared.Shuffle(CollectionsMarshal.AsSpan(shuffled));
+        return shuffled.Take(count);
+    }
 
     public (IEnumerable<Artist> artists, IEnumerable<Album> albums, IEnumerable<Song> songs) SearchAll(string query)
     {
