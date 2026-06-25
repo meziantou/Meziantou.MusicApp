@@ -297,7 +297,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
             logger.LogInformation("Music library scan finished, updating catalog");
             _cachedSerializableCatalog = library;
-            _catalog = await CreateCatalog(library);
+            using (var catalogActivity = MusicLibraryActivitySource.Instance.StartActivity("CreateCatalog"))
+            {
+                _catalog = await CreateCatalog(library);
+                catalogActivity?.SetTag("music.library.serializable_songs_count", library.Songs.Count);
+            }
             _scanCount = _catalog.Songs.Count;
 
             activity?.SetTag("music.library.songs_count", _catalog.Songs.Count);
