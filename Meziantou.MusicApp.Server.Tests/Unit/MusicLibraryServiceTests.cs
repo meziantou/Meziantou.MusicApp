@@ -950,6 +950,43 @@ public partial class MusicLibraryServiceTests
     }
 
     [Fact]
+    public async Task ScanMusicLibrary_ResolvesPlaylistItemsViaUnicodeNormalization()
+    {
+        await using var testContext = AppTestContext.Create();
+
+        // Create a file whose name is in NFD form (e.g. 'e' + combining accent)
+        var nfdFileName = "cafe\u0301.mp3"; // café in NFD: 'e' + U+0301 combining acute accent
+        var nfcFileName = "caf\u00e9.mp3"; // café in NFC: U+00E9 precomposed
+
+        testContext.MusicLibrary.CreateTestMp3File(nfdFileName, title: "Café Song", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Pop", year: 2024, track: 1);
+
+        // Playlist references the NFC form of the filename
+        var xspfContent = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>{nfcFileName}</location>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlists = service.GetPlaylists().Where(p => !p.Id.StartsWith("virtual:", StringComparison.Ordinal)).ToList();
+        Assert.Single(playlists);
+
+        var playlist = playlists[0];
+        Assert.Single(playlist.Items);
+
+        var missingItems = service.GetMissingPlaylistItems().ToList();
+        Assert.Empty(missingItems);
+    }
+
+    [Fact]
     public async Task ScanMusicLibrary_M3uConversion_IncludesMissingTracksInXspf()
     {
         await using var testContext = AppTestContext.Create();
