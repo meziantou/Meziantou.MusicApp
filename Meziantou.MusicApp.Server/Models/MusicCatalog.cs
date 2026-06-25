@@ -50,7 +50,7 @@ public sealed class MusicCatalog
 
             foreach (var serializableSong in serializableCatalog.Songs)
             {
-                var fullPath = Path.Combine(rootPath, serializableSong.RelativePath);
+                var fullPath = rootPath / serializableSong.RelativePath;
                 var songId = ItemId.CreateSongId(serializableSong.RelativePath, serializableSong.FileLastWriteTime);
 
                 // Create Lyrics object if available
@@ -61,7 +61,7 @@ public sealed class MusicCatalog
                     lyrics = new Lyrics
                     {
                         Id = ItemId.CreateLyricsId(serializableSong.ExternalLyricsPath),
-                        FilePath = Path.Combine(rootPath, serializableSong.ExternalLyricsPath),
+                        FilePath = rootPath / serializableSong.ExternalLyricsPath,
                         IsMetadata = false,
                     };
                 }
@@ -93,7 +93,7 @@ public sealed class MusicCatalog
                 }
                 else if (!string.IsNullOrEmpty(serializableSong.ExternalCoverArtPath))
                 {
-                    var externalCoverPath = Path.Combine(rootPath, serializableSong.ExternalCoverArtPath);
+                    var externalCoverPath = rootPath / serializableSong.ExternalCoverArtPath;
                     var coverId = ItemId.CreateCoverId(serializableSong.ExternalCoverArtPath);
                     var externalLastWriteTimeUtc = File.Exists(externalCoverPath) ? File.GetLastWriteTimeUtc(externalCoverPath) : DateTime.MinValue;
 
@@ -298,7 +298,7 @@ public sealed class MusicCatalog
 
         foreach (var serializablePlaylist in serializablePlaylists)
         {
-            var fullPath = Path.Combine(RootPath, serializablePlaylist.RelativePath);
+            var fullPath = RootPath / serializablePlaylist.RelativePath;
             var fileInfo = new FileInfo(fullPath);
 
             var playlist = new Playlist
@@ -349,7 +349,7 @@ public sealed class MusicCatalog
 
         foreach (var item in serializableMissingItems)
         {
-            var fullPath = Path.Combine(RootPath, item.RelativePath);
+            var fullPath = RootPath / item.RelativePath;
             var playlistId = ItemId.CreatePlaylistId(item.PlaylistRelativePath);
 
             missingItemsBuilder.Add(new MissingPlaylistItem
@@ -371,7 +371,7 @@ public sealed class MusicCatalog
 
         foreach (var item in serializableInvalidPlaylists)
         {
-            var fullPath = Path.Combine(RootPath, item.RelativePath);
+            var fullPath = RootPath / item.RelativePath;
 
             invalidPlaylistsBuilder.Add(new InvalidPlaylist
             {
@@ -411,7 +411,7 @@ public sealed class MusicCatalog
         var rootDir = new MusicDirectory
         {
             Id = ItemId.CreateDirectoryId(RootPath),
-            Name = Path.GetFileName(RootPath) ?? "Music",
+            Name = RootPath.Name ?? "Music",
             Path = RootPath,
         };
         directoryDict[RootPath] = rootDir;
@@ -497,7 +497,7 @@ public sealed class MusicCatalog
     /// <summary>Creates a Playlist object from a SerializablePlaylist and adds/updates it in the catalog.</summary>
     internal Playlist AddOrUpdatePlaylist(SerializablePlaylist serializablePlaylist)
     {
-        var fullPath = Path.Combine(RootPath, serializablePlaylist.RelativePath);
+        var fullPath = RootPath / serializablePlaylist.RelativePath;
         var fileInfo = new FileInfo(fullPath);
 
         var playlist = new Playlist

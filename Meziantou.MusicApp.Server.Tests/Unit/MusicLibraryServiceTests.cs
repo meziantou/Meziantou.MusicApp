@@ -400,8 +400,8 @@ public partial class MusicLibraryServiceTests
 
         Assert.Equal(expectedDuration, playlist.Duration);
 
-        var xspfFile = Path.Combine(testContext.MusicLibrary.RootPath, "test-playlist.xspf");
-        var bakFile = Path.Combine(testContext.MusicLibrary.RootPath, "test-playlist.m3u.bak");
+        var xspfFile = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
+        var bakFile = testContext.MusicLibrary.RootPath / "test-playlist.m3u.bak";
         Assert.True(File.Exists(xspfFile), "XSPF file should be created");
         Assert.True(File.Exists(bakFile), "M3U backup file should be created");
     }
@@ -428,7 +428,7 @@ public partial class MusicLibraryServiceTests
         Assert.True(item.AddedDate >= beforeConversion && item.AddedDate <= afterConversion,
             $"AddedDate should be between {beforeConversion:o} and {afterConversion:o}, but was {item.AddedDate:o}");
 
-        var xspfFile = Path.Combine(testContext.MusicLibrary.RootPath, "test-playlist.xspf");
+        var xspfFile = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
         Assert.Contains("meziantou.net/xspf-extension", xspfContent, StringComparison.Ordinal);
         Assert.Contains("addedAt", xspfContent, StringComparison.Ordinal);
@@ -492,7 +492,7 @@ public partial class MusicLibraryServiceTests
 
         var service = await testContext.ScanCatalog();
 
-        var m3uFile = Path.Combine(testContext.MusicLibrary.RootPath, "test-playlist.m3u");
+        var m3uFile = testContext.MusicLibrary.RootPath / "test-playlist.m3u";
         Assert.True(File.Exists(m3uFile), "M3U file should still exist when XSPF already present");
         Assert.False(File.Exists(m3uFile + ".bak"), "M3U backup should not be created when XSPF already exists");
 
@@ -531,7 +531,7 @@ public partial class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_IncrementalScan_ReScansModifiedFiles()
     {
         await using var testContext = AppTestContext.Create();
-        var mp3FilePath = Path.Combine(testContext.MusicLibrary.RootPath, "TestSong.mp3");
+        var mp3FilePath = testContext.MusicLibrary.RootPath / "TestSong.mp3";
         testContext.MusicLibrary.CreateTestMp3File("TestSong.mp3", title: "Original Title", artist: "Original Artist", albumArtist: "Original Artist", album: "Original Album", genre: "Rock", year: 2024, track: 1);
 
         var service = await testContext.ScanCatalog();
@@ -693,7 +693,7 @@ public partial class MusicLibraryServiceTests
     public async Task ScanMusicLibrary_IncrementalScan_RemovesDeletedFiles()
     {
         await using var testContext = AppTestContext.Create();
-        var mp3FilePath2 = Path.Combine(testContext.MusicLibrary.RootPath, "Song2.mp3");
+        var mp3FilePath2 = testContext.MusicLibrary.RootPath / "Song2.mp3";
         testContext.MusicLibrary.CreateTestMp3File("Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
         testContext.MusicLibrary.CreateTestMp3File("Song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
 
@@ -963,7 +963,7 @@ public partial class MusicLibraryServiceTests
         var service = await testContext.ScanCatalog();
 
         // Verify the XSPF file includes the missing track
-        var xspfFile = Path.Combine(testContext.MusicLibrary.RootPath, "test-playlist.xspf");
+        var xspfFile = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
         Assert.True(File.Exists(xspfFile), "XSPF file should be created");
 
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
@@ -1306,7 +1306,7 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(playlist);
         Assert.Equal("⚠️ Needs Rescan", playlist.Name);
         Assert.Equal(1, playlist.SongCount);
-        Assert.Equal(1, playlist.Items.Count);
+        Assert.Single(playlist.Items);
         Assert.All(playlist.Items, item => Assert.Equal(0, item.Song.Duration));
     }
 
@@ -1387,7 +1387,7 @@ public partial class MusicLibraryServiceTests
 
         var service = await testContext.ScanCatalog();
 
-        var xspfFile = Path.Combine(testContext.MusicLibrary.RootPath, "subfolder", "test-playlist.xspf");
+        var xspfFile = (testContext.MusicLibrary.RootPath / "subfolder") / "test-playlist.xspf";
         Assert.True(File.Exists(xspfFile), "XSPF file should be created");
 
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
