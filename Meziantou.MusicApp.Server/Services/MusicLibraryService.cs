@@ -50,6 +50,9 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         "Cover.jpeg", "Folder.jpeg", "Front.jpeg", "Album.jpeg",
     ];
 
+    private static readonly TimeSpan FastScanMusicFileDurationThreshold = TimeSpan.FromMilliseconds(5);
+    private const double FastScanMusicFileSamplingRate = 0.10;
+
     public MusicCatalog Catalog => _catalog;
     public bool IsInitialScanCompleted => _initialScanCompleted.Task.IsCompleted;
     public Task InitialScanCompleted => _initialScanCompleted.Task;
@@ -332,6 +335,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
     private async Task ScanMusicFile(IndexerContext context)
     {
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var hasError = false;
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("ScanMusicFile");
         activity?.SetTag("music.file.path", context.RelativePath);
 
@@ -490,7 +495,20 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         }
         catch (Exception ex)
         {
+            hasError = true;
             logger.LogError(ex, "Error scanning music file: {Path}", context.Path);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+        }
+        finally
+        {
+            if (activity is not null && !hasError)
+            {
+                var duration = Stopwatch.GetElapsedTime(startTimestamp);
+                if (duration < FastScanMusicFileDurationThreshold && Random.Shared.NextDouble() > FastScanMusicFileSamplingRate)
+                {
+                    activity.ActivityTraceFlags = ActivityTraceFlags.None;
+                }
+            }
         }
     }
 
