@@ -397,8 +397,10 @@ public partial class MusicLibraryServiceTests
         var songs = service.GetAllSongs().ToList();
         Assert.Equal(3, songs.Count);
         var expectedDuration = songs.Sum(s => s.Duration);
+        var expectedSize = songs.Sum(s => s.Size);
 
         Assert.Equal(expectedDuration, playlist.Duration);
+        Assert.Equal(expectedSize, playlist.Size);
 
         var xspfFile = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
         var bakFile = testContext.MusicLibrary.RootPath / "test-playlist.m3u.bak";

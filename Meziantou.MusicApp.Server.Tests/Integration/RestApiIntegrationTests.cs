@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Meziantou.MusicApp.Server.Tests.Helpers;
 using Meziantou.Framework.InlineSnapshotTesting;
 
@@ -7,6 +8,49 @@ namespace Meziantou.MusicApp.Server.Tests.Integration;
 
 public class RestApiIntegrationTests
 {
+    [Fact]
+    public async Task GetPlaylists_IncludesPlaylistSize()
+    {
+        await using var app = AppTestContext.Create();
+        app.MusicLibrary.CreateTestMp3File("song-1.mp3", title: "Song 1", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Rock", year: 2024, track: 1);
+        app.MusicLibrary.CreateTestMp3File("song-2.mp3", title: "Song 2", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Rock", year: 2024, track: 2);
+        await app.MusicLibrary.CreatePlaylistFile("test-playlist.m3u", "song-1.mp3\nsong-2.mp3");
+        var service = await app.ScanCatalog();
+        var expectedSize = service.GetAllSongs().Sum(s => s.Size);
+
+        using var response = await app.Client.GetAsync("/api/playlists.json", app.CancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<JsonObject>(app.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        var playlists = payload["playlists"]?.AsArray();
+        Assert.NotNull(playlists);
+        var playlist = playlists
+            .Select(node => node?.AsObject())
+            .FirstOrDefault(node => node?["name"]?.GetValue<string>() == "test-playlist");
+        Assert.NotNull(playlist);
+        Assert.Equal(expectedSize, playlist["size"]?.GetValue<long>());
+    }
+
+    [Fact]
+    public async Task GetPlaylistTracks_IncludesPlaylistSize()
+    {
+        await using var app = AppTestContext.Create();
+        app.MusicLibrary.CreateTestMp3File("song-1.mp3", title: "Song 1", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Rock", year: 2024, track: 1);
+        app.MusicLibrary.CreateTestMp3File("song-2.mp3", title: "Song 2", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Rock", year: 2024, track: 2);
+        await app.MusicLibrary.CreatePlaylistFile("test-playlist.m3u", "song-1.mp3\nsong-2.mp3");
+        var service = await app.ScanCatalog();
+        var playlist = service.GetPlaylists().Single(p => p.Name == "test-playlist");
+        var expectedSize = playlist.Items.Sum(item => item.Song.Size);
+
+        using var response = await app.Client.GetAsync($"/api/playlists/{Uri.EscapeDataString(playlist.Id)}.json", app.CancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<JsonObject>(app.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(expectedSize, payload["size"]?.GetValue<long>());
+    }
+
     [Fact]
     public async Task TriggerScan_WithValidAuth_ReturnsOk()
     {

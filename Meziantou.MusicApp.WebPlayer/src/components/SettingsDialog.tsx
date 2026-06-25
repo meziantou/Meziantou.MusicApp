@@ -381,6 +381,18 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
               </label>
               <small>Hide the animated bars that indicate the currently playing track. Reduces background CPU.</small>
             </div>
+            <div className="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  id="show-playlist-file-size"
+                  checked={formData.showPlaylistFileSize}
+                  onChange={(e) => handleInputChange('showPlaylistFileSize', e.target.checked)}
+                />
+                Show Playlist File Size
+              </label>
+              <small>Show the total size of files for each playlist in the sidebar</small>
+            </div>
           </section>
 
           <section className="settings-section">
