@@ -861,6 +861,7 @@ public sealed class MusicCatalog
         catch (Exception ex)
         {
             activity?.SetTag("music.coverart.cache_result", "error");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogWarning(ex, "Failed to cache cover art: {CoverArtId}", coverArt.Id);
         }
     }
