@@ -48,6 +48,10 @@ describe('SettingsDialog', () => {
       lastScanDate: '2026-01-02T12:00:00Z',
       percentage: 42,
       estimatedCompletionTime: '2026-01-02T12:15:00Z',
+      processedFiles: 500,
+      totalFiles: 1000,
+      processedPlaylists: 2,
+      totalPlaylists: 5,
       invalidPlaylists: [],
     });
 
@@ -67,6 +71,8 @@ describe('SettingsDialog', () => {
     expect(container.querySelector('.scan-progress')).not.toBeNull();
     expect(container.textContent).toContain('Library scan in progress');
     expect(container.textContent).toContain('42%');
+    expect(container.textContent).toContain('500 / 1000');
+    expect(container.textContent).toContain('2 / 5');
     expect(container.textContent).toContain('Estimated completion:');
     expect(container.querySelector('.scan-progress-bar')?.classList.contains('indeterminate')).toBe(false);
     expect(container.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('42');
@@ -84,6 +90,10 @@ describe('SettingsDialog', () => {
       lastScanDate: '2026-01-02T12:00:00Z',
       percentage: null,
       estimatedCompletionTime: null,
+      processedFiles: null,
+      totalFiles: null,
+      processedPlaylists: null,
+      totalPlaylists: null,
       invalidPlaylists: [],
     });
 
@@ -104,6 +114,42 @@ describe('SettingsDialog', () => {
     expect(container.textContent).toContain('In progress');
     expect(container.querySelector('.scan-progress-bar')?.classList.contains('indeterminate')).toBe(true);
     expect(container.querySelector('[role="progressbar"]')?.hasAttribute('aria-valuenow')).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('shows file and playlist counts during scanning', async () => {
+    getScanStatusMock.mockResolvedValue({
+      isScanning: true,
+      isInitialScanCompleted: true,
+      scanCount: 12,
+      lastScanDate: '2026-01-02T12:00:00Z',
+      percentage: 80,
+      estimatedCompletionTime: null,
+      processedFiles: 800,
+      totalFiles: 1000,
+      processedPlaylists: 0,
+      totalPlaylists: 3,
+      invalidPlaylists: [],
+    });
+
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <SettingsDialog
+          isOpen
+          onClose={() => undefined}
+          onOpenDiagnostics={() => undefined}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('800 / 1000');
+    expect(container.textContent).toContain('0 / 3');
 
     await act(async () => {
       root.unmount();

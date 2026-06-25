@@ -25,6 +25,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private int _scanCount;
     private int _processedFilesCount;
     private int _totalFilesToScan;
+    private int _processedPlaylistsCount;
+    private int _totalPlaylistsToScan;
     private DateTime _scanStartTime;
     private CancellationToken _cancellationToken = CancellationToken.None;
 
@@ -53,16 +55,33 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     public Task InitialScanCompleted => _initialScanCompleted.Task;
     public bool IsScanning => _scanSemaphore.CurrentCount is 0;
     public int ScanCount => IsScanning ? _processedFilesCount : _scanCount;
-    public double? ScanProgress => IsScanning && _totalFilesToScan > 0 ? (double)_processedFilesCount / _totalFilesToScan * 100 : null;
+    public int? ProcessedFiles => IsScanning ? _processedFilesCount : null;
+    public int? TotalFiles => IsScanning ? _totalFilesToScan : null;
+    public int? ProcessedPlaylists => IsScanning ? _processedPlaylistsCount : null;
+    public int? TotalPlaylists => IsScanning ? _totalPlaylistsToScan : null;
+    public double? ScanProgress
+    {
+        get
+        {
+            if (!IsScanning)
+                return null;
+            var total = _totalFilesToScan + _totalPlaylistsToScan;
+            if (total <= 0)
+                return null;
+            return (double)(_processedFilesCount + _processedPlaylistsCount) / total * 100;
+        }
+    }
+
     public TimeSpan? ScanEta
     {
         get
         {
-            if (!IsScanning || _processedFilesCount == 0 || _totalFilesToScan == 0)
+            var processedFiles = _processedFilesCount;
+            if (!IsScanning || processedFiles == 0 || _totalFilesToScan == 0)
                 return null;
             var elapsed = DateTime.UtcNow - _scanStartTime;
-            var rate = elapsed.TotalSeconds / _processedFilesCount;
-            var remainingItems = _totalFilesToScan - _processedFilesCount;
+            var rate = elapsed.TotalSeconds / processedFiles;
+            var remainingItems = _totalFilesToScan + _totalPlaylistsToScan - processedFiles - _processedPlaylistsCount;
             return TimeSpan.FromSeconds(rate * remainingItems);
         }
     }
@@ -178,9 +197,13 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             activity?.SetTag("music.library.total_files", files.Length);
 
             var audioFiles = files.Where(f => AudioExtensions.Contains(f.Extension, StringComparer.OrdinalIgnoreCase)).ToArray();
+            var xspfFiles = files.Where(f => XspfPlaylistExtensions.Contains(f.Extension, StringComparer.OrdinalIgnoreCase)).ToArray();
+            var m3uFiles = files.Where(f => M3uPlaylistExtensions.Contains(f.Extension, StringComparer.OrdinalIgnoreCase)).ToArray();
 
             _totalFilesToScan = audioFiles.Length;
             _processedFilesCount = 0;
+            _totalPlaylistsToScan = xspfFiles.Length + m3uFiles.Length;
+            _processedPlaylistsCount = 0;
             _scanStartTime = DateTime.UtcNow;
 
             activity?.SetTag("music.library.audio_files", audioFiles.Length);
@@ -212,37 +235,29 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             // Scan existing XSPF playlists
             using (var playlistActivity = MusicLibraryActivitySource.Instance.StartActivity("ScanXspfPlaylists"))
             {
-                var xspfCount = 0;
-                foreach (var file in files)
+                foreach (var file in xspfFiles)
                 {
-                    if (XspfPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
-                    {
-                        logger.LogInformation("Scanning XSPF playlist: {Path}", file);
-                        await ScanXspfPlaylist(CreateContext(file));
-                        xspfCount++;
-                    }
+                    logger.LogInformation("Scanning XSPF playlist: {Path}", file);
+                    await ScanXspfPlaylist(CreateContext(file));
+                    Interlocked.Increment(ref _processedPlaylistsCount);
                 }
-                playlistActivity?.SetTag("music.library.xspf_playlists", xspfCount);
+                playlistActivity?.SetTag("music.library.xspf_playlists", xspfFiles.Length);
             }
 
             // Convert M3U/M3U8 files to XSPF format and scan them
             using (var m3uActivity = MusicLibraryActivitySource.Instance.StartActivity("ConvertM3uPlaylists"))
             {
-                var m3uCount = 0;
-                foreach (var file in files)
+                foreach (var file in m3uFiles)
                 {
-                    if (M3uPlaylistExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase))
+                    logger.LogInformation("Converting and scanning M3U playlist: {Path}", file);
+                    var xspfPath = await ConvertM3uToXspf(CreateContext(file));
+                    if (xspfPath != null)
                     {
-                        logger.LogInformation("Converting and scanning M3U playlist: {Path}", file);
-                        var xspfPath = await ConvertM3uToXspf(CreateContext(file));
-                        if (xspfPath != null)
-                        {
-                            await ScanXspfPlaylist(CreateContext(xspfPath.Value));
-                        }
-                        m3uCount++;
+                        await ScanXspfPlaylist(CreateContext(xspfPath.Value));
                     }
+                    Interlocked.Increment(ref _processedPlaylistsCount);
                 }
-                m3uActivity?.SetTag("music.library.m3u_playlists", m3uCount);
+                m3uActivity?.SetTag("music.library.m3u_playlists", m3uFiles.Length);
             }
 
             var cachePath = GetCacheJsonPath();

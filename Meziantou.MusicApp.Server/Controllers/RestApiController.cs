@@ -366,6 +366,10 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
             LastScanDate = library.LastScanDate,
             Percentage = library.ScanProgress,
             EstimatedCompletionTime = library.ScanEta,
+            ProcessedFiles = library.ProcessedFiles,
+            TotalFiles = library.TotalFiles,
+            ProcessedPlaylists = library.ProcessedPlaylists,
+            TotalPlaylists = library.TotalPlaylists,
         });
     }
 
@@ -382,6 +386,10 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
             LastScanDate = library.LastScanDate,
             Percentage = library.ScanProgress,
             EstimatedCompletionTime = library.ScanEta,
+            ProcessedFiles = library.ProcessedFiles,
+            TotalFiles = library.TotalFiles,
+            ProcessedPlaylists = library.ProcessedPlaylists,
+            TotalPlaylists = library.TotalPlaylists,
             InvalidPlaylists = library.Catalog.InvalidPlaylists.Select(p => new InvalidPlaylistInfo
             {
                 Path = p.Path,
