@@ -34,10 +34,6 @@ builder.Services.Configure<JellyfinSettings>(
 builder.Services.Configure<RestApiSettings>(
     builder.Configuration.GetSection("RestApi"));
 
-// Configure Last.fm settings
-builder.Services.Configure<LastFmSettings>(
-    builder.Configuration.GetSection("LastFm"));
-
 builder.Services.AddControllers();
 
 // Add response compression
@@ -70,12 +66,6 @@ builder.Services.AddSingleton<TranscodingService>();
 
 // Register the image resizing service
 builder.Services.AddSingleton<ImageResizingService>();
-
-// Register HttpClient for Last.fm
-builder.Services.AddHttpClient("LastFm");
-
-// Register the Last.fm service
-builder.Services.AddSingleton<LastFmService>();
 
 var app = builder.Build();
 
