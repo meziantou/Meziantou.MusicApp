@@ -328,6 +328,7 @@ public sealed class MusicCatalog
             playlist.Items = items;
             playlist.SongCount = items.Count;
             playlist.Duration = items.Sum(i => i.Song.Duration);
+            playlist.Size = items.Sum(i => i.Song.Size);
 
             // Set cover art from first song if available
             if (items.Count > 0)
@@ -527,6 +528,7 @@ public sealed class MusicCatalog
         playlist.Items = items;
         playlist.SongCount = items.Count;
         playlist.Duration = items.Sum(i => i.Song.Duration);
+        playlist.Size = items.Sum(i => i.Song.Size);
 
         // Set cover art from first song if available
         if (items.Count > 0)

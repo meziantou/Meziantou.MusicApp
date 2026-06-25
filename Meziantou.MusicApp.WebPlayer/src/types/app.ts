@@ -13,6 +13,7 @@ export interface AppSettings {
   hideTrackDuration: boolean;
   hideTrackCacheStatus: boolean;
   disablePlayingAnimation: boolean;
+  showPlaylistFileSize: boolean;
   replayGainMode: ReplayGainMode;
   replayGainPreamp: number; // in dB
   showReplayGainWarning: boolean;

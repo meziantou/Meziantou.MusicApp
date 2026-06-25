@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { PlaylistSummary } from '../types';
-import { formatDuration } from '../utils';
+import { formatBytes, formatDuration } from '../utils';
 import { useApp, usePlayer } from '../hooks';
 
 interface PlaylistSidebarProps {
@@ -19,6 +19,7 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
     isOnline,
     networkType,
     invalidPlaylists,
+    settings,
   } = useApp();
   const { playingPlaylistId } = usePlayer();
 
@@ -47,6 +48,7 @@ export function PlaylistSidebar({ onSettingsClick }: PlaylistSidebarProps) {
                   isOffline={isOffline}
                   progress={progress}
                   isOnline={isOnline}
+                  showPlaylistFileSize={settings.showPlaylistFileSize}
                   onSelect={() => selectPlaylist(playlist)}
                   onStartCaching={() => startPlaylistCaching(playlist.id)}
                   onStopCaching={() => stopPlaylistCaching(playlist.id)}
@@ -119,6 +121,7 @@ interface PlaylistItemProps {
   isOffline: boolean;
   progress?: { cached: number; total: number };
   isOnline: boolean;
+  showPlaylistFileSize: boolean;
   onSelect: () => void;
   onStartCaching: () => void;
   onStopCaching: () => void;
@@ -131,11 +134,13 @@ function PlaylistItem({
   isOffline,
   progress,
   isOnline,
+  showPlaylistFileSize,
   onSelect,
   onStartCaching,
   onStopCaching,
 }: PlaylistItemProps) {
   const duration = useMemo(() => formatDuration(playlist.duration), [playlist.duration]);
+  const size = useMemo(() => formatBytes(playlist.size), [playlist.size]);
 
   const className = [
     'playlist-item',
@@ -173,6 +178,7 @@ function PlaylistItem({
         <span className="playlist-item-name">{playlist.name}</span>
         <span className="playlist-item-info">
           {playlist.trackCount} tracks • {duration}
+          {showPlaylistFileSize && ` • ${size}`}
           {isOffline && progress && progress.cached < progress.total && (
             <span className="playlist-cache-info">
               {' • '}{progress.cached}/{progress.total} cached

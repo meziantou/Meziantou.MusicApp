@@ -5,6 +5,7 @@ export interface PlaylistSummary {
   name: string;
   trackCount: number;
   duration: number;
+  size: number;
   created: string;
   changed: string;
   sortOrder: number;
@@ -42,6 +43,7 @@ export interface PlaylistTracksResponse {
   name: string;
   trackCount: number;
   duration: number;
+  size: number;
   created: string;
   changed: string;
   tracks: TrackInfo[];

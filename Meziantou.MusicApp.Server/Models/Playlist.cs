@@ -13,6 +13,7 @@ public sealed class Playlist
     public required string Path { get; init; }
     public int SongCount { get; set; }
     public int Duration { get; set; }
+    public long Size { get; set; }
     public DateTime Created { get; init; }
     public DateTime Changed { get; init; }
     public CoverArt? CoverArt { get; set; }

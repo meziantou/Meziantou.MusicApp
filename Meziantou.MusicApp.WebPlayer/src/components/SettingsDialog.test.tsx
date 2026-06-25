@@ -155,4 +155,42 @@ describe('SettingsDialog', () => {
       root.unmount();
     });
   });
+
+  it('includes the playlist file size toggle in interface settings', async () => {
+    getScanStatusMock.mockResolvedValue({
+      isScanning: false,
+      isInitialScanCompleted: true,
+      scanCount: 12,
+      lastScanDate: '2026-01-02T12:00:00Z',
+      percentage: null,
+      estimatedCompletionTime: null,
+      processedFiles: null,
+      totalFiles: null,
+      processedPlaylists: null,
+      totalPlaylists: null,
+      invalidPlaylists: [],
+    });
+
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <SettingsDialog
+          isOpen
+          onClose={() => undefined}
+          onOpenDiagnostics={() => undefined}
+        />,
+      );
+    });
+
+    const input = container.querySelector<HTMLInputElement>('#show-playlist-file-size');
+    expect(input).not.toBeNull();
+    expect(input?.checked).toBe(false);
+    expect(container.textContent).toContain('Show Playlist File Size');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });
