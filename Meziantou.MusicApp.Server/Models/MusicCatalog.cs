@@ -17,6 +17,7 @@ public sealed class MusicCatalog
     private readonly Dictionary<string, MusicDirectory> _directoriesById = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<string>> _genreIndex = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CoverArt> _coverArtsById = new(StringComparer.Ordinal);
+    private ILogger<MusicCatalog>? _logger;
 
     public FullPath RootPath { get; }
 
@@ -34,7 +35,7 @@ public sealed class MusicCatalog
         RootPath = rootPath;
     }
 
-    internal static async Task<MusicCatalog> Create(SerializableMusicCatalog serializableCatalog, FullPath rootPath, FullPath coverArtCachePath)
+    internal static async Task<MusicCatalog> Create(SerializableMusicCatalog serializableCatalog, FullPath rootPath, FullPath coverArtCachePath, ILogger<MusicCatalog>? logger = null)
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("MusicCatalog.Create");
         activity?.SetTag("music.catalog.total_songs", serializableCatalog.Songs.Count);
@@ -42,6 +43,7 @@ public sealed class MusicCatalog
         activity?.SetTag("music.catalog.root_path", rootPath.Value);
 
         var result = new MusicCatalog(rootPath);
+        result._logger = logger;
         var songsBuilder = ImmutableList.CreateBuilder<Song>();
 
         // Create songs
@@ -111,7 +113,7 @@ public sealed class MusicCatalog
                 // Cache cover art if configured and needed
                 if (coverArt is not null && !string.IsNullOrEmpty(coverArt.CachedFilePath))
                 {
-                    await EnsureCoverArtCached(coverArt);
+                    await EnsureCoverArtCached(coverArt, logger);
                 }
 
                 var song = new Song
@@ -640,9 +642,10 @@ public sealed class MusicCatalog
                     LastModified = cachedLastModified,
                 };
             }
-            catch
+            catch (Exception ex)
             {
                 activity?.SetTag("music.coverart.cache_read_failed", true);
+                _logger?.LogWarning(ex, "Failed to read cover art from cache: {CachedFilePath}", coverArt.CachedFilePath);
                 // Fall through to read from source
             }
         }
@@ -687,10 +690,10 @@ public sealed class MusicCatalog
                 };
             }
         }
-        catch
+        catch (Exception ex)
         {
             activity?.SetTag("music.coverart.result", "read_error");
-            // Ignore errors reading cover art
+            _logger?.LogWarning(ex, "Failed to read cover art from source: {CoverArtPath}", coverArt.FilePath);
         }
 
         activity?.SetTag("music.coverart.result", "failed");
@@ -745,10 +748,10 @@ public sealed class MusicCatalog
                 return lyricsText;
             }
         }
-        catch
+        catch (Exception ex)
         {
             activity?.SetTag("music.lyrics.result", "read_error");
-            // Ignore errors reading lyrics
+            _logger?.LogWarning(ex, "Failed to read lyrics for song: {SongId}", songId);
         }
 
         activity?.SetTag("music.lyrics.result", "failed");
@@ -804,7 +807,7 @@ public sealed class MusicCatalog
         return coverArtCachePath / coverId;
     }
 
-    private static async Task EnsureCoverArtCached(CoverArt coverArt)
+    private static async Task EnsureCoverArtCached(CoverArt coverArt, ILogger<MusicCatalog> logger)
     {
         if (coverArt.CachedFilePath.IsEmpty)
             return;
@@ -855,10 +858,10 @@ public sealed class MusicCatalog
                 activity?.SetTag("music.coverart.size_bytes", imageData.Length);
             }
         }
-        catch
+        catch (Exception ex)
         {
             activity?.SetTag("music.coverart.cache_result", "error");
-            // Ignore errors caching cover art
+            logger.LogWarning(ex, "Failed to cache cover art: {CoverArtId}", coverArt.Id);
         }
     }
 }

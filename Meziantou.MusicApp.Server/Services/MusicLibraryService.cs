@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Meziantou.MusicApp.Server.Services;
 
-public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOptions<MusicServerSettings> options, ReplayGainService replayGainService) : BackgroundService
+public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOptions<MusicServerSettings> options, ReplayGainService replayGainService, ILoggerFactory loggerFactory) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -164,7 +164,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private async Task<MusicCatalog> CreateCatalog(SerializableMusicCatalog content)
     {
         var coverArtCachePath = GetCoverArtCachePath();
-        return await MusicCatalog.Create(content, RootFolder, coverArtCachePath);
+        var musicCatalogLogger = loggerFactory.CreateLogger<MusicCatalog>();
+        return await MusicCatalog.Create(content, RootFolder, coverArtCachePath, musicCatalogLogger);
     }
 
     public async Task ScanMusicLibrary(bool force = false)
