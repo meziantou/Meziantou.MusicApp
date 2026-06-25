@@ -851,6 +851,7 @@ public sealed class MusicCatalog
 
             if (imageData is not null)
             {
+                coverArt.CachedFilePath.CreateParentDirectory();
                 await File.WriteAllBytesAsync(coverArt.CachedFilePath, imageData);
                 // Update the cached file's last write time to match the source
                 File.SetLastWriteTimeUtc(coverArt.CachedFilePath, coverArt.SourceLastWriteTimeUtc);
