@@ -35,7 +35,7 @@ public sealed class MusicCatalog
         RootPath = rootPath;
     }
 
-    internal static async Task<MusicCatalog> Create(SerializableMusicCatalog serializableCatalog, FullPath rootPath, FullPath coverArtCachePath, ILogger<MusicCatalog>? logger = null)
+    internal static async Task<MusicCatalog> Create(SerializableMusicCatalog serializableCatalog, FullPath rootPath, FullPath coverArtCachePath, ILogger<MusicCatalog> logger = null)
     {
         using var activity = MusicLibraryActivitySource.Instance.StartActivity("MusicCatalog.Create");
         activity?.SetTag("music.catalog.total_songs", serializableCatalog.Songs.Count);
