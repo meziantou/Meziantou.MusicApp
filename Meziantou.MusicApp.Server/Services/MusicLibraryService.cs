@@ -709,10 +709,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     {
         try
         {
-            var (playlist, missingItems) = await ParseXspfPlaylist(context);
+            var (playlist, missingItems, unnormalizedItems) = await ParseXspfPlaylist(context);
 
             context.Catalog.Playlist.Add(playlist);
             context.Catalog.MissingPlaylistItems.AddRange(missingItems);
+            context.Catalog.UnnormalizedPlaylistItems.AddRange(unnormalizedItems);
         }
         catch (Exception ex)
         {
@@ -737,6 +738,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     public MusicDirectory? GetDirectory(string id) => _catalog.GetDirectory(id);
     public IEnumerable<MusicDirectory> GetAllDirectories() => _catalog.Directories;
     public IEnumerable<MissingPlaylistItem> GetMissingPlaylistItems() => _catalog.MissingPlaylistItems;
+    public IEnumerable<UnnormalizedPlaylistItem> GetUnnormalizedPlaylistItems() => _catalog.UnnormalizedPlaylistItems;
 
     public IEnumerable<Playlist> GetPlaylists()
     {
@@ -769,6 +771,13 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             playlists.Insert(playlists.Count, noReplayGainPlaylist);
         }
 
+        // Add "Unnormalized Tracks" virtual playlist if there are any tracks resolved via Unicode normalization
+        var unnormalizedTracksPlaylist = CreateUnnormalizedTracksVirtualPlaylist();
+        if (unnormalizedTracksPlaylist.SongCount > 0)
+        {
+            playlists.Insert(playlists.Count, unnormalizedTracksPlaylist);
+        }
+
         return playlists;
     }
 
@@ -795,6 +804,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             if (id == Playlist.NeedsRescanPlaylistId)
             {
                 return CreateNeedsRescanVirtualPlaylist();
+            }
+
+            if (id == Playlist.UnnormalizedTracksPlaylistId)
+            {
+                return CreateUnnormalizedTracksVirtualPlaylist();
             }
 
             // Future virtual playlists can be added here
@@ -944,6 +958,35 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         };
     }
 
+    private Playlist CreateUnnormalizedTracksVirtualPlaylist()
+    {
+        var unnormalizedItems = _catalog.UnnormalizedPlaylistItems
+            .OrderBy(u => u.PlaylistName, StringComparer.Ordinal)
+            .ThenBy(u => u.OriginalRelativePath, StringComparer.Ordinal)
+            .ToList();
+
+        var items = unnormalizedItems.Select(u => new PlaylistItem
+        {
+            Song = u.Song,
+            AddedDate = u.AddedDate ?? DateTime.UtcNow,
+        }).ToList();
+
+        return new Playlist
+        {
+            Id = Playlist.UnnormalizedTracksPlaylistId,
+            Name = "⚠️ Unnormalized Tracks",
+            Path = string.Empty,
+            SongCount = items.Count,
+            Duration = items.Sum(i => i.Song.Duration),
+            Size = items.Sum(i => i.Song.Size),
+            Created = DateTime.UtcNow,
+            Changed = DateTime.UtcNow,
+            CoverArt = items.FirstOrDefault()?.Song.CoverArt,
+            Comment = "Virtual playlist containing tracks whose file path in a playlist did not match the file on disk due to Unicode normalization (NFC/NFD mismatch)",
+            Items = items,
+        };
+    }
+
     private static string GetContentTypeForExtension(string extension)
     {
         return extension switch
@@ -963,7 +1006,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private async Task<Playlist> RefreshPlaylist(FullPath playlistPath)
     {
         // Parse the XSPF file to get playlist data
-        var (serializablePlaylist, _) = await ParseXspfPlaylist(new IndexerContext(RootFolder, playlistPath, null!, []));
+        var (serializablePlaylist, _, _) = await ParseXspfPlaylist(new IndexerContext(RootFolder, playlistPath, null!, []));
 
         // Update the catalog
         var playlist = _catalog.AddOrUpdatePlaylist(serializablePlaylist);
@@ -980,8 +1023,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         return playlist;
     }
 
-    /// <summary>Parses an XSPF file and returns a SerializablePlaylist along with any missing playlist items.</summary>
-    private static async Task<(SerializablePlaylist Playlist, List<SerializableMissingPlaylistItem> MissingItems)> ParseXspfPlaylist(IndexerContext context)
+    /// <summary>Parses an XSPF file and returns a SerializablePlaylist along with any missing and unnormalized playlist items.</summary>
+    private async Task<(SerializablePlaylist Playlist, List<SerializableMissingPlaylistItem> MissingItems, List<SerializableUnnormalizedPlaylistItem> UnnormalizedItems)> ParseXspfPlaylist(IndexerContext context)
     {
         await using var stream = new FileStream(context.Path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
         var xspfDoc = await XDocument.LoadAsync(stream, LoadOptions.None, CancellationToken.None);
@@ -1003,6 +1046,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         };
 
         var missingItems = new List<SerializableMissingPlaylistItem>();
+        var unnormalizedItems = new List<SerializableUnnormalizedPlaylistItem>();
 
         var trackListElement = playlistElement.Element(XspfNamespace + "trackList");
         if (trackListElement != null)
@@ -1042,6 +1086,30 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     }
                 }
 
+                if (!File.Exists(songPath))
+                {
+                    // File not found with the path as-is. Try to find it by normalizing both
+                    // the playlist path and the actual filenames to NFC, to handle the common
+                    // case where a playlist stores paths in one Unicode form (e.g. NFC) but the
+                    // files on disk use another (e.g. NFD from an HFS+ copy to Linux).
+                    var resolvedPath = TryFindFileWithUnicodeNormalization(songPath);
+                    if (resolvedPath is not null)
+                    {
+                        logger.LogWarning("Playlist item path resolved via Unicode normalization: {OriginalPath} -> {ResolvedPath}", songPath, resolvedPath.Value);
+                        var lastWriteTime = File.GetLastWriteTimeUtc(resolvedPath.Value);
+                        unnormalizedItems.Add(new SerializableUnnormalizedPlaylistItem
+                        {
+                            OriginalRelativePath = context.CreateRelativePath(songPath),
+                            ResolvedRelativePath = context.CreateRelativePath(resolvedPath.Value),
+                            FileLastWriteTime = lastWriteTime,
+                            PlaylistRelativePath = context.RelativePath,
+                            PlaylistName = playlist.Name,
+                            AddedDate = addedDate,
+                        });
+                        songPath = resolvedPath.Value;
+                    }
+                }
+
                 if (File.Exists(songPath))
                 {
                     var playlistItem = new SerializablePlaylistItem
@@ -1066,7 +1134,29 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             }
         }
 
-        return (playlist, missingItems);
+        return (playlist, missingItems, unnormalizedItems);
+    }
+
+    /// <summary>
+    /// Tries to find a file on disk whose name matches the given path after normalizing both to Unicode NFC.
+    /// This handles the case where a playlist stores a path in one normalization form (e.g. NFC) but
+    /// the file system contains the file under a different form (e.g. NFD), which is common when files
+    /// are copied between macOS and Linux.
+    /// </summary>
+    private static FullPath? TryFindFileWithUnicodeNormalization(FullPath path)
+    {
+        var directoryPath = Path.GetDirectoryName((string)path);
+        if (directoryPath is null || !Directory.Exists(directoryPath))
+            return null;
+
+        var normalizedFileName = Path.GetFileName((string)path).Normalize(NormalizationForm.FormC);
+        foreach (var file in Directory.EnumerateFiles(directoryPath))
+        {
+            if (Path.GetFileName(file).Normalize(NormalizationForm.FormC).Equals(normalizedFileName, StringComparison.Ordinal))
+                return FullPath.FromPath(file);
+        }
+
+        return null;
     }
 
     /// <summary>Removes a playlist from the catalog without performing a full library scan.</summary>

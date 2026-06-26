@@ -7,6 +7,7 @@ public sealed class Playlist
     public const string MissingTracksPlaylistId = "virtual:missing-tracks";
     public const string NoReplayGainPlaylistId = "virtual:no-replay-gain";
     public const string NeedsRescanPlaylistId = "virtual:needs-rescan";
+    public const string UnnormalizedTracksPlaylistId = "virtual:unnormalized-tracks";
 
     public required string Id { get; init; }
     public required string Name { get; init; }

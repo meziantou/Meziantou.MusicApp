@@ -950,6 +950,79 @@ public partial class MusicLibraryServiceTests
     }
 
     [Fact]
+    public async Task ScanMusicLibrary_ResolvesPlaylistItemsViaUnicodeNormalization()
+    {
+        await using var testContext = AppTestContext.Create();
+
+        // Create a file whose name is in NFD form ('e' + combining acute accent)
+        var nfdFileName = "cafe\u0301.mp3"; // café in NFD
+        var nfcFileName = "caf\u00e9.mp3"; // café in NFC (U+00E9 precomposed)
+
+        testContext.MusicLibrary.CreateTestMp3File(nfdFileName, title: "Café Song", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Pop", year: 2024, track: 1);
+
+        // Playlist references the NFC form of the filename; on a case-sensitive OS (Linux)
+        // File.Exists will fail for the NFC path when the file is stored as NFD, so the
+        // normalization fallback must find the file instead of adding it to missing items.
+        var xspfContent = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>{nfcFileName}</location>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
+
+        var service = await testContext.ScanCatalog();
+
+        // The track must not appear in the missing items list regardless of OS normalization behaviour.
+        var missingItems = service.GetMissingPlaylistItems().ToList();
+        Assert.Empty(missingItems);
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public async Task GetPlaylists_IncludesUnnormalizedTracksVirtualPlaylist_WhenNormalizationUsed()
+    {
+        await using var testContext = AppTestContext.Create();
+
+        // On Linux, File.Exists treats NFC and NFD as distinct, so the normalization fallback fires.
+        var nfdFileName = "cafe\u0301.mp3"; // café in NFD
+        var nfcFileName = "caf\u00e9.mp3"; // café in NFC
+
+        testContext.MusicLibrary.CreateTestMp3File(nfdFileName, title: "Café Song", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Pop", year: 2024, track: 1);
+
+        var xspfContent = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>{nfcFileName}</location>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlists = service.GetPlaylists().ToList();
+        var unnormalizedPlaylist = playlists.FirstOrDefault(p => p.Id == Playlist.UnnormalizedTracksPlaylistId);
+        Assert.NotNull(unnormalizedPlaylist);
+        Assert.Equal(1, unnormalizedPlaylist.SongCount);
+
+        var items = service.GetUnnormalizedPlaylistItems().ToList();
+        Assert.Single(items);
+        Assert.Equal(nfcFileName, items[0].OriginalRelativePath);
+        Assert.Equal(nfdFileName, items[0].ResolvedRelativePath);
+        Assert.Equal("test-playlist", items[0].PlaylistName);
+    }
+
+    [Fact]
     public async Task ScanMusicLibrary_M3uConversion_IncludesMissingTracksInXspf()
     {
         await using var testContext = AppTestContext.Create();
