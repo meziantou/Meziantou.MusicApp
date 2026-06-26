@@ -6,12 +6,13 @@ internal sealed class SerializableMusicCatalog
     /// Current version of the cache format. Increment this when adding new properties
     /// or changing the structure to force a rescan of the library.
     /// </summary>
-    public const int CacheVersion = 4;
+    public const int CacheVersion = 5;
 
     public int Version { get; set; } = CacheVersion;
     public List<SerializableSong> Songs { get; set; } = [];
     public List<SerializablePlaylist> Playlist { get; set; } = [];
     public List<SerializableMissingPlaylistItem> MissingPlaylistItems { get; set; } = [];
     public List<SerializableInvalidPlaylist> InvalidPlaylists { get; set; } = [];
+    public List<SerializableUnnormalizedPlaylistItem> UnnormalizedPlaylistItems { get; set; } = [];
 }
 

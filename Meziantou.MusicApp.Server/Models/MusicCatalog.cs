@@ -28,6 +28,7 @@ public sealed class MusicCatalog
     public ImmutableList<MusicDirectory> Directories { get; private set; } = [];
     public ImmutableList<MissingPlaylistItem> MissingPlaylistItems { get; private set; } = [];
     public ImmutableList<InvalidPlaylist> InvalidPlaylists { get; private set; } = [];
+    public ImmutableList<UnnormalizedPlaylistItem> UnnormalizedPlaylistItems { get; private set; } = [];
     public DateTime? LastScanDate { get; private set; }
 
     internal MusicCatalog(FullPath rootPath)
@@ -167,6 +168,9 @@ public sealed class MusicCatalog
 
         // Build invalid playlists
         result.BuildInvalidPlaylists(serializableCatalog.InvalidPlaylists);
+
+        // Build unnormalized playlist items
+        result.BuildUnnormalizedPlaylistItems(serializableCatalog.UnnormalizedPlaylistItems);
 
         // Build genre index
         result.BuildGenreIndex();
@@ -392,6 +396,30 @@ public sealed class MusicCatalog
         }
 
         InvalidPlaylists = invalidPlaylistsBuilder.ToImmutable();
+    }
+
+    private void BuildUnnormalizedPlaylistItems(List<SerializableUnnormalizedPlaylistItem> serializableItems)
+    {
+        var builder = ImmutableList.CreateBuilder<UnnormalizedPlaylistItem>();
+
+        foreach (var item in serializableItems)
+        {
+            var songId = ItemId.CreateSongId(item.ResolvedRelativePath, item.FileLastWriteTime);
+            if (!_songsById.TryGetValue(songId, out var song))
+                continue;
+
+            builder.Add(new UnnormalizedPlaylistItem
+            {
+                OriginalRelativePath = item.OriginalRelativePath,
+                ResolvedRelativePath = item.ResolvedRelativePath,
+                Song = song,
+                PlaylistName = item.PlaylistName,
+                PlaylistId = ItemId.CreatePlaylistId(item.PlaylistRelativePath),
+                AddedDate = item.AddedDate,
+            });
+        }
+
+        UnnormalizedPlaylistItems = builder.ToImmutable();
     }
 
     private void BuildGenreIndex()
