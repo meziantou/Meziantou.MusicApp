@@ -1004,9 +1004,6 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
         var missingItems = new List<SerializableMissingPlaylistItem>();
 
-
-        var directoryCache = new Dictionary<string, string[]>(StringComparer.Ordinal);
-
         var trackListElement = playlistElement.Element(XspfNamespace + "trackList");
         if (trackListElement != null)
         {
@@ -1045,18 +1042,18 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     }
                 }
 
-                // Resolve the canonical on-disk path to handle Unicode NFC/NFD normalization mismatches.
-                // This is necessary because the playlist may store paths in a different normalization form
-                // than what the file system uses (e.g. macOS uses NFD, but playlists typically store NFC).
-                var canonicalPath = TryFindFileWithUnicodeNormalization(songPath, directoryCache);
-                if (canonicalPath is not null)
+                if (!File.Exists(songPath))
                 {
-                    if ((string)canonicalPath.Value != (string)songPath)
+                    // File not found with the path as-is. Try to find it by normalizing both
+                    // the playlist path and the actual filenames to NFC, to handle the common
+                    // case where a playlist stores paths in one Unicode form (e.g. NFC) but the
+                    // files on disk use another (e.g. NFD from an HFS+ copy to Linux).
+                    var resolvedPath = TryFindFileWithUnicodeNormalization(songPath);
+                    if (resolvedPath is not null)
                     {
-                        logger.LogWarning("Playlist item path resolved via Unicode normalization: {OriginalPath} -> {ResolvedPath}", songPath, canonicalPath.Value);
+                        logger.LogWarning("Playlist item path resolved via Unicode normalization: {OriginalPath} -> {ResolvedPath}", songPath, resolvedPath.Value);
+                        songPath = resolvedPath.Value;
                     }
-
-                    songPath = canonicalPath.Value;
                 }
 
                 if (File.Exists(songPath))
@@ -1090,23 +1087,16 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     /// Tries to find a file on disk whose name matches the given path after normalizing both to Unicode NFC.
     /// This handles the case where a playlist stores a path in one normalization form (e.g. NFC) but
     /// the file system contains the file under a different form (e.g. NFD), which is common when files
-    /// are copied between macOS and Linux. The <paramref name="directoryCache"/> avoids redundant
-    /// directory scans when many tracks share the same folder.
+    /// are copied between macOS and Linux.
     /// </summary>
-    private static FullPath? TryFindFileWithUnicodeNormalization(FullPath path, Dictionary<string, string[]> directoryCache)
+    private static FullPath? TryFindFileWithUnicodeNormalization(FullPath path)
     {
         var directoryPath = Path.GetDirectoryName((string)path);
         if (directoryPath is null || !Directory.Exists(directoryPath))
             return null;
 
-        if (!directoryCache.TryGetValue(directoryPath, out var files))
-        {
-            files = Directory.GetFiles(directoryPath);
-            directoryCache[directoryPath] = files;
-        }
-
         var normalizedFileName = Path.GetFileName((string)path).Normalize(NormalizationForm.FormC);
-        foreach (var file in files)
+        foreach (var file in Directory.EnumerateFiles(directoryPath))
         {
             if (Path.GetFileName(file).Normalize(NormalizationForm.FormC).Equals(normalizedFileName, StringComparison.Ordinal))
                 return FullPath.FromPath(file);
