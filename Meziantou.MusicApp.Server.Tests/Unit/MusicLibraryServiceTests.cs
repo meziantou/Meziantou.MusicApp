@@ -212,6 +212,30 @@ public partial class MusicLibraryServiceTests
         Assert.Equal("Test Artist", albums[0].Artist);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task StartAsync_DisablesAutomaticRescan_WhenCacheRefreshIntervalIsZeroOrNegative(int intervalMilliseconds)
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.Configure<MusicServerSettings>(settings => settings.CacheRefreshInterval = TimeSpan.FromMilliseconds(intervalMilliseconds));
+        testContext.MusicLibrary.CreateTestMp3File("InitialSong.mp3", title: "Initial Song");
+
+        var service = await testContext.ScanCatalog();
+
+        var initialSong = Assert.Single(service.GetAllSongs());
+        Assert.Equal("Initial Song", initialSong.Title);
+        Assert.Equal(1, service.ScanCount);
+
+        testContext.MusicLibrary.CreateTestMp3File("LaterSong.mp3", title: "Later Song");
+        await Task.Delay(200, testContext.CancellationToken);
+
+        var songs = service.GetAllSongs().ToList();
+        var song = Assert.Single(songs);
+        Assert.Equal("Initial Song", song.Title);
+        Assert.Equal(1, service.ScanCount);
+    }
+
     [Fact]
     public async Task ScanMusicLibrary_ExtractsLyricsFromMetadata()
     {

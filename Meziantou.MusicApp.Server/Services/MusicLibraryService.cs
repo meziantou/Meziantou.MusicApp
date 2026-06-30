@@ -102,11 +102,20 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
         await LoadCachedLibrary();
 
+        logger.LogInformation("Starting initial music library scan");
+        await Task.Run(() => ScanMusicLibrary(), stoppingToken);
+
+        if (!options.Value.IsAutomaticLibraryRescanEnabled)
+        {
+            logger.LogInformation("Automatic music library rescan is disabled because {SettingName} is {CacheRefreshInterval}", nameof(MusicServerSettings.CacheRefreshInterval), options.Value.CacheRefreshInterval);
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            await Task.Delay(options.Value.CacheRefreshInterval, stoppingToken);
             logger.LogInformation("Starting scheduled music library scan");
             await Task.Run(() => ScanMusicLibrary(), stoppingToken);
-            await Task.Delay(options.Value.CacheRefreshInterval, stoppingToken);
         }
     }
 

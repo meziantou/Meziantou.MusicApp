@@ -7,6 +7,7 @@ public sealed class MusicServerSettings
     public string CachePath { get; set; } = "";
     public bool EnableTranscodingCache { get; set; }
     public TimeSpan CacheRefreshInterval { get; set; } = TimeSpan.FromHours(24);
+    public bool IsAutomaticLibraryRescanEnabled => CacheRefreshInterval > TimeSpan.Zero;
 
     /// <summary>
     /// When true, analyzes tracks that are missing ReplayGain data during library scan

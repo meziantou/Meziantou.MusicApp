@@ -39,6 +39,9 @@ Configure FFmpeg path in `appsettings.json` (optional, defaults to system PATH):
 
 ```json
 {
+  "MusicServer": {
+    "CacheRefreshInterval": "1.00:00:00"
+  },
   "FFmpeg": {
     "Path": "ffmpeg",
     "MaxConcurrentTranscodes": 5,
@@ -46,6 +49,8 @@ Configure FFmpeg path in `appsettings.json` (optional, defaults to system PATH):
   }
 }
 ```
+
+- `CacheRefreshInterval`: Interval between automatic library rescans. Set it to `0` or a negative value to disable automatic rescans after the startup scan.
 
 ## Playlist Support
 
