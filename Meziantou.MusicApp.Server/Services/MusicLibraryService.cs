@@ -102,21 +102,65 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
         await LoadCachedLibrary();
 
-        logger.LogInformation("Starting initial music library scan");
-        await Task.Run(() => ScanMusicLibrary(), stoppingToken);
-
         if (!options.Value.IsAutomaticLibraryRescanEnabled)
         {
             logger.LogInformation("Automatic music library rescan is disabled because {SettingName} is {CacheRefreshInterval}", nameof(MusicServerSettings.CacheRefreshInterval), options.Value.CacheRefreshInterval);
+            _initialScanCompleted.TrySetResult();
             return;
+        }
+
+        if (ShouldScanCachedLibrary())
+        {
+            logger.LogInformation("Starting initial music library scan");
+            await Task.Run(() => ScanMusicLibrary(), stoppingToken);
+        }
+        else
+        {
+            logger.LogInformation("Using cached music library. Next scan is scheduled in {Delay}", GetDelayUntilNextScan());
+            _initialScanCompleted.TrySetResult();
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(options.Value.CacheRefreshInterval, stoppingToken);
+            var delay = GetDelayUntilNextScan();
+            if (delay <= TimeSpan.Zero)
+            {
+                delay = options.Value.CacheRefreshInterval;
+            }
+
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay, stoppingToken);
+            }
+
             logger.LogInformation("Starting scheduled music library scan");
             await Task.Run(() => ScanMusicLibrary(), stoppingToken);
         }
+    }
+
+    private bool ShouldScanCachedLibrary()
+    {
+        if (_cachedSerializableCatalog is null)
+            return true;
+
+        if (!options.Value.IsAutomaticLibraryRescanEnabled)
+            return false;
+
+        return GetDelayUntilNextScan() <= TimeSpan.Zero;
+    }
+
+    private TimeSpan GetDelayUntilNextScan()
+    {
+        var lastScanDate = LastScanDate;
+        if (lastScanDate is null)
+            return TimeSpan.Zero;
+
+        var nextScanDate = lastScanDate.Value.ToUniversalTime() + options.Value.CacheRefreshInterval;
+        var delay = nextScanDate - DateTime.UtcNow;
+        if (delay <= TimeSpan.Zero)
+            return TimeSpan.Zero;
+
+        return delay;
     }
 
     private async Task LoadCachedLibrary()
@@ -143,8 +187,10 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                     return;
                 }
 
+                content.LastScanDate ??= File.GetLastWriteTimeUtc(cachePath);
                 _cachedSerializableCatalog = content;
                 _catalog = await CreateCatalog(content);
+                _scanCount = _catalog.Songs.Count;
                 logger.LogInformation("Loaded cached library");
             }
         }
@@ -274,6 +320,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
                 }
                 m3uActivity?.SetTag("music.library.m3u_playlists", m3uFiles.Length);
             }
+
+            library.LastScanDate = DateTime.UtcNow;
 
             var cachePath = GetCacheJsonPath();
             if (!cachePath.IsEmpty)
