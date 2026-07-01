@@ -178,7 +178,7 @@ public sealed class MusicCatalog
         // Build directory structure
         result.BuildDirectoryStructure();
 
-        result.LastScanDate = DateTime.UtcNow;
+        result.LastScanDate = serializableCatalog.LastScanDate ?? DateTime.UtcNow;
 
         activity?.SetTag("music.catalog.final_songs", result.Songs.Count);
         activity?.SetTag("music.catalog.final_artists", result.Artists.Count);

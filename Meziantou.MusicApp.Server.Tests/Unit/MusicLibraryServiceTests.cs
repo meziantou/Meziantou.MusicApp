@@ -237,6 +237,102 @@ public partial class MusicLibraryServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_UsesCachedLibrary_WhenCacheRefreshIntervalHasNotElapsed()
+    {
+        using var tempDir = TemporaryDirectory.Create();
+        var musicPath = tempDir / "music";
+        var cachePath = tempDir / "cache";
+        Directory.CreateDirectory(musicPath);
+
+        var musicLibrary = new MusicLibraryTestContext(musicPath);
+        musicLibrary.CreateTestMp3File("InitialSong.mp3", title: "Initial Song");
+
+        {
+            await using var initialContext = AppTestContext.Create();
+            initialContext.Configure<MusicServerSettings>(settings =>
+            {
+                settings.CachePath = cachePath;
+                settings.MusicFolderPath = musicPath;
+                settings.CacheRefreshInterval = TimeSpan.FromDays(1);
+            });
+
+            _ = await initialContext.ScanCatalog();
+        }
+
+        var musicCachePath = cachePath / "cache.json";
+        var cacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
+        var cacheJson = JsonNode.Parse(cacheContent);
+        Assert.NotNull(cacheJson);
+        Assert.True(cacheJson.AsObject().Remove("LastScanDate"));
+        await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
+
+        musicLibrary.CreateTestMp3File("LaterSong.mp3", title: "Later Song");
+
+        await using var testContext = AppTestContext.Create();
+        testContext.Configure<MusicServerSettings>(settings =>
+        {
+            settings.CachePath = cachePath;
+            settings.MusicFolderPath = musicPath;
+            settings.CacheRefreshInterval = TimeSpan.FromDays(1);
+        });
+
+        var service = await testContext.ScanCatalog();
+
+        var song = Assert.Single(service.GetAllSongs());
+        Assert.Equal("Initial Song", song.Title);
+        Assert.Equal(1, service.ScanCount);
+        Assert.NotNull(service.LastScanDate);
+    }
+
+    [Fact]
+    public async Task StartAsync_RescansCachedLibrary_WhenCacheRefreshIntervalHasElapsed()
+    {
+        using var tempDir = TemporaryDirectory.Create();
+        var musicPath = tempDir / "music";
+        var cachePath = tempDir / "cache";
+        Directory.CreateDirectory(musicPath);
+
+        var musicLibrary = new MusicLibraryTestContext(musicPath);
+        musicLibrary.CreateTestMp3File("InitialSong.mp3", title: "Initial Song");
+
+        {
+            await using var initialContext = AppTestContext.Create();
+            initialContext.Configure<MusicServerSettings>(settings =>
+            {
+                settings.CachePath = cachePath;
+                settings.MusicFolderPath = musicPath;
+                settings.CacheRefreshInterval = TimeSpan.FromDays(1);
+            });
+
+            _ = await initialContext.ScanCatalog();
+        }
+
+        var musicCachePath = cachePath / "cache.json";
+        var cacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
+        var cacheJson = JsonNode.Parse(cacheContent);
+        Assert.NotNull(cacheJson);
+        cacheJson["LastScanDate"] = DateTime.UtcNow.AddDays(-2);
+        await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
+
+        musicLibrary.CreateTestMp3File("LaterSong.mp3", title: "Later Song");
+
+        await using var testContext = AppTestContext.Create();
+        testContext.Configure<MusicServerSettings>(settings =>
+        {
+            settings.CachePath = cachePath;
+            settings.MusicFolderPath = musicPath;
+            settings.CacheRefreshInterval = TimeSpan.FromDays(1);
+        });
+
+        var service = await testContext.ScanCatalog();
+
+        var songs = service.GetAllSongs().ToList();
+        Assert.Equal(2, songs.Count);
+        Assert.Contains(songs, song => song.Title == "Initial Song");
+        Assert.Contains(songs, song => song.Title == "Later Song");
+    }
+
+    [Fact]
     public async Task ScanMusicLibrary_ExtractsLyricsFromMetadata()
     {
         await using var testContext = AppTestContext.Create();
@@ -630,6 +726,7 @@ public partial class MusicLibraryServiceTests
 
         cacheJson["Songs"]![0]!["Title"] = "Stale Cached Title";
         cacheJson["Songs"]![0]!["Duration"] = "00:00:00";
+        cacheJson["LastScanDate"] = DateTime.UtcNow.AddDays(-2);
         await File.WriteAllTextAsync(musicCachePath, cacheJson.ToJsonString(), TestContext.Current.CancellationToken);
 
         await using var testContext = AppTestContext.Create();
