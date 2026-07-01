@@ -102,6 +102,13 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
 
         await LoadCachedLibrary();
 
+        if (!options.Value.IsAutomaticLibraryRescanEnabled)
+        {
+            logger.LogInformation("Automatic music library rescan is disabled because {SettingName} is {CacheRefreshInterval}", nameof(MusicServerSettings.CacheRefreshInterval), options.Value.CacheRefreshInterval);
+            _initialScanCompleted.TrySetResult();
+            return;
+        }
+
         if (ShouldScanCachedLibrary())
         {
             logger.LogInformation("Starting initial music library scan");
@@ -111,12 +118,6 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             logger.LogInformation("Using cached music library. Next scan is scheduled in {Delay}", GetDelayUntilNextScan());
             _initialScanCompleted.TrySetResult();
-        }
-
-        if (!options.Value.IsAutomaticLibraryRescanEnabled)
-        {
-            logger.LogInformation("Automatic music library rescan is disabled because {SettingName} is {CacheRefreshInterval}", nameof(MusicServerSettings.CacheRefreshInterval), options.Value.CacheRefreshInterval);
-            return;
         }
 
         while (!stoppingToken.IsCancellationRequested)
@@ -143,7 +144,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             return true;
 
         if (!options.Value.IsAutomaticLibraryRescanEnabled)
-            return true;
+            return false;
 
         return GetDelayUntilNextScan() <= TimeSpan.Zero;
     }
