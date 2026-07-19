@@ -1143,7 +1143,7 @@ public partial class MusicLibraryServiceTests
 
     [Fact]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
-    public async Task GetPlaylists_IncludesUnnormalizedTracksVirtualPlaylist_WhenNormalizationUsed()
+    public async Task GetPlaylists_DoesNotIncludeUnnormalizedTracksVirtualPlaylist_WhenNormalizationUsed()
     {
         await using var testContext = AppTestContext.Create();
 
@@ -1169,15 +1169,20 @@ public partial class MusicLibraryServiceTests
         var service = await testContext.ScanCatalog();
 
         var playlists = service.GetPlaylists().ToList();
-        var unnormalizedPlaylist = playlists.FirstOrDefault(p => p.Id == Playlist.UnnormalizedTracksPlaylistId);
-        Assert.NotNull(unnormalizedPlaylist);
-        Assert.Equal(1, unnormalizedPlaylist.SongCount);
+        Assert.DoesNotContain(playlists, p => p.Name == "⚠️ Unnormalized Tracks");
 
         var items = service.GetUnnormalizedPlaylistItems().ToList();
-        Assert.Single(items);
-        Assert.Equal(nfcFileName, items[0].OriginalRelativePath);
-        Assert.Equal(nfdFileName, items[0].ResolvedRelativePath);
-        Assert.Equal("test-playlist", items[0].PlaylistName);
+        if (OperatingSystem.IsLinux())
+        {
+            Assert.Single(items);
+            Assert.Equal(nfcFileName, items[0].OriginalRelativePath);
+            Assert.Equal(nfdFileName, items[0].ResolvedRelativePath);
+            Assert.Equal("test-playlist", items[0].PlaylistName);
+        }
+        else
+        {
+            Assert.Empty(items);
+        }
     }
 
     [Fact]

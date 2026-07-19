@@ -828,13 +828,6 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             playlists.Insert(playlists.Count, noReplayGainPlaylist);
         }
 
-        // Add "Unnormalized Tracks" virtual playlist if there are any tracks resolved via Unicode normalization
-        var unnormalizedTracksPlaylist = CreateUnnormalizedTracksVirtualPlaylist();
-        if (unnormalizedTracksPlaylist.SongCount > 0)
-        {
-            playlists.Insert(playlists.Count, unnormalizedTracksPlaylist);
-        }
-
         return playlists;
     }
 
@@ -861,11 +854,6 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             if (id == Playlist.NeedsRescanPlaylistId)
             {
                 return CreateNeedsRescanVirtualPlaylist();
-            }
-
-            if (id == Playlist.UnnormalizedTracksPlaylistId)
-            {
-                return CreateUnnormalizedTracksVirtualPlaylist();
             }
 
             // Future virtual playlists can be added here
@@ -1011,35 +999,6 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             Changed = DateTime.UtcNow,
             CoverArt = items.FirstOrDefault()?.Song.CoverArt,
             Comment = "Virtual playlist containing tracks with missing core metadata that should be rescanned",
-            Items = items,
-        };
-    }
-
-    private Playlist CreateUnnormalizedTracksVirtualPlaylist()
-    {
-        var unnormalizedItems = _catalog.UnnormalizedPlaylistItems
-            .OrderBy(u => u.PlaylistName, StringComparer.Ordinal)
-            .ThenBy(u => u.OriginalRelativePath, StringComparer.Ordinal)
-            .ToList();
-
-        var items = unnormalizedItems.Select(u => new PlaylistItem
-        {
-            Song = u.Song,
-            AddedDate = u.AddedDate ?? DateTime.UtcNow,
-        }).ToList();
-
-        return new Playlist
-        {
-            Id = Playlist.UnnormalizedTracksPlaylistId,
-            Name = "⚠️ Unnormalized Tracks",
-            Path = string.Empty,
-            SongCount = items.Count,
-            Duration = items.Sum(i => i.Song.Duration),
-            Size = items.Sum(i => i.Song.Size),
-            Created = DateTime.UtcNow,
-            Changed = DateTime.UtcNow,
-            CoverArt = items.FirstOrDefault()?.Song.CoverArt,
-            Comment = "Virtual playlist containing tracks whose file path in a playlist did not match the file on disk due to Unicode normalization (NFC/NFD mismatch)",
             Items = items,
         };
     }
