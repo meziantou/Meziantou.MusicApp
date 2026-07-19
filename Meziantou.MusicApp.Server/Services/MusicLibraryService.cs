@@ -884,6 +884,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             AddedDate = song.Created,
         }).ToList();
 
+        var catalogTimestamp = _catalog.LastScanDate ?? DateTime.UtcNow;
+
         return new Playlist
         {
             Id = Playlist.AllSongsPlaylistId,
@@ -892,8 +894,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             SongCount = items.Count,
             Duration = items.Sum(i => i.Song.Duration),
             Size = items.Sum(i => i.Song.Size),
-            Created = DateTime.UtcNow,
-            Changed = DateTime.UtcNow,
+            Created = catalogTimestamp,
+            Changed = catalogTimestamp,
             CoverArt = items.FirstOrDefault()?.Song.CoverArt,
             Comment = "Virtual playlist containing all songs in the library",
             Items = items,
@@ -935,6 +937,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             };
         }).ToList();
 
+        var catalogTimestamp = _catalog.LastScanDate ?? DateTime.UtcNow;
+
         return new Playlist
         {
             Id = Playlist.MissingTracksPlaylistId,
@@ -943,8 +947,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             SongCount = items.Count,
             Duration = 0,
             Size = 0,
-            Created = DateTime.UtcNow,
-            Changed = DateTime.UtcNow,
+            Created = catalogTimestamp,
+            Changed = catalogTimestamp,
             CoverArt = null,
             Comment = "Virtual playlist containing tracks that are referenced in playlists but don't exist locally",
             Items = items,
@@ -967,6 +971,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             AddedDate = song.Created,
         }).ToList();
 
+        var catalogTimestamp = _catalog.LastScanDate ?? DateTime.UtcNow;
+
         return new Playlist
         {
             Id = Playlist.NoReplayGainPlaylistId,
@@ -975,8 +981,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             SongCount = items.Count,
             Duration = items.Sum(i => i.Song.Duration),
             Size = items.Sum(i => i.Song.Size),
-            Created = DateTime.UtcNow,
-            Changed = DateTime.UtcNow,
+            Created = catalogTimestamp,
+            Changed = catalogTimestamp,
             CoverArt = items.FirstOrDefault()?.Song.CoverArt,
             Comment = "Virtual playlist containing tracks without replay gain information",
             Items = items,
@@ -999,6 +1005,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             AddedDate = song.Created,
         }).ToList();
 
+        var catalogTimestamp = _catalog.LastScanDate ?? DateTime.UtcNow;
+
         return new Playlist
         {
             Id = Playlist.NeedsRescanPlaylistId,
@@ -1007,8 +1015,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             SongCount = items.Count,
             Duration = items.Sum(i => i.Song.Duration),
             Size = items.Sum(i => i.Song.Size),
-            Created = DateTime.UtcNow,
-            Changed = DateTime.UtcNow,
+            Created = catalogTimestamp,
+            Changed = catalogTimestamp,
             CoverArt = items.FirstOrDefault()?.Song.CoverArt,
             Comment = "Virtual playlist containing tracks with missing core metadata that should be rescanned",
             Items = items,
@@ -1028,6 +1036,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             AddedDate = u.AddedDate ?? DateTime.UtcNow,
         }).ToList();
 
+        var catalogTimestamp = _catalog.LastScanDate ?? DateTime.UtcNow;
+
         return new Playlist
         {
             Id = Playlist.UnnormalizedTracksPlaylistId,
@@ -1036,8 +1046,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             SongCount = items.Count,
             Duration = items.Sum(i => i.Song.Duration),
             Size = items.Sum(i => i.Song.Size),
-            Created = DateTime.UtcNow,
-            Changed = DateTime.UtcNow,
+            Created = catalogTimestamp,
+            Changed = catalogTimestamp,
             CoverArt = items.FirstOrDefault()?.Song.CoverArt,
             Comment = "Virtual playlist containing tracks whose file path in a playlist did not match the file on disk due to Unicode normalization (NFC/NFD mismatch)",
             Items = items,
