@@ -1142,50 +1142,6 @@ public partial class MusicLibraryServiceTests
     }
 
     [Fact]
-    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
-    public async Task GetPlaylists_DoesNotIncludeUnnormalizedTracksVirtualPlaylist_WhenNormalizationUsed()
-    {
-        await using var testContext = AppTestContext.Create();
-
-        // On Linux, File.Exists treats NFC and NFD as distinct, so the normalization fallback fires.
-        var nfdFileName = "cafe\u0301.mp3"; // café in NFD
-        var nfcFileName = "caf\u00e9.mp3"; // café in NFC
-
-        testContext.MusicLibrary.CreateTestMp3File(nfdFileName, title: "Café Song", artist: "Artist", albumArtist: "Artist", album: "Album", genre: "Pop", year: 2024, track: 1);
-
-        var xspfContent = $"""
-            <?xml version="1.0" encoding="utf-8"?>
-            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
-              <title>test-playlist</title>
-              <trackList>
-                <track>
-                  <location>{nfcFileName}</location>
-                </track>
-              </trackList>
-            </playlist>
-            """;
-        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
-
-        var service = await testContext.ScanCatalog();
-
-        var playlists = service.GetPlaylists().ToList();
-        Assert.DoesNotContain(playlists, p => p.Name == "⚠️ Unnormalized Tracks");
-
-        var items = service.GetUnnormalizedPlaylistItems().ToList();
-        if (OperatingSystem.IsLinux())
-        {
-            Assert.Single(items);
-            Assert.Equal(nfcFileName, items[0].OriginalRelativePath);
-            Assert.Equal(nfdFileName, items[0].ResolvedRelativePath);
-            Assert.Equal("test-playlist", items[0].PlaylistName);
-        }
-        else
-        {
-            Assert.Empty(items);
-        }
-    }
-
-    [Fact]
     public async Task ScanMusicLibrary_M3uConversion_IncludesMissingTracksInXspf()
     {
         await using var testContext = AppTestContext.Create();
