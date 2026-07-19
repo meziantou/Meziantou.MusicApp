@@ -108,6 +108,7 @@ function AppDataProvider({ children }: AppProviderProps) {
   const [isInitialized, setIsInitialized] = useState(false);
   const settingsRef = useRef(settings);
   const equalizerSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanRefreshRequestIdRef = useRef(0);
 
   const { playerActions } = usePlayer();
 
@@ -219,7 +220,7 @@ function AppDataProvider({ children }: AppProviderProps) {
       try {
         let currentPlaylists: PlaylistSummary[] = [];
         if (isOnline) {
-          currentPlaylists = (await syncPlaylistsInternal()) || [];
+          currentPlaylists = (await syncPlaylistsInternal({ refreshAllTracks: true })) || [];
         } else {
           const cachedPlaylists = await storageService.getAllCachedPlaylists();
           currentPlaylists = cachedPlaylists.map(cp => cp.playlist).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -449,7 +450,11 @@ function AppDataProvider({ children }: AppProviderProps) {
     return () => clearInterval(interval);
   }, [isInitialized, settings.serverUrl, isOnline]);
 
-  async function syncPlaylistsInternal() {
+  interface SyncPlaylistsOptions {
+    refreshAllTracks?: boolean;
+  }
+
+  async function syncPlaylistsInternal(options?: SyncPlaylistsOptions) {
     if (!isOnline) return;
 
     try {
@@ -506,35 +511,29 @@ function AppDataProvider({ children }: AppProviderProps) {
       for (const playlist of sorted) {
         const cached = await storageService.getCachedPlaylist(playlist.id);
         const needsUpdate = !cached || new Date(cached.playlist.changed) < new Date(playlist.changed);
+        const shouldRefreshTracks = options?.refreshAllTracks === true;
 
-        // If this playlist is marked for offline
-        if (currentOfflinePlaylists.has(playlist.id)) {
-          if (needsUpdate) {
-            // Download any new tracks
-            const tracksResponse = await api.getPlaylistTracks(playlist.id);
-            await storageService.saveCachedPlaylist(playlist, tracksResponse.tracks);
+        if (shouldRefreshTracks || needsUpdate) {
+          const tracksResponse = await api.getPlaylistTracks(playlist.id);
+          await storageService.saveCachedPlaylist(playlist, tracksResponse.tracks);
 
-            // Recompute download progress for this playlist
-            {
-              let cachedCount = 0;
-              for (const t of tracksResponse.tracks) {
-                if (cachedTrackIds.has(t.id)) cachedCount++;
-              }
-              const total = tracksResponse.tracks.length;
-              setPlaylistDownloadProgress(prev => {
-                const next = new Map(prev);
-                next.set(playlist.id, { cached: cachedCount, total });
-                return next;
-              });
+          if (currentOfflinePlaylists.has(playlist.id)) {
+            let cachedCount = 0;
+            for (const t of tracksResponse.tracks) {
+              if (cachedTrackIds.has(t.id)) cachedCount++;
             }
+            const total = tracksResponse.tracks.length;
+            setPlaylistDownloadProgress(prev => {
+              const next = new Map(prev);
+              next.set(playlist.id, { cached: cachedCount, total });
+              return next;
+            });
 
-            // Queue downloads for uncached tracks
             const uncachedTracks = tracksResponse.tracks.filter(t => !cachedTrackIds.has(t.id));
             if (uncachedTracks.length > 0) {
               await downloadService.queuePlaylistDownload(uncachedTracks, playlist.id, settings.downloadQuality);
             }
 
-            // Remove tracks that are no longer in the playlist
             if (cached) {
               const newTrackIds = new Set(tracksResponse.tracks.map(t => t.id));
               const removedTracks = cached.tracks.filter(t => !newTrackIds.has(t.id));
@@ -542,35 +541,31 @@ function AppDataProvider({ children }: AppProviderProps) {
                 await storageService.removePlaylistFromTrack(track.id, playlist.id);
               }
             }
-
-            if (currentPlaylistId === playlist.id) {
-              setCurrentPlaylistTracks(tracksResponse.tracks);
-            }
-          } else if (cached) {
-            // Playlist hasn't changed, but ensure progress is initialized.
-            {
-              let cachedCount = 0;
-              for (const t of cached.tracks) {
-                if (cachedTrackIds.has(t.id)) cachedCount++;
-              }
-              const total = cached.tracks.length;
-              setPlaylistDownloadProgress(prev => {
-                const existing = prev.get(playlist.id);
-                if (existing && existing.cached === cachedCount && existing.total === total) return prev;
-                const next = new Map(prev);
-                next.set(playlist.id, { cached: cachedCount, total });
-                return next;
-              });
-            }
-
-            // Also check for uncached tracks (in case previous downloads were interrupted)
-            const uncachedTracks = cached.tracks.filter(t => !cachedTrackIds.has(t.id));
-            if (uncachedTracks.length > 0) {
-              await downloadService.queuePlaylistDownload(uncachedTracks, playlist.id, settings.downloadQuality);
-            }
           }
-        } else if (needsUpdate && currentPlaylistId === playlist.id) {
-          await loadPlaylistTracksInternal(playlist.id, undefined, true);
+
+          if (currentPlaylistId === playlist.id) {
+            setCurrentPlaylistTracks(tracksResponse.tracks);
+          }
+        } else if (currentOfflinePlaylists.has(playlist.id) && cached) {
+          // Playlist hasn't changed, but ensure progress is initialized.
+          let cachedCount = 0;
+          for (const t of cached.tracks) {
+            if (cachedTrackIds.has(t.id)) cachedCount++;
+          }
+          const total = cached.tracks.length;
+          setPlaylistDownloadProgress(prev => {
+            const existing = prev.get(playlist.id);
+            if (existing && existing.cached === cachedCount && existing.total === total) return prev;
+            const next = new Map(prev);
+            next.set(playlist.id, { cached: cachedCount, total });
+            return next;
+          });
+
+          // Also check for uncached tracks (in case previous downloads were interrupted)
+          const uncachedTracks = cached.tracks.filter(t => !cachedTrackIds.has(t.id));
+          if (uncachedTracks.length > 0) {
+            await downloadService.queuePlaylistDownload(uncachedTracks, playlist.id, settings.downloadQuality);
+          }
         }
       }
       return sorted;
@@ -891,17 +886,35 @@ function AppDataProvider({ children }: AppProviderProps) {
       await api.triggerScan(force);
       showToast(force ? 'Force library scan started' : 'Library scan started', 'success');
 
-      // Check for invalid playlists after a short delay to allow scan to complete
-      setTimeout(async () => {
-        try {
-          const status = await api.getScanStatus();
-          if (status.invalidPlaylists) {
-            setInvalidPlaylists(status.invalidPlaylists);
+      const requestId = ++scanRefreshRequestIdRef.current;
+      setTimeout(() => {
+        void (async () => {
+          const maxAttempts = 120;
+          const pollIntervalMs = 2000;
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            if (scanRefreshRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            try {
+              const status = await api.getScanStatus();
+              if (status.invalidPlaylists) {
+                setInvalidPlaylists(status.invalidPlaylists);
+              }
+
+              if (!status.isScanning) {
+                await syncPlaylistsInternal({ refreshAllTracks: true });
+                return;
+              }
+            } catch (error) {
+              console.error('Failed to monitor library scan status:', error);
+              return;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
           }
-        } catch (error) {
-          console.error('Failed to check for invalid playlists:', error);
-        }
-      }, 3000);
+        })();
+      }, 1000);
     } catch (error) {
       console.error('Failed to trigger library scan:', error);
       showToast(force ? 'Failed to trigger force library scan' : 'Failed to trigger library scan', 'error');
