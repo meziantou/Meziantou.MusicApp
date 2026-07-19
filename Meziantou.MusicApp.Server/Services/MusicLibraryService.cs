@@ -29,6 +29,9 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private int _totalPlaylistsToScan;
     private DateTime _scanStartTime;
     private CancellationToken _cancellationToken = CancellationToken.None;
+    private long _scanGenerationCounter;
+    private long _activeScanGeneration;
+    private long _lastCompletedScanGeneration;
 
     private static readonly XNamespace XspfNamespace = "http://xspf.org/ns/0/";
     private static readonly XNamespace MeziantouExtensionNamespace = "http://meziantou.net/xspf-extension/1/";
@@ -62,6 +65,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     public int? TotalFiles => IsScanning ? _totalFilesToScan : null;
     public int? ProcessedPlaylists => IsScanning ? _processedPlaylistsCount : null;
     public int? TotalPlaylists => IsScanning ? _totalPlaylistsToScan : null;
+    public long ActiveScanGeneration => IsScanning ? Volatile.Read(ref _activeScanGeneration) : 0;
+    public long LastCompletedScanGeneration => Volatile.Read(ref _lastCompletedScanGeneration);
     public double? ScanProgress
     {
         get
@@ -247,6 +252,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
             }
 
             lockAcquired = true;
+            var activeScanGeneration = Interlocked.Increment(ref _scanGenerationCounter);
+            Volatile.Write(ref _activeScanGeneration, activeScanGeneration);
             logger.LogInformation("Scanning music library");
             var library = new SerializableMusicCatalog();
             var files = Directory.EnumerateFiles(rootFolder, "*", new EnumerationOptions { AttributesToSkip = FileAttributes.None, IgnoreInaccessible = true, RecurseSubdirectories = true })
@@ -386,6 +393,7 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
         {
             if (lockAcquired)
             {
+                Volatile.Write(ref _lastCompletedScanGeneration, Volatile.Read(ref _activeScanGeneration));
                 _scanSemaphore.Release();
             }
 

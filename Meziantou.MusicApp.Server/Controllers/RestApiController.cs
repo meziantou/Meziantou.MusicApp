@@ -372,6 +372,8 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
             TotalFiles = library.TotalFiles,
             ProcessedPlaylists = library.ProcessedPlaylists,
             TotalPlaylists = library.TotalPlaylists,
+            ActiveScanGeneration = library.ActiveScanGeneration,
+            LastCompletedScanGeneration = library.LastCompletedScanGeneration,
         });
     }
 
@@ -392,6 +394,8 @@ public class RestApiController(MusicLibraryService library, TranscodingService t
             TotalFiles = library.TotalFiles,
             ProcessedPlaylists = library.ProcessedPlaylists,
             TotalPlaylists = library.TotalPlaylists,
+            ActiveScanGeneration = library.ActiveScanGeneration,
+            LastCompletedScanGeneration = library.LastCompletedScanGeneration,
             InvalidPlaylists = library.Catalog.InvalidPlaylists.Select(p => new InvalidPlaylistInfo
             {
                 Path = p.Path,
