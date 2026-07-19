@@ -883,6 +883,16 @@ function AppDataProvider({ children }: AppProviderProps) {
 
     try {
       const api = getApiService();
+      let baselineLastCompletedGeneration: number | null = null;
+      let baselineLastScanDate: Date | null = null;
+      try {
+        const baselineStatus = await api.getScanStatus();
+        baselineLastCompletedGeneration = baselineStatus.lastCompletedScanGeneration ?? null;
+        baselineLastScanDate = baselineStatus.lastScanDate ? new Date(baselineStatus.lastScanDate) : null;
+      } catch (error) {
+        console.warn('Failed to get baseline scan status before triggering scan:', error);
+      }
+
       await api.triggerScan(force);
       showToast(force ? 'Force library scan started' : 'Library scan started', 'success');
 
@@ -891,6 +901,8 @@ function AppDataProvider({ children }: AppProviderProps) {
         void (async () => {
           const maxAttempts = 120;
           const pollIntervalMs = 2000;
+          let observedActiveScan = false;
+
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
             if (scanRefreshRequestIdRef.current !== requestId) {
               return;
@@ -902,7 +914,22 @@ function AppDataProvider({ children }: AppProviderProps) {
                 setInvalidPlaylists(status.invalidPlaylists);
               }
 
-              if (!status.isScanning) {
+              if (status.isScanning) {
+                observedActiveScan = true;
+              }
+
+              const currentLastScanDate = status.lastScanDate ? new Date(status.lastScanDate) : null;
+              const hasCompletedGenerationAdvanced = baselineLastCompletedGeneration !== null &&
+                typeof status.lastCompletedScanGeneration === 'number' &&
+                status.lastCompletedScanGeneration > baselineLastCompletedGeneration;
+              const hasLastScanDateAdvanced = baselineLastScanDate !== null &&
+                !Number.isNaN(baselineLastScanDate.getTime()) &&
+                currentLastScanDate !== null &&
+                !Number.isNaN(currentLastScanDate.getTime()) &&
+                currentLastScanDate > baselineLastScanDate;
+              const hasObservedStartAndStop = observedActiveScan && !status.isScanning;
+
+              if (hasCompletedGenerationAdvanced || hasLastScanDateAdvanced || hasObservedStartAndStop) {
                 await syncPlaylistsInternal({ refreshAllTracks: true });
                 return;
               }
@@ -913,6 +940,8 @@ function AppDataProvider({ children }: AppProviderProps) {
 
             await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
           }
+
+          await syncPlaylistsInternal({ refreshAllTracks: true });
         })();
       }, 1000);
     } catch (error) {

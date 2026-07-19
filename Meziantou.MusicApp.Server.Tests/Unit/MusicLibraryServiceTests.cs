@@ -850,6 +850,23 @@ public partial class MusicLibraryServiceTests
     }
 
     [Fact]
+    public async Task ScanMusicLibrary_IncrementsCompletedGeneration()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+
+        var service = await testContext.ScanCatalog();
+        var completedGeneration = service.LastCompletedScanGeneration;
+
+        testContext.MusicLibrary.CreateTestMp3File("Song2.mp3", title: "Song 2", artist: "Artist 2", albumArtist: "Artist 2", album: "Album 2", genre: "Pop", year: 2024, track: 1);
+
+        await service.ScanMusicLibrary();
+
+        Assert.Equal(0, service.ActiveScanGeneration);
+        Assert.True(service.LastCompletedScanGeneration > completedGeneration);
+    }
+
+    [Fact]
     public async Task ScanMusicLibrary_IncrementalScan_RemovesDeletedFiles()
     {
         await using var testContext = AppTestContext.Create();

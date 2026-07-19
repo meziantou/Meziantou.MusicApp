@@ -12,5 +12,7 @@ public class ScanStatusResponse
     public int? TotalFiles { get; set; }
     public int? ProcessedPlaylists { get; set; }
     public int? TotalPlaylists { get; set; }
+    public long ActiveScanGeneration { get; set; }
+    public long LastCompletedScanGeneration { get; set; }
     public List<InvalidPlaylistInfo> InvalidPlaylists { get; set; } = [];
 }

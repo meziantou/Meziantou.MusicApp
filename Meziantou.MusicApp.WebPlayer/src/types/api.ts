@@ -103,6 +103,8 @@ export interface ScanStatusResponse {
   totalFiles: number | null;
   processedPlaylists: number | null;
   totalPlaylists: number | null;
+  activeScanGeneration?: number | null;
+  lastCompletedScanGeneration?: number | null;
   invalidPlaylists: InvalidPlaylistInfo[];
 }
 

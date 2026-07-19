@@ -58,7 +58,12 @@ public class RestApiIntegrationTests
         await using var app = AppTestContext.Create();
         using var response = await app.Client.PostAsync("/api/scan.json", content: null, app.CancellationToken);
         InlineSnapshot
-            .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
+            .WithSerializer(serializer =>
+            {
+                serializer.ScrubJsonValue("$.isScanning", node => "[redacted]");
+                serializer.ScrubJsonValue("$.activeScanGeneration", node => "[redacted]");
+                serializer.ScrubJsonValue("$.lastCompletedScanGeneration", node => "[redacted]");
+            })
             .Validate(response, """
                 StatusCode: 200 (OK)
                 Headers:
@@ -71,6 +76,8 @@ public class RestApiIntegrationTests
                       "isScanning": "[redacted]",
                       "isInitialScanCompleted": true,
                       "scanCount": 0,
+                      "activeScanGeneration": "[redacted]",
+                      "lastCompletedScanGeneration": "[redacted]",
                       "invalidPlaylists": []
                     }
                 """);
@@ -82,7 +89,12 @@ public class RestApiIntegrationTests
         await using var app = AppTestContext.Create();
         using var response = await app.Client.PostAsync("/api/scan.json?force=true", content: null, app.CancellationToken);
         InlineSnapshot
-            .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
+            .WithSerializer(serializer =>
+            {
+                serializer.ScrubJsonValue("$.isScanning", node => "[redacted]");
+                serializer.ScrubJsonValue("$.activeScanGeneration", node => "[redacted]");
+                serializer.ScrubJsonValue("$.lastCompletedScanGeneration", node => "[redacted]");
+            })
             .Validate(response, """
                 StatusCode: 200 (OK)
                 Headers:
@@ -95,6 +107,8 @@ public class RestApiIntegrationTests
                       "isScanning": "[redacted]",
                       "isInitialScanCompleted": true,
                       "scanCount": 0,
+                      "activeScanGeneration": "[redacted]",
+                      "lastCompletedScanGeneration": "[redacted]",
                       "invalidPlaylists": []
                     }
                 """);
@@ -154,7 +168,12 @@ public class RestApiIntegrationTests
         await using var app = AppTestContext.Create();
         using var response = await app.Client.GetAsync("/api/scan/status.json", app.CancellationToken);
         InlineSnapshot
-            .WithSerializer(serializer => serializer.ScrubJsonValue("$.isScanning", node => "[redacted]"))
+            .WithSerializer(serializer =>
+            {
+                serializer.ScrubJsonValue("$.isScanning", node => "[redacted]");
+                serializer.ScrubJsonValue("$.activeScanGeneration", node => "[redacted]");
+                serializer.ScrubJsonValue("$.lastCompletedScanGeneration", node => "[redacted]");
+            })
             .Validate(response, """
                 StatusCode: 200 (OK)
                 Headers:
@@ -167,6 +186,8 @@ public class RestApiIntegrationTests
                       "isScanning": "[redacted]",
                       "isInitialScanCompleted": true,
                       "scanCount": 0,
+                      "activeScanGeneration": "[redacted]",
+                      "lastCompletedScanGeneration": "[redacted]",
                       "invalidPlaylists": []
                     }
                 """);
