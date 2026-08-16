@@ -49,6 +49,6 @@ public class ImageResizingServiceTests
         var originalImage = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==");
         var result = await ResizeImage(originalImage, 100);
         Assert.NotNull(result);
-        Assert.True(result.Length > 0);
+        Assert.NotEmpty(result);
     }
 }

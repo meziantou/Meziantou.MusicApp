@@ -787,11 +787,11 @@ public class SubsonicApiIntegrationTests
             Assert.Equal("application/vnd.apple.mpegurl", response.Content.Headers.ContentType?.MediaType);
 
             var playlist = await response.Content.ReadAsStringAsync(app.CancellationToken);
-            Assert.StartsWith("#EXTM3U", playlist, StringComparison.Ordinal);
-            Assert.Contains("#EXT-X-VERSION", playlist, StringComparison.Ordinal);
-            Assert.Contains("#EXT-X-TARGETDURATION", playlist, StringComparison.Ordinal);
-            Assert.Contains("#EXT-X-ENDLIST", playlist, StringComparison.Ordinal);
-            Assert.Contains("./hls/", playlist, StringComparison.Ordinal);
+            Assert.StartsWith("#EXTM3U", playlist);
+            Assert.Contains("#EXT-X-VERSION", playlist);
+            Assert.Contains("#EXT-X-TARGETDURATION", playlist);
+            Assert.Contains("#EXT-X-ENDLIST", playlist);
+            Assert.Contains("./hls/", playlist);
         }
     }
 

@@ -114,7 +114,7 @@ public class ReplayGainServiceTests
         // Verify the tags were written
         var initialTags = ReadReplayGainTagsFromFile(testFilePath);
         Assert.NotNull(initialTags.TrackGain);
-        Assert.Equal(knownGain, initialTags.TrackGain!.Value, precision: 2);
+        Assert.Equal(knownGain, initialTags.TrackGain!.Value, tolerance: 0.01);
 
         // Scan the library (this should NOT recompute since tags exist)
         await context.ScanCatalog();
@@ -122,7 +122,7 @@ public class ReplayGainServiceTests
         // Read the tags again - they should be unchanged
         var updatedTags = ReadReplayGainTagsFromFile(testFilePath);
         Assert.NotNull(updatedTags.TrackGain);
-        Assert.Equal(knownGain, updatedTags.TrackGain!.Value, precision: 2);
+        Assert.Equal(knownGain, updatedTags.TrackGain!.Value, tolerance: 0.01);
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public class ReplayGainServiceTests
         var results = await Task.WhenAll(tasks);
 
         // All should complete (semaphore should allow them through eventually)
-        Assert.Equal(testFiles.Count, results.Length);
+        Assert.HasCount(testFiles.Count, results);
         Assert.All(results, r => Assert.NotNull(r));
     }
 
