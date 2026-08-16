@@ -181,7 +181,7 @@ public partial class MusicLibraryServiceTests
 
         var albums = service.GetNewestAlbums(5);
 
-        Assert.True(albums.Count() <= 5);
+        Assert.HasCountLessThanOrEqual(5, albums);
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public partial class MusicLibraryServiceTests
         var service = await testContext.ScanCatalog();
 
         var songs = service.GetAllSongs().ToList();
-        Assert.Equal(2, songs.Count);
+        Assert.HasCount(2, songs);
         Assert.Contains(songs, song => song.Title == "Initial Song");
         Assert.Contains(songs, song => song.Title == "Later Song");
     }
@@ -427,11 +427,11 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(song.Lyrics);
         var lyricsText = service.Catalog.GetLyrics(song.Id);
         Assert.NotNull(lyricsText);
-        Assert.Contains("First line of lyrics", lyricsText, StringComparison.Ordinal);
-        Assert.Contains("Second line of lyrics", lyricsText, StringComparison.Ordinal);
-        Assert.Contains("Third line of lyrics", lyricsText, StringComparison.Ordinal);
-        Assert.DoesNotContain("[ar:", lyricsText, StringComparison.Ordinal);
-        Assert.DoesNotContain("[ti:", lyricsText, StringComparison.Ordinal);
+        Assert.Contains("First line of lyrics", lyricsText);
+        Assert.Contains("Second line of lyrics", lyricsText);
+        Assert.Contains("Third line of lyrics", lyricsText);
+        Assert.DoesNotContain("[ar:", lyricsText);
+        Assert.DoesNotContain("[ti:", lyricsText);
     }
 
     [Fact]
@@ -455,8 +455,8 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(song.Lyrics);
         var lyricsText = service.Catalog.GetLyrics(song.Id);
         Assert.NotNull(lyricsText);
-        Assert.Contains("LRC file lyrics", lyricsText, StringComparison.Ordinal);
-        Assert.DoesNotContain("Embedded lyrics", lyricsText, StringComparison.Ordinal);
+        Assert.Contains("LRC file lyrics", lyricsText);
+        Assert.DoesNotContain("Embedded lyrics", lyricsText);
     }
 
     [Fact]
@@ -481,9 +481,9 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(song.Lyrics);
         var lyricsText = service.Catalog.GetLyrics(song.Id);
         Assert.NotNull(lyricsText);
-        Assert.Contains("Just plain lyrics", lyricsText, StringComparison.Ordinal);
-        Assert.Contains("Without any timestamps", lyricsText, StringComparison.Ordinal);
-        Assert.Contains("Should still work", lyricsText, StringComparison.Ordinal);
+        Assert.Contains("Just plain lyrics", lyricsText);
+        Assert.Contains("Without any timestamps", lyricsText);
+        Assert.Contains("Should still work", lyricsText);
     }
 
     [Fact]
@@ -522,7 +522,7 @@ public partial class MusicLibraryServiceTests
         await Task.WhenAll(scanTasks);
 
         var songs = testContext.GetRequiredService<MusicLibraryService>().GetAllSongs().ToList();
-        Assert.Equal(10, songs.Count);
+        Assert.HasCount(10, songs);
     }
 
     [Fact]
@@ -549,10 +549,10 @@ public partial class MusicLibraryServiceTests
         var playlist = playlists[0];
         Assert.Equal("test-playlist", playlist.Name);
         Assert.Equal(3, playlist.SongCount);
-        Assert.Equal(3, playlist.Items.Count);
+        Assert.HasCount(3, playlist.Items);
 
         var songs = service.GetAllSongs().ToList();
-        Assert.Equal(3, songs.Count);
+        Assert.HasCount(3, songs);
         var expectedDuration = songs.Sum(s => s.Duration);
         var expectedSize = songs.Sum(s => s.Size);
 
@@ -589,8 +589,8 @@ public partial class MusicLibraryServiceTests
 
         var xspfFile = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
-        Assert.Contains("meziantou.net/xspf-extension", xspfContent, StringComparison.Ordinal);
-        Assert.Contains("addedAt", xspfContent, StringComparison.Ordinal);
+        Assert.Contains("meziantou.net/xspf-extension", xspfContent);
+        Assert.Contains("addedAt", xspfContent);
     }
 
     [Fact]
@@ -674,7 +674,7 @@ public partial class MusicLibraryServiceTests
 
         Assert.True(File.Exists(testContext.MusicCachePath));
         var cacheContent1 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
-        Assert.Contains("FileLastWriteTime", cacheContent1, StringComparison.Ordinal);
+        Assert.Contains("FileLastWriteTime", cacheContent1);
 
         await service.ScanMusicLibrary();
 
@@ -683,7 +683,7 @@ public partial class MusicLibraryServiceTests
         Assert.Equal("Test Song", songs[0].Title);
 
         var cacheContent2 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
-        Assert.Contains("FileLastWriteTime", cacheContent2, StringComparison.Ordinal);
+        Assert.Contains("FileLastWriteTime", cacheContent2);
     }
 
     [Fact]
@@ -844,7 +844,7 @@ public partial class MusicLibraryServiceTests
         await service.ScanMusicLibrary();
 
         songs = service.GetAllSongs().ToList();
-        Assert.Equal(2, songs.Count);
+        Assert.HasCount(2, songs);
         Assert.Contains(songs, s => s.Title == "Song 1");
         Assert.Contains(songs, s => s.Title == "Song 2");
     }
@@ -877,7 +877,7 @@ public partial class MusicLibraryServiceTests
         var service = await testContext.ScanCatalog();
 
         var songs = service.GetAllSongs().ToList();
-        Assert.Equal(2, songs.Count);
+        Assert.HasCount(2, songs);
 
         File.Delete(mp3FilePath2);
 
@@ -921,7 +921,7 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(playlist);
         Assert.Equal("All Songs", playlist.Name);
         Assert.Equal(3, playlist.SongCount);
-        Assert.Equal(3, playlist.Items.Count);
+        Assert.HasCount(3, playlist.Items);
 
         Assert.Contains(playlist.Items, item => item.Song.Title == "Song 1");
         Assert.Contains(playlist.Items, item => item.Song.Title == "Song 2");
@@ -1055,10 +1055,10 @@ public partial class MusicLibraryServiceTests
 
         Assert.NotNull(playlist);
         Assert.Equal(2, playlist.SongCount);
-        Assert.Equal(2, playlist.Items.Count);
+        Assert.HasCount(2, playlist.Items);
 
         // Missing items should have "[Missing]" prefix in title
-        Assert.All(playlist.Items, item => Assert.StartsWith("[Missing]", item.Song.Title, StringComparison.Ordinal));
+        Assert.All(playlist.Items, item => Assert.StartsWith("[Missing]", item.Song.Title));
     }
 
     [Fact]
@@ -1091,7 +1091,7 @@ public partial class MusicLibraryServiceTests
         var missingItem = missingItems[0];
         Assert.Equal("missing-song.mp3", missingItem.RelativePath);
         Assert.Equal("my-playlist", missingItem.PlaylistName);
-        Assert.Contains("missing-song.mp3", missingItem.FullPath, StringComparison.Ordinal);
+        Assert.Contains("missing-song.mp3", missingItem.FullPath);
     }
 
     [Fact]
@@ -1178,7 +1178,7 @@ public partial class MusicLibraryServiceTests
         Assert.True(File.Exists(xspfFile), "XSPF file should be created");
 
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
-        Assert.Contains("missing-song.mp3", xspfContent, StringComparison.Ordinal);
+        Assert.Contains("missing-song.mp3", xspfContent);
 
         // Verify missing items are tracked
         var missingItems = service.GetMissingPlaylistItems().ToList();
@@ -1308,7 +1308,7 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(trackList);
 
         var tracks = trackList.Elements(xspfNs + "track").ToList();
-        Assert.Equal(2, tracks.Count);
+        Assert.HasCount(2, tracks);
 
         // Check first track
         var track1Extension = tracks[0].Elements(xspfNs + "extension")
@@ -1385,13 +1385,13 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(trackList);
 
         var tracks = trackList.Elements(xspfNs + "track").ToList();
-        Assert.Equal(3, tracks.Count);
+        Assert.HasCount(3, tracks);
 
         // Verify order and preserved addedAt dates
         // Track order should now be: song3, song1, song2
-        Assert.Contains("song3.mp3", tracks[0].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
-        Assert.Contains("song1.mp3", tracks[1].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
-        Assert.Contains("song2.mp3", tracks[2].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
+        Assert.Contains("song3.mp3", tracks[0].Element(xspfNs + "location")?.Value);
+        Assert.Contains("song1.mp3", tracks[1].Element(xspfNs + "location")?.Value);
+        Assert.Contains("song2.mp3", tracks[2].Element(xspfNs + "location")?.Value);
 
         // addedAt should match original dates regardless of new order
         var track1AddedAt = tracks[0].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;
@@ -1453,7 +1453,7 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(trackList);
 
         var tracks = trackList.Elements(xspfNs + "track").ToList();
-        Assert.Equal(2, tracks.Count);
+        Assert.HasCount(2, tracks);
 
         // First track should keep its original addedAt
         var track1AddedAt = tracks[0].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;
@@ -1551,7 +1551,7 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(playlist);
         Assert.Equal("⚠️ No Replay Gain", playlist.Name);
         Assert.Equal(2, playlist.SongCount);
-        Assert.Equal(2, playlist.Items.Count);
+        Assert.HasCount(2, playlist.Items);
 
         Assert.Contains(playlist.Items, item => item.Song.Title == "Song 1");
         Assert.DoesNotContain(playlist.Items, item => item.Song.Title == "Song 2");
@@ -1604,12 +1604,12 @@ public partial class MusicLibraryServiceTests
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
 
         // Paths should remain relative to the playlist file, not to the music library root
-        Assert.Contains("<location>song1.mp3</location>", xspfContent, StringComparison.Ordinal);
-        Assert.Contains("<location>song2.mp3</location>", xspfContent, StringComparison.Ordinal);
+        Assert.Contains("<location>song1.mp3</location>", xspfContent);
+        Assert.Contains("<location>song2.mp3</location>", xspfContent);
 
         // Paths should NOT be relative to the music library root
-        Assert.DoesNotContain("<location>subfolder/song1.mp3</location>", xspfContent, StringComparison.Ordinal);
-        Assert.DoesNotContain("<location>subfolder/song2.mp3</location>", xspfContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("<location>subfolder/song1.mp3</location>", xspfContent);
+        Assert.DoesNotContain("<location>subfolder/song2.mp3</location>", xspfContent);
     }
 
     [Fact]
@@ -1702,7 +1702,7 @@ public partial class MusicLibraryServiceTests
 
             // Cache should be updated with new version
             var newCacheContent = await File.ReadAllTextAsync(musicCachePath, TestContext.Current.CancellationToken);
-            Assert.Contains($"\"Version\":{currentVersion}", newCacheContent, StringComparison.Ordinal);
+            Assert.Contains($"\"Version\":{currentVersion}", newCacheContent);
         }
     }
 
@@ -1737,7 +1737,7 @@ public partial class MusicLibraryServiceTests
 
         // Cache should contain the correct version
         var cacheContent2 = await File.ReadAllTextAsync(testContext.MusicCachePath, testContext.CancellationToken);
-        Assert.Contains($"\"Version\":{currentVersion}", cacheContent2, StringComparison.Ordinal);
+        Assert.Contains($"\"Version\":{currentVersion}", cacheContent2);
     }
 
     [Fact]
@@ -1810,12 +1810,12 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(trackList);
 
         var tracks = trackList.Elements(xspfNs + "track").ToList();
-        Assert.Equal(3, tracks.Count);
+        Assert.HasCount(3, tracks);
 
         // Verify all three tracks are present in correct order
-        Assert.Contains("song1.mp3", tracks[0].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
-        Assert.Contains("song2.mp3", tracks[1].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
-        Assert.Contains("song3.mp3", tracks[2].Element(xspfNs + "location")?.Value, StringComparison.Ordinal);
+        Assert.Contains("song1.mp3", tracks[0].Element(xspfNs + "location")?.Value);
+        Assert.Contains("song2.mp3", tracks[1].Element(xspfNs + "location")?.Value);
+        Assert.Contains("song3.mp3", tracks[2].Element(xspfNs + "location")?.Value);
 
         // Verify the addedAt dates - song1 and song2 should have their original dates
         var track1AddedAt = tracks[0].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;

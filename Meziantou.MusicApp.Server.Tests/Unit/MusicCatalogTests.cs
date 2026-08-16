@@ -21,13 +21,13 @@ public class MusicCatalogTests
         Assert.Equal("Mozart", artists[0].Name); // Name should be normalized without whitespace
 
         var albums = catalog.GetRandomAlbums(100).ToList();
-        Assert.Equal(2, albums.Count); // Should have 2 albums
+        Assert.HasCount(2, albums); // Should have 2 albums
 
         // Both albums should be attributed to Mozart
         Assert.All(albums, album => Assert.Equal("Mozart", album.Artist));
 
         var songs = catalog.GetAllSongs().ToList();
-        Assert.Equal(3, songs.Count);
+        Assert.HasCount(3, songs);
 
         // All songs should have the same ArtistId (referencing the normalized "Mozart")
         var artistIds = songs.Select(s => s.ArtistId).Distinct(StringComparer.Ordinal).ToList();
@@ -60,7 +60,7 @@ public class MusicCatalogTests
         var catalog = await testContext.ScanCatalog();
 
         var artists = catalog.GetAllArtists().ToList();
-        Assert.Equal(3, artists.Count);
+        Assert.HasCount(3, artists);
 
         // Verify artist names are normalized
         Assert.Contains(artists, a => a.Name == "Artist One");
@@ -102,7 +102,7 @@ public class MusicCatalogTests
         var catalog = await testContext.ScanCatalog();
 
         var songs = catalog.GetAllSongs().ToList();
-        Assert.Equal(2, songs.Count);
+        Assert.HasCount(2, songs);
 
         // All songs should have AlbumId and ArtistId set
         Assert.All(songs, song =>
