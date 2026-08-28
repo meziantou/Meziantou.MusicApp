@@ -1826,4 +1826,62 @@ public partial class MusicLibraryServiceTests
         Assert.Equal(customAddedAt2, track2AddedAt);
         Assert.NotNull(track3AddedAt); // song3 should have a new addedAt date
     }
+
+    [Fact]
+    public async Task ScanMusicLibrary_KeepsPlaylistEntry_WhenLocationCasingDiffersFromDisk()
+    {
+        await using var testContext = AppTestContext.Create();
+        testContext.MusicLibrary.CreateTestMp3File("Main/Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+
+        var xspfContent = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>main/Song1.mp3</location>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlist = service.GetPlaylists().Single(p => !Playlist.IsVirtualPlaylist(p.Id));
+        var item = Assert.Single(playlist.Items);
+        Assert.Equal("Song 1", item.Song.Title);
+        Assert.Equal(1, playlist.SongCount);
+    }
+
+    [Fact]
+    public async Task ScanMusicLibrary_KeepsPlaylistEntry_WhenLocationUnicodeFormDiffersFromDisk()
+    {
+        await using var testContext = AppTestContext.Create();
+
+        // The directory on disk is NFD while the playlist stores the NFC form of the same name.
+        var onDisk = "Bj\u006F\u0308rk";
+        var inPlaylist = "Bj\u00F6rk";
+        testContext.MusicLibrary.CreateTestMp3File(onDisk + "/Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+
+        var xspfContent = $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <playlist version="1" xmlns="http://xspf.org/ns/0/" xmlns:meziantou="http://meziantou.net/xspf-extension/1/">
+              <title>test-playlist</title>
+              <trackList>
+                <track>
+                  <location>{inPlaylist}/Song1.mp3</location>
+                </track>
+              </trackList>
+            </playlist>
+            """;
+        await testContext.MusicLibrary.CreatePlaylistFile("test-playlist.xspf", xspfContent);
+
+        var service = await testContext.ScanCatalog();
+
+        var playlist = service.GetPlaylists().Single(p => !Playlist.IsVirtualPlaylist(p.Id));
+        var item = Assert.Single(playlist.Items);
+        Assert.Equal("Song 1", item.Song.Title);
+        Assert.Equal(1, playlist.SongCount);
+    }
 }
