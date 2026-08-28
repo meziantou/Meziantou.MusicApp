@@ -12,6 +12,8 @@ namespace Meziantou.MusicApp.Server.Models;
 public sealed class MusicCatalog
 {
     private readonly Dictionary<string, Song> _songsById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Song> _songsByRelativePath = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Song?> _songsByNormalizedRelativePath = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Album> _albumsById = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Artist> _artistsById = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MusicDirectory> _directoriesById = new(StringComparer.Ordinal);
@@ -146,6 +148,7 @@ public sealed class MusicCatalog
 
                 songsBuilder.Add(song);
                 result._songsById[song.Id] = song;
+                result.IndexSongByRelativePath(serializableSong.RelativePath, song);
 
                 // Add cover art to cache
                 if (coverArt is not null)
@@ -328,15 +331,18 @@ public sealed class MusicCatalog
             var items = new List<PlaylistItem>();
             foreach (var item in serializablePlaylist.Items)
             {
-                var songId = ItemId.CreateSongId(item.RelativePath, item.FileLastWriteTime);
-                if (_songsById.TryGetValue(songId, out var song))
+                var song = FindSongByRelativePath(item.RelativePath);
+                if (song is null)
                 {
-                    items.Add(new PlaylistItem
-                    {
-                        Song = song,
-                        AddedDate = item.AddedDate ?? DateTime.UtcNow,
-                    });
+                    _logger?.LogWarning("Playlist entry does not match any indexed song and is excluded from the playlist: {RelativePath} in {PlaylistPath}", item.RelativePath, serializablePlaylist.RelativePath);
+                    continue;
                 }
+
+                items.Add(new PlaylistItem
+                {
+                    Song = song,
+                    AddedDate = item.AddedDate ?? DateTime.UtcNow,
+                });
             }
 
             playlist.Items = items;
@@ -404,8 +410,8 @@ public sealed class MusicCatalog
 
         foreach (var item in serializableItems)
         {
-            var songId = ItemId.CreateSongId(item.ResolvedRelativePath, item.FileLastWriteTime);
-            if (!_songsById.TryGetValue(songId, out var song))
+            var song = FindSongByRelativePath(item.ResolvedRelativePath);
+            if (song is null)
                 continue;
 
             builder.Add(new UnnormalizedPlaylistItem
@@ -523,6 +529,41 @@ public sealed class MusicCatalog
         };
     }
 
+    private void IndexSongByRelativePath(string relativePath, Song song)
+    {
+        _songsByRelativePath[relativePath] = song;
+
+        var normalized = NormalizeRelativePathForLookup(relativePath);
+        if (_songsByNormalizedRelativePath.TryGetValue(normalized, out var existing))
+        {
+            // Two distinct files share a normalized path: the fallback would be a guess, so disable it for that key.
+            if (!ReferenceEquals(existing, song))
+            {
+                _songsByNormalizedRelativePath[normalized] = null;
+            }
+        }
+        else
+        {
+            _songsByNormalizedRelativePath[normalized] = song;
+        }
+    }
+
+    private static string NormalizeRelativePathForLookup(string relativePath) => relativePath.Normalize(NormalizationForm.FormC).ToLowerInvariant();
+
+    /// <summary>
+    /// Resolves a playlist entry to a song in the catalog. Songs are indexed from the file system while playlist
+    /// entries are indexed from the path stored in the playlist file, so the two relative paths can differ in
+    /// casing or Unicode normalization form and still point at the same file. Fall back to a normalized lookup
+    /// so those entries are not dropped.
+    /// </summary>
+    private Song? FindSongByRelativePath(string relativePath)
+    {
+        if (_songsByRelativePath.TryGetValue(relativePath, out var song))
+            return song;
+
+        return _songsByNormalizedRelativePath.TryGetValue(NormalizeRelativePathForLookup(relativePath), out var fallback) ? fallback : null;
+    }
+
     // Query methods
     public Song? GetSong(string id) => _songsById.TryGetValue(id, out var song) ? song : null;
     public Album? GetAlbum(string id) => _albumsById.TryGetValue(id, out var album) ? album : null;
@@ -555,15 +596,18 @@ public sealed class MusicCatalog
         var items = new List<PlaylistItem>();
         foreach (var item in serializablePlaylist.Items)
         {
-            var songId = ItemId.CreateSongId(item.RelativePath, item.FileLastWriteTime);
-            if (_songsById.TryGetValue(songId, out var song))
+            var song = FindSongByRelativePath(item.RelativePath);
+            if (song is null)
             {
-                items.Add(new PlaylistItem
-                {
-                    Song = song,
-                    AddedDate = item.AddedDate ?? DateTime.UtcNow,
-                });
+                _logger?.LogWarning("Playlist entry does not match any indexed song and is excluded from the playlist: {RelativePath} in {PlaylistPath}", item.RelativePath, serializablePlaylist.RelativePath);
+                continue;
             }
+
+            items.Add(new PlaylistItem
+            {
+                Song = song,
+                AddedDate = item.AddedDate ?? DateTime.UtcNow,
+            });
         }
 
         playlist.Items = items;
