@@ -1827,11 +1827,33 @@ public partial class MusicLibraryServiceTests
         Assert.NotNull(track3AddedAt); // song3 should have a new addedAt date
     }
 
+    /// <summary>
+    /// Writes a probe file under <paramref name="directory"/> and reports whether <paramref name="otherForm"/>
+    /// of the same name resolves to it. Used to tell whether a file system distinguishes casing or Unicode
+    /// normalization form, which decides how a playlist entry written in the other form is expected to behave.
+    /// </summary>
+    private static bool ResolvesProbeWrittenAs(FullPath directory, string name, string otherForm)
+    {
+        var probe = directory / name;
+        probe.CreateParentDirectory();
+        File.WriteAllBytes(probe, []);
+        try
+        {
+            return File.Exists(directory / otherForm);
+        }
+        finally
+        {
+            File.Delete(probe);
+        }
+    }
+
     [Fact]
-    public async Task ScanMusicLibrary_KeepsPlaylistEntry_WhenLocationCasingDiffersFromDisk()
+    public async Task ScanMusicLibrary_DoesNotSilentlyDropPlaylistEntry_WhenLocationCasingDiffersFromDisk()
     {
         await using var testContext = AppTestContext.Create();
         testContext.MusicLibrary.CreateTestMp3File("Main/Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+
+        var resolvesRegardlessOfCasing = ResolvesProbeWrittenAs(testContext.MusicLibrary.RootPath, "CaseProbe.tmp", "caseprobe.tmp");
 
         var xspfContent = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -1848,21 +1870,20 @@ public partial class MusicLibraryServiceTests
 
         var service = await testContext.ScanCatalog();
 
-        var playlist = service.GetPlaylists().Single(p => !Playlist.IsVirtualPlaylist(p.Id));
-        var item = Assert.Single(playlist.Items);
-        Assert.Equal("Song 1", item.Song.Title);
-        Assert.Equal(1, playlist.SongCount);
+        AssertPlaylistEntryIsAccountedFor(service, resolvesRegardlessOfCasing);
     }
 
     [Fact]
-    public async Task ScanMusicLibrary_KeepsPlaylistEntry_WhenLocationUnicodeFormDiffersFromDisk()
+    public async Task ScanMusicLibrary_DoesNotSilentlyDropPlaylistEntry_WhenLocationUnicodeFormDiffersFromDisk()
     {
         await using var testContext = AppTestContext.Create();
 
         // The directory on disk is NFD while the playlist stores the NFC form of the same name.
-        var onDisk = "Bj\u006F\u0308rk";
-        var inPlaylist = "Bj\u00F6rk";
+        var onDisk = "Björk";
+        var inPlaylist = "Björk";
         testContext.MusicLibrary.CreateTestMp3File(onDisk + "/Song1.mp3", title: "Song 1", artist: "Artist 1", albumArtist: "Artist 1", album: "Album 1", genre: "Rock", year: 2024, track: 1);
+
+        var resolvesRegardlessOfNormalization = ResolvesProbeWrittenAs(testContext.MusicLibrary.RootPath, "Probeé.tmp", "Probeé.tmp");
 
         var xspfContent = $"""
             <?xml version="1.0" encoding="utf-8"?>
@@ -1879,9 +1900,30 @@ public partial class MusicLibraryServiceTests
 
         var service = await testContext.ScanCatalog();
 
+        AssertPlaylistEntryIsAccountedFor(service, resolvesRegardlessOfNormalization);
+    }
+
+    /// <summary>
+    /// The entry must never disappear from both the playlist and the missing-track list. When the file system
+    /// resolves the stored path to the real file the entry belongs in the playlist; when it does not, the file
+    /// genuinely is not there and the entry belongs in the missing-track list.
+    /// </summary>
+    private static void AssertPlaylistEntryIsAccountedFor(MusicLibraryService service, bool pathResolvesToTheFileOnDisk)
+    {
         var playlist = service.GetPlaylists().Single(p => !Playlist.IsVirtualPlaylist(p.Id));
-        var item = Assert.Single(playlist.Items);
-        Assert.Equal("Song 1", item.Song.Title);
-        Assert.Equal(1, playlist.SongCount);
+
+        if (pathResolvesToTheFileOnDisk)
+        {
+            var item = Assert.Single(playlist.Items);
+            Assert.Equal("Song 1", item.Song.Title);
+            Assert.Equal(1, playlist.SongCount);
+            Assert.Empty(service.Catalog.MissingPlaylistItems);
+        }
+        else
+        {
+            Assert.Empty(playlist.Items);
+            Assert.Equal(0, playlist.SongCount);
+            Assert.Single(service.Catalog.MissingPlaylistItems);
+        }
     }
 }
