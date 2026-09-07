@@ -9,8 +9,8 @@
 	</PropertyGroup>
 	
   <ItemGroup>
-    <PackageReference Include="Meziantou.Framework.FullPath" Version="3.0.1" />
-    <PackageReference Include="Meziantou.Framework.StronglyTypedId" Version="3.0.2" />
-    <PackageReference Include="Meziantou.Framework.MediaTags" Version="2.0.2" />
+    <PackageReference Include="Meziantou.Framework.FullPath" Version="3.0.5" />
+    <PackageReference Include="Meziantou.Framework.StronglyTypedId" Version="3.0.5" />
+    <PackageReference Include="Meziantou.Framework.MediaTags" Version="2.1.1" />
   </ItemGroup>
 </Project>
