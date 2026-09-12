@@ -825,9 +825,7 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/getCoverArt.view?id=test-cover-id"), app.CancellationToken);
 
         // Assert
-        Assert.True(
-            response.StatusCode == System.Net.HttpStatusCode.OK,
-            "Expected OK status code");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -839,9 +837,7 @@ public class SubsonicApiIntegrationTests
         using var response = await app.Client.GetAsync(BuildAuthenticatedUrl("/rest/getCoverArt.view?id=test-cover-id&size=100"), app.CancellationToken);
 
         // Assert
-        Assert.True(
-            response.StatusCode == System.Net.HttpStatusCode.OK,
-            "Expected OK status code");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

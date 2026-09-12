@@ -492,7 +492,7 @@ public sealed class MusicCatalog
         // Build subdirectory relationships
         foreach (var dir in directoryDict.Values)
         {
-            if (dir.Path == RootPath)
+            if (ReferenceEquals(dir, rootDir))
                 continue;
 
             var parentPath = Path.GetDirectoryName(dir.Path);

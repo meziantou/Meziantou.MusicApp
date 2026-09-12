@@ -584,8 +584,7 @@ public partial class MusicLibraryServiceTests
         Assert.Single(playlist.Items);
 
         var item = playlist.Items[0];
-        Assert.True(item.AddedDate >= beforeConversion && item.AddedDate <= afterConversion,
-            $"AddedDate should be between {beforeConversion:o} and {afterConversion:o}, but was {item.AddedDate:o}");
+        Assert.InRange(item.AddedDate, beforeConversion, afterConversion);
 
         var xspfFile = testContext.MusicLibrary.RootPath / "test-playlist.xspf";
         var xspfContent = await File.ReadAllTextAsync(xspfFile, testContext.CancellationToken);
@@ -1463,8 +1462,7 @@ public partial class MusicLibraryServiceTests
         var track2AddedAtStr = tracks[1].Element(xspfNs + "extension")?.Element(meziantouNs + "addedAt")?.Value;
         Assert.NotNull(track2AddedAtStr);
         var track2AddedAt = DateTime.Parse(track2AddedAtStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
-        Assert.True(track2AddedAt >= beforeUpdate && track2AddedAt <= afterUpdate,
-            $"New song addedAt ({track2AddedAt:O}) should be between {beforeUpdate:O} and {afterUpdate:O}");
+        Assert.InRange(track2AddedAt, beforeUpdate, afterUpdate);
     }
 
     [Fact]

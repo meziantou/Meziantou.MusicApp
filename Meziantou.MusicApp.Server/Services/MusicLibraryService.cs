@@ -15,6 +15,8 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = false,
+        RespectNullableAnnotations = true,
+        RespectRequiredConstructorParameters = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
@@ -1177,11 +1179,11 @@ public sealed class MusicLibraryService(ILogger<MusicLibraryService> logger, IOp
     /// </summary>
     private static FullPath? TryFindFileWithUnicodeNormalization(FullPath path)
     {
-        var directoryPath = Path.GetDirectoryName((string)path);
-        if (directoryPath is null || !Directory.Exists(directoryPath))
+        var directoryPath = path.Parent;
+        if (directoryPath.IsEmpty || !Directory.Exists(directoryPath))
             return null;
 
-        var normalizedFileName = Path.GetFileName((string)path).Normalize(NormalizationForm.FormC);
+        var normalizedFileName = path.Name.Normalize(NormalizationForm.FormC);
         foreach (var file in Directory.EnumerateFiles(directoryPath))
         {
             if (Path.GetFileName(file).Normalize(NormalizationForm.FormC).Equals(normalizedFileName, StringComparison.Ordinal))
