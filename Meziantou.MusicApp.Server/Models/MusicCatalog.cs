@@ -452,14 +452,15 @@ public sealed class MusicCatalog
         var directoriesBuilder = ImmutableList.CreateBuilder<MusicDirectory>();
         var directoryDict = new Dictionary<string, MusicDirectory>(StringComparer.Ordinal);
 
-        // Create root directory
+        // Create root directory. Every path in the graph is an ordinal string, like the dictionary keys.
+        var rootPath = (string)RootPath;
         var rootDir = new MusicDirectory
         {
             Id = ItemId.CreateDirectoryId(RootPath),
             Name = RootPath.Name ?? "Music",
-            Path = RootPath,
+            Path = rootPath,
         };
-        directoryDict[RootPath] = rootDir;
+        directoryDict[rootPath] = rootDir;
 
         // Group songs by directory
         foreach (var song in Songs)
@@ -492,7 +493,7 @@ public sealed class MusicCatalog
         // Build subdirectory relationships
         foreach (var dir in directoryDict.Values)
         {
-            if (dir.Path == RootPath)
+            if (string.Equals(dir.Path, rootPath, StringComparison.Ordinal))
                 continue;
 
             var parentPath = Path.GetDirectoryName(dir.Path);
