@@ -17,7 +17,6 @@ export interface AppSettings {
   replayGainMode: ReplayGainMode;
   replayGainPreamp: number; // in dB
   showReplayGainWarning: boolean;
-  equalizerGains: number[]; // 10-band equalizer gains in dB
 }
 
 export interface StreamingQuality {
