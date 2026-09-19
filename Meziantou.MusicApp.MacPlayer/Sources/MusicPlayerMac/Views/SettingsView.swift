@@ -164,6 +164,10 @@ struct SettingsView: View {
                 Text("Show Playlist File Size")
                 Text("Show the total size of files for each playlist in the sidebar")
             }
+            Toggle(isOn: $draft.showInMenuBar) {
+                Text("Show in Menu Bar")
+                Text("Control playback from the menu bar. When the window is closed, the Dock icon is hidden and the app uses the least resources")
+            }
         }
     }
 

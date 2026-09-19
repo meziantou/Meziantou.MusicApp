@@ -295,6 +295,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var showPlaylistFileSize = false
     public var replayGainMode = ReplayGainMode.off
     public var showReplayGainWarning = true
+    /// Shows playback controls in the menu bar; the Dock icon is then hidden while no window is open.
+    public var showInMenuBar = false
 
     public init() {
     }
@@ -315,6 +317,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         showPlaylistFileSize = try container.decodeIfPresent(Bool.self, forKey: .showPlaylistFileSize) ?? defaults.showPlaylistFileSize
         replayGainMode = try container.decodeIfPresent(ReplayGainMode.self, forKey: .replayGainMode) ?? defaults.replayGainMode
         showReplayGainWarning = try container.decodeIfPresent(Bool.self, forKey: .showReplayGainWarning) ?? defaults.showReplayGainWarning
+        showInMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? defaults.showInMenuBar
     }
 
     /// The streaming quality to use for the given network type.

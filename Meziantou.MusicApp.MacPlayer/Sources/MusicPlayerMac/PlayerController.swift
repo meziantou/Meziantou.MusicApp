@@ -199,6 +199,9 @@ final class PlayerController {
         if queue.repeatMode == .one {
             // The same track plays again: drop the gaplessly scheduled next track
             cancelPreload()
+        } else {
+            // Leaving "repeat one" may require a preload sooner than the loop would wake up
+            restartProgressUpdates()
         }
 
         scheduleStateSave()
@@ -498,11 +501,7 @@ final class PlayerController {
 
     /// Preload the next track only near the end of the current one (last 30 s or 10%).
     private func checkForPreload() {
-        guard preloadTask == nil, preloadedFile == nil, queue.repeatMode != .one, duration > 0, let next = queue.lookahead.first else {
-            return
-        }
-
-        guard playbackTime >= preloadStartTime else {
+        guard needsPreload, let next = queue.lookahead.first, playbackTime >= preloadStartTime else {
             return
         }
 
@@ -522,6 +521,11 @@ final class PlayerController {
             preloadedFile = file
             preloadedFileWasScheduled = engine.scheduleNext(url: file.url)
         }
+    }
+
+    /// Whether the next track still has to be preloaded before the current one ends.
+    private var needsPreload: Bool {
+        preloadTask == nil && preloadedFile == nil && queue.repeatMode != .one && duration > 0 && !queue.lookahead.isEmpty
     }
 
     /// The time from which the next track is preloaded.
@@ -598,6 +602,8 @@ final class PlayerController {
         mutation(&queue)
         if queue.lookahead.first?.id != nextIdBefore {
             cancelPreload()
+            // The loop may be sleeping until the next save: wake it up in case the new next track must be preloaded
+            restartProgressUpdates()
         }
 
         scheduleStateSave()
@@ -638,7 +644,7 @@ final class PlayerController {
                 }
 
                 checkForPreload()
-                if Date().timeIntervalSince(lastSaveDate) >= 5 {
+                if Date().timeIntervalSince(lastSaveDate) >= PlaybackConstants.playbackStateSaveInterval {
                     saveState()
                 }
 
@@ -658,13 +664,19 @@ final class PlayerController {
     }
 
     /// The player bar shows whole seconds (and its slider moves about a point per second): wake up right after
-    /// the displayed second changes. When nothing is displayed, only the preload and the periodic save matter.
+    /// the displayed second changes. When nothing is displayed, only the preload and the periodic save matter,
+    /// so the loop sleeps until the next of them (once the next track is preloaded, only the save is left).
     private func progressUpdateDelay(at time: TimeInterval) -> TimeInterval {
         if isUIVisible {
             return max(0.05, 1.01 - time.truncatingRemainder(dividingBy: 1))
         }
 
-        return min(5, max(0.25, preloadStartTime - time))
+        let untilSave = max(0.25, PlaybackConstants.playbackStateSaveInterval - Date().timeIntervalSince(lastSaveDate))
+        guard needsPreload else {
+            return untilSave
+        }
+
+        return min(untilSave, max(0.25, preloadStartTime - time))
     }
 
     private func scheduleIdleRelease() {
