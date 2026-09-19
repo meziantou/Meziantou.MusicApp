@@ -355,9 +355,12 @@ final class AppModel {
                 let cachedSummary = await store.cachedPlaylistSummary(id: playlist.id)
                 let needsUpdate = cachedSummary.map { isOlder($0.changed, than: playlist.changed) } ?? true
                 let isOffline = offlinePlaylistIds.contains(playlist.id)
-                // Tracks of a cached playlist are only needed for offline playlists (diff and progress)
-                let cached = isOffline ? await store.cachedPlaylist(id: playlist.id) : nil
-                if refreshAllTracks || needsUpdate {
+                let refreshesTracks = refreshAllTracks || needsUpdate
+                // Tracks of a cached playlist are only needed for offline playlists (diff and progress).
+                // An unchanged playlist whose tracks are all downloaded has nothing to resume: don't decode it.
+                let needsCachedTracks = isOffline && (refreshesTracks || playlistDownloadProgress[playlist.id]?.isComplete != true)
+                let cached = needsCachedTracks ? await store.cachedPlaylist(id: playlist.id) : nil
+                if refreshesTracks {
                     let tracks = try await api.playlistTracks(playlistId: playlist.id).tracks
                     await store.saveCachedPlaylist(playlist, tracks: tracks)
 

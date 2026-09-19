@@ -171,6 +171,12 @@ public enum DateParsing {
 
     /// Parses ISO 8601 dates as produced by .NET (up to 7 fractional digits, with or without a time zone).
     public static func parse(_ value: String) -> Date? {
+        // Sorting a playlist by added date parses every date: avoid the formatters for the usual formats
+        var utf8Value = value
+        if let date = utf8Value.withUTF8(parseFast) {
+            return date
+        }
+
         let text = value.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else {
             return nil
@@ -198,6 +204,126 @@ public enum DateParsing {
         }
 
         return fullFormatter.date(from: normalized) ?? noFractionFormatter.date(from: normalized)
+    }
+
+    /// Parses `yyyy-MM-dd` and `yyyy-MM-ddTHH:mm:ss[.fffffff][Z|±HH:mm|±HHmm]` (UTC when there is no time zone)
+    /// with the same precision as the formatters (milliseconds). Returns nil for any other format.
+    private static func parseFast(_ bytes: UnsafeBufferPointer<UInt8>) -> Date? {
+        var index = 0
+
+        func consume(_ character: Unicode.Scalar) -> Bool {
+            guard index < bytes.count, bytes[index] == UInt8(ascii: character) else {
+                return false
+            }
+
+            index += 1
+            return true
+        }
+
+        func number(digits: Int) -> Int? {
+            guard index + digits <= bytes.count else {
+                return nil
+            }
+
+            var value = 0
+            for _ in 0..<digits {
+                guard let digit = digitValue(bytes[index]) else {
+                    return nil
+                }
+
+                value = value * 10 + digit
+                index += 1
+            }
+
+            return value
+        }
+
+        guard let year = number(digits: 4), consume("-"), let month = number(digits: 2), consume("-"), let day = number(digits: 2),
+              (1...12).contains(month), (1...daysInMonth(month, year: year)).contains(day) else {
+            return nil
+        }
+
+        var seconds = daysSince1970(year: year, month: month, day: day) * 86_400
+        if index == bytes.count {
+            return Date(timeIntervalSince1970: Double(seconds))
+        }
+
+        guard consume("T"), let hour = number(digits: 2), consume(":"), let minute = number(digits: 2), consume(":"), let second = number(digits: 2),
+              hour < 24, minute < 60, second < 60 else {
+            return nil
+        }
+
+        seconds += hour * 3600 + minute * 60 + second
+
+        // Only milliseconds are kept, like the formatters
+        var milliseconds = 0
+        if consume(".") {
+            var digitCount = 0
+            while index < bytes.count, let digit = digitValue(bytes[index]) {
+                if digitCount < 3 {
+                    milliseconds = milliseconds * 10 + digit
+                }
+
+                digitCount += 1
+                index += 1
+            }
+
+            guard digitCount > 0 else {
+                return nil
+            }
+
+            for _ in min(digitCount, 3)..<3 {
+                milliseconds *= 10
+            }
+        }
+
+        if consume("Z") {
+            // UTC
+        } else if consume("+") || consume("-") {
+            let sign = bytes[index - 1] == UInt8(ascii: "+") ? 1 : -1
+            guard let offsetHours = number(digits: 2) else {
+                return nil
+            }
+
+            _ = consume(":")
+            guard let offsetMinutes = number(digits: 2), offsetHours < 24, offsetMinutes < 60 else {
+                return nil
+            }
+
+            seconds -= sign * (offsetHours * 3600 + offsetMinutes * 60)
+        }
+
+        guard index == bytes.count else {
+            return nil
+        }
+
+        return Date(timeIntervalSince1970: Double(seconds) + Double(milliseconds) / 1000)
+    }
+
+    private static func digitValue(_ byte: UInt8) -> Int? {
+        (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ? Int(byte - UInt8(ascii: "0")) : nil
+    }
+
+    private static func daysInMonth(_ month: Int, year: Int) -> Int {
+        switch month {
+        case 2:
+            let isLeapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+            return isLeapYear ? 29 : 28
+        case 4, 6, 9, 11:
+            return 30
+        default:
+            return 31
+        }
+    }
+
+    /// Days between 1970-01-01 and a date of the proleptic Gregorian calendar.
+    private static func daysSince1970(year: Int, month: Int, day: Int) -> Int {
+        let shiftedYear = month <= 2 ? year - 1 : year
+        let era = (shiftedYear >= 0 ? shiftedYear : shiftedYear - 399) / 400
+        let yearOfEra = shiftedYear - era * 400
+        let dayOfYear = (153 * ((month + 9) % 12) + 2) / 5 + day - 1
+        let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+        return era * 146_097 + dayOfEra - 719_468
     }
 }
 
