@@ -5,7 +5,7 @@ import type {
   TrackInfo,
   InvalidPlaylistInfo,
 } from '../types';
-import { DEFAULT_SETTINGS, DEFAULT_PLAYBACK_STATE, normalizeEqualizerGains } from '../constants';
+import { DEFAULT_SETTINGS, DEFAULT_PLAYBACK_STATE } from '../constants';
 import {
   initApiService,
   getApiService,
@@ -19,7 +19,6 @@ interface AppContextValue {
   // Settings
   settings: AppSettings;
   updateSettings: (settings: AppSettings) => Promise<void>;
-  setEqualizerGains: (gains: number[]) => void;
 
   // Playlists
   playlists: PlaylistSummary[];
@@ -107,7 +106,6 @@ function AppDataProvider({ children }: AppProviderProps) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const settingsRef = useRef(settings);
-  const equalizerSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanRefreshRequestIdRef = useRef(0);
 
   const { playerActions } = usePlayer();
@@ -115,15 +113,6 @@ function AppDataProvider({ children }: AppProviderProps) {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
-
-  useEffect(() => {
-    return () => {
-      if (equalizerSaveTimeoutRef.current) {
-        clearTimeout(equalizerSaveTimeoutRef.current);
-        equalizerSaveTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   const setIsLoading = useCallback((loading: boolean) => {
     setLoadingCount(prev => Math.max(0, prev + (loading ? 1 : -1)));
@@ -156,10 +145,7 @@ function AppDataProvider({ children }: AppProviderProps) {
         console.log('[useApp] Storage initialized');
 
         const loadedSettings = await storageService.getSettings(DEFAULT_SETTINGS);
-        const normalizedSettings: AppSettings = {
-          ...loadedSettings,
-          equalizerGains: normalizeEqualizerGains(loadedSettings.equalizerGains),
-        };
+        const normalizedSettings: AppSettings = loadedSettings;
         console.log('[useApp] Settings loaded:', normalizedSettings);
         setSettings(normalizedSettings);
         settingsRef.current = normalizedSettings;
@@ -167,8 +153,6 @@ function AppDataProvider({ children }: AppProviderProps) {
 
         // Apply loaded settings to audio player
         playerActions.setReplayGainMode(normalizedSettings.replayGainMode);
-        playerActions.setReplayGainPreamp(normalizedSettings.replayGainPreamp);
-        playerActions.setEqualizerGains(normalizedSettings.equalizerGains);
         playerActions.setPreventDownloadOnLowData(normalizedSettings.preventDownloadOnLowData);
 
         const networkType = getNetworkType();
@@ -678,48 +662,10 @@ function AppDataProvider({ children }: AppProviderProps) {
     }
   }
 
-  const setEqualizerGains = useCallback((gains: number[]) => {
-    const normalizedGains = normalizeEqualizerGains(gains);
-    const currentSettings = settingsRef.current;
-    const hasChanged = normalizedGains.some((gain, index) => gain !== currentSettings.equalizerGains[index]);
-    if (!hasChanged) {
-      return;
-    }
-
-    const nextSettings: AppSettings = {
-      ...currentSettings,
-      equalizerGains: normalizedGains,
-    };
-
-    settingsRef.current = nextSettings;
-    setSettings(nextSettings);
-    playerActions.setEqualizerGains(normalizedGains);
-
-    if (equalizerSaveTimeoutRef.current) {
-      clearTimeout(equalizerSaveTimeoutRef.current);
-    }
-
-    equalizerSaveTimeoutRef.current = setTimeout(() => {
-      const settingsSnapshot = settingsRef.current;
-      storageService.saveSettings(settingsSnapshot).catch((error) => {
-        console.error('[useApp] Failed to save equalizer settings:', error);
-      });
-      equalizerSaveTimeoutRef.current = null;
-    }, 250);
-  }, [playerActions]);
-
   const updateSettings = useCallback(async (newSettings: AppSettings) => {
-    const normalizedSettings: AppSettings = {
-      ...newSettings,
-      equalizerGains: normalizeEqualizerGains(newSettings.equalizerGains),
-    };
+    const normalizedSettings: AppSettings = newSettings;
     console.log('[useApp] updateSettings called with:', normalizedSettings);
     const serverChanged = normalizedSettings.serverUrl !== settings.serverUrl;
-
-    if (equalizerSaveTimeoutRef.current) {
-      clearTimeout(equalizerSaveTimeoutRef.current);
-      equalizerSaveTimeoutRef.current = null;
-    }
 
     setSettings(normalizedSettings);
     settingsRef.current = normalizedSettings;
@@ -729,8 +675,6 @@ function AppDataProvider({ children }: AppProviderProps) {
     initApiService(normalizedSettings.serverUrl);
 
     playerActions.setReplayGainMode(normalizedSettings.replayGainMode);
-    playerActions.setReplayGainPreamp(normalizedSettings.replayGainPreamp);
-    playerActions.setEqualizerGains(normalizedSettings.equalizerGains);
     playerActions.setPreventDownloadOnLowData(normalizedSettings.preventDownloadOnLowData);
 
     const networkType = getNetworkType();
@@ -1094,7 +1038,6 @@ function AppDataProvider({ children }: AppProviderProps) {
   const value = useMemo<AppContextValue>(() => ({
     settings,
     updateSettings,
-    setEqualizerGains,
     playlists,
     currentPlaylistId,
     currentPlaylistTracks,
@@ -1125,7 +1068,6 @@ function AppDataProvider({ children }: AppProviderProps) {
   }), [
     settings,
     updateSettings,
-    setEqualizerGains,
     playlists,
     currentPlaylistId,
     currentPlaylistTracks,

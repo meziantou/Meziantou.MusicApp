@@ -1,5 +1,4 @@
 import type { TrackInfo, StreamingQuality, ReplayGainMode, PlaybackState, RepeatMode, QueueItem } from '../types';
-import { EQUALIZER_FREQUENCIES, normalizeEqualizerGains } from '../constants';
 import { getApiService } from './api-service';
 import { storageService } from './storage-service';
 import { PlayQueueService } from './play-queue-service';
@@ -52,9 +51,6 @@ export class AudioPlayerService {
 
   private quality: StreamingQuality = { format: 'raw' };
   private replayGainMode: ReplayGainMode = 'off';
-  private replayGainPreamp: number = 0;
-  private equalizerGains: number[] = normalizeEqualizerGains(null);
-  private equalizerNodes: BiquadFilterNode[] = [];
   private preventDownloadOnLowData: boolean = false;
   private networkType: 'normal' | 'low-data' | 'unknown' = 'unknown';
   private cachedTrackIds: Set<string> = new Set();
@@ -141,7 +137,6 @@ export class AudioPlayerService {
 
     this.audioContext = new AudioContext();
     this.masterGainNode = this.audioContext.createGain();
-    this.initEqualizerNodes();
     this.masterGainNode.connect(this.audioContext.destination);
 
     // Connect audio element to the audio context
@@ -156,45 +151,13 @@ export class AudioPlayerService {
   private connectAudioInstance(instance: AudioInstance): void {
     if (!this.audioContext) return;
 
-    const outputNode = this.getTrackOutputNode();
+    const outputNode = this.masterGainNode;
     if (!outputNode) return;
 
     instance.gainNode = this.audioContext.createGain();
     instance.sourceNode = this.audioContext.createMediaElementSource(instance.audio);
     instance.sourceNode.connect(instance.gainNode);
     instance.gainNode.connect(outputNode);
-  }
-
-  private initEqualizerNodes(): void {
-    const audioContext = this.audioContext;
-    if (!audioContext || !this.masterGainNode) return;
-
-    this.equalizerNodes = EQUALIZER_FREQUENCIES.map((frequency, index) => {
-      const filter = audioContext.createBiquadFilter();
-      filter.type = 'peaking';
-      filter.frequency.value = frequency;
-      filter.Q.value = 1;
-      filter.gain.value = this.equalizerGains[index] ?? 0;
-      return filter;
-    });
-
-    for (let i = 0; i < this.equalizerNodes.length - 1; i++) {
-      this.equalizerNodes[i].connect(this.equalizerNodes[i + 1]);
-    }
-
-    this.equalizerNodes[this.equalizerNodes.length - 1]?.connect(this.masterGainNode);
-  }
-
-  private getTrackOutputNode(): AudioNode | null {
-    if (!this.masterGainNode) return null;
-    return this.equalizerNodes[0] ?? this.masterGainNode;
-  }
-
-  private applyEqualizerGains(): void {
-    for (let i = 0; i < this.equalizerNodes.length; i++) {
-      const gainValue = this.equalizerGains[i] ?? 0;
-      this.equalizerNodes[i].gain.value = gainValue;
-    }
   }
 
   private setupAudioEvents(instance: AudioInstance): void {
@@ -437,8 +400,7 @@ export class AudioPlayerService {
 
       if (gainDb !== null && gainDb !== undefined && Number.isFinite(gainDb)) {
         // Convert dB to linear gain: 10^(dB/20)
-        const preamp = Number.isFinite(this.replayGainPreamp) ? this.replayGainPreamp : 0;
-        const linearGain = Math.pow(10, (gainDb + preamp) / 20);
+        const linearGain = Math.pow(10, gainDb / 20);
 
         if (Number.isFinite(linearGain)) {
           // Prevent clipping by limiting to reasonable values
@@ -455,7 +417,6 @@ export class AudioPlayerService {
         trackGain: track.replayGainTrackGain,
         albumGain: track.replayGainAlbumGain,
         usedGain: gainDb,
-        preamp: this.replayGainPreamp,
         appliedGain: appliedGain
       });
     }
@@ -1092,20 +1053,6 @@ export class AudioPlayerService {
     this.applyReplayGain(this.activeInstance);
   }
 
-  setReplayGainPreamp(preamp: number): void {
-    this.replayGainPreamp = preamp;
-    this.applyReplayGain(this.activeInstance);
-  }
-
-  setEqualizerGains(gains: readonly number[]): void {
-    this.equalizerGains = normalizeEqualizerGains(gains);
-    this.applyEqualizerGains();
-  }
-
-  getEqualizerGains(): number[] {
-    return [...this.equalizerGains];
-  }
-
   setPreventDownloadOnLowData(prevent: boolean): void {
     this.preventDownloadOnLowData = prevent;
   }
@@ -1255,7 +1202,6 @@ export class AudioPlayerService {
       URL.revokeObjectURL(this.preloadBlobUrl);
       this.preloadBlobUrl = null;
     }
-    this.equalizerNodes = [];
     this.teardownVisibilityHandling();
   }
 }

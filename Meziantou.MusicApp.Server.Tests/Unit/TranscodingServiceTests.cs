@@ -56,6 +56,20 @@ public class TranscodingServiceTests
         });
     }
 
+    [Theory]
+    [InlineData("m4a", true)]
+    [InlineData("mp3", false)]
+    [InlineData("opus", false)]
+    [InlineData("flac", false)]
+    public void BuildFFmpegArguments_FragmentsMp4OutputForPipe(string format, bool expectFragmentedMp4)
+    {
+        var method = typeof(TranscodingService).GetMethod("BuildFFmpegArguments", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var args = Assert.IsType<string>(method.Invoke(obj: null, ["input.flac", format, 128, null]));
+        Assert.Equal(expectFragmentedMp4, args.Contains("-movflags frag_keyframe+empty_moov", StringComparison.Ordinal));
+    }
+
     private static TranscodingService CreateTranscodingService(string cachePath)
     {
         var configuration = new ConfigurationBuilder()

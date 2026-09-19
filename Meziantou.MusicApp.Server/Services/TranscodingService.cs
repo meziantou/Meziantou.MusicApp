@@ -281,6 +281,12 @@ public sealed class TranscodingService : IDisposable
         args.Add("-map_metadata 0"); // Preserve metadata
         args.Add("-map 0:a:0"); // Only first audio stream
 
+        // The MP4 muxer needs a seekable output unless the file is fragmented
+        if (format == "ipod")
+        {
+            args.Add("-movflags frag_keyframe+empty_moov");
+        }
+
         // Output format
         args.Add($"-f {format}");
 
@@ -483,6 +489,12 @@ public sealed class TranscodingService : IDisposable
         args.Add("-sn"); // No subtitles
         args.Add("-map_metadata 0");
         args.Add("-map 0:a:0");
+
+        // The MP4 muxer needs a seekable output unless the file is fragmented
+        if (format == "ipod")
+        {
+            args.Add("-movflags frag_keyframe+empty_moov");
+        }
 
         // Output format
         args.Add($"-f {format}");

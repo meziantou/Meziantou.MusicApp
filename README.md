@@ -19,7 +19,13 @@ A modern, web-based music player designed to work with the server. Features incl
 - Offline mode with caching
 - Dark theme
 - Background sync and auto-resume
-- 10-band equalizer in the player bar
+
+### [Meziantou.MusicApp.MacPlayer](Meziantou.MusicApp.MacPlayer/README.md)
+
+A native macOS player built with SwiftUI and AVFoundation, with the same features as the web player:
+- Offline playlists and gapless playback
+- Media keys, Now Playing, and AirPlay output selection
+- Persistent playing queue and auto-resume
 
 ## Getting Started
 
@@ -27,3 +33,4 @@ Please refer to the individual project READMEs for detailed instructions on how 
 
 - [Server Documentation](Meziantou.MusicApp.Server/README.md)
 - [Web Player Documentation](Meziantou.MusicApp.WebPlayer/README.md)
+- [macOS Player Documentation](Meziantou.MusicApp.MacPlayer/README.md)
