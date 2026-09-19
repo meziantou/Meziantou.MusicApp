@@ -475,6 +475,21 @@ final class AppModel {
         }
     }
 
+    /// Shows a playlist and plays it from the start, in the order used by the track list.
+    func playPlaylist(_ playlistId: String) async {
+        await selectPlaylist(playlistId)
+        guard selectedPlaylistId == playlistId, !selectedPlaylistTracks.isEmpty else {
+            return
+        }
+
+        let defaults = UserDefaults.standard
+        let sortOption = defaults.string(forKey: DefaultsKeys.trackSortOption).flatMap(TrackSortOption.init(rawValue:)) ?? .added
+        let sortDirection = defaults.string(forKey: DefaultsKeys.trackSortDirection).flatMap(TrackSortDirection.init(rawValue:)) ?? sortOption.defaultDirection
+        player.quality = settings.streamingQuality(for: networkType)
+        player.setPlaylist(id: playlistId, tracks: TrackSorting.sort(selectedPlaylistTracks, by: sortOption, direction: sortDirection))
+        player.playFromStart(where: isTrackAvailable)
+    }
+
     func addToQueue(_ track: TrackInfo, indexInPlaylist: Int) {
         guard let selectedPlaylistId else {
             return
@@ -782,5 +797,6 @@ extension Logger {
 enum DefaultsKeys {
     static let lastViewedPlaylistId = "lastViewedPlaylistId"
     static let showRemainingTime = "showRemainingTime"
-    static let lastSelectedTrackByPlaylist = "lastSelectedTrackByPlaylist"
+    static let trackSortOption = "trackSortOption"
+    static let trackSortDirection = "trackSortDirection"
 }

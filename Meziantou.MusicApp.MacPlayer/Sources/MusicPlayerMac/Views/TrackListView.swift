@@ -28,8 +28,8 @@ struct TrackRow: Identifiable, Hashable {
 struct TrackListView: View {
     private let model = AppModel.shared
     private let player = AppModel.shared.player
-    @AppStorage("trackSortOption") private var sortOption = TrackSortOption.added
-    @AppStorage("trackSortDirection") private var sortDirection = TrackSortDirection.descending
+    @AppStorage(DefaultsKeys.trackSortOption) private var sortOption = TrackSortOption.added
+    @AppStorage(DefaultsKeys.trackSortDirection) private var sortDirection = TrackSortDirection.descending
 
     @State private var searchText = ""
     @State private var appliedSearch = ""

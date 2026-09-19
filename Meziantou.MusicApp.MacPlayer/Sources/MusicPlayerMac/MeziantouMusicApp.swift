@@ -29,6 +29,7 @@ extension AppModel {
     static let shared = AppModel()
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
 
@@ -36,9 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
 #if DEBUG
-        MainActor.assumeIsolated {
-            DebugSnapshots.startIfRequested()
-        }
+        DebugSnapshots.startIfRequested()
+        DebugSnapshots.dumpDockMenuIfRequested()
 #endif
 
         // Space toggles playback, except while typing in a text field
@@ -60,16 +60,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        DockMenu.make(model: AppModel.shared)
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
-        MainActor.assumeIsolated {
-            AppModel.shared.applicationDidBecomeActive()
-        }
+        AppModel.shared.applicationDidBecomeActive()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated {
-            AppModel.shared.applicationWillTerminate()
-        }
+        AppModel.shared.applicationWillTerminate()
     }
 }
 

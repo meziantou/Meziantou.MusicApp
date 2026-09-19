@@ -132,6 +132,18 @@ final class PlayerController {
         loadTrack(track, autoPlay: autoPlay, startTime: startTime)
     }
 
+    /// Starts the playlist from its first playable track in play order (the shuffle order when shuffle is on).
+    func playFromStart(where isAvailable: (TrackInfo) -> Bool) {
+        updateQueueFilters()
+        let playlist = queue.playlist
+        guard let position = playlist.indices.first(where: { isAvailable(playlist[queue.playlistIndex(forPosition: $0)]) }) else {
+            onError?("No playable track in this playlist")
+            return
+        }
+
+        play(atPosition: position, autoPlay: true)
+    }
+
     func addToQueue(_ track: TrackInfo, playlistId: String, indexInPlaylist: Int) {
         mutateQueue { $0.addToQueue(track, playlistId: playlistId, indexInPlaylist: indexInPlaylist) }
     }

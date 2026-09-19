@@ -17,6 +17,7 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Low Data Mode (constrained or expensive networks) uses the low data quality and can prevent streaming
 - Audio output selection, including AirPlay speakers
 - Now Playing integration: media keys, Control Center, and the lock screen, with artwork
+- Dock menu: current track, play/pause, next/previous, volume and mute, shuffle and repeat, and a Playlists submenu to start playing a playlist
 - Background synchronization of playlists every 5 minutes and when the app becomes active
 - Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics
 

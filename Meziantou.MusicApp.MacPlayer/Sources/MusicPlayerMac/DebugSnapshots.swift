@@ -19,6 +19,63 @@ enum DebugSnapshots {
         }
     }
 
+    /// When `MEZIANTOU_MUSIC_DOCK_MENU_DUMP` is set, writes the Dock menu to that file after startup. When
+    /// `MEZIANTOU_MUSIC_DOCK_MENU_ACTION` is also set (e.g. "Playlists/work"), chooses that item, then writes the menu again.
+    static func dumpDockMenuIfRequested() {
+        let environment = ProcessInfo.processInfo.environment
+        guard let path = environment["MEZIANTOU_MUSIC_DOCK_MENU_DUMP"], !path.isEmpty else {
+            return
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(12))
+            var output = describe(DockMenu.make(model: AppModel.shared), indent: "")
+            if let action = environment["MEZIANTOU_MUSIC_DOCK_MENU_ACTION"] {
+                output += "--- after choosing \(action): \(choose(action, in: DockMenu.make(model: AppModel.shared)))\n"
+                try? await Task.sleep(for: .seconds(10))
+                output += describe(DockMenu.make(model: AppModel.shared), indent: "")
+            }
+
+            try? output.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
+    private static func describe(_ menu: NSMenu, indent: String) -> String {
+        menu.items.map { item in
+            if item.isSeparatorItem {
+                return "\(indent)---\n"
+            }
+
+            let state = item.state == .on ? "[x] " : ""
+            let enabled = item.isEnabled ? "" : " (disabled)"
+            let line = "\(indent)\(state)\(item.title)\(enabled)\n"
+            return line + (item.submenu.map { describe($0, indent: indent + "    ") } ?? "")
+        }.joined()
+    }
+
+    private static func choose(_ path: String, in menu: NSMenu) -> Bool {
+        var current = menu
+        let titles = path.split(separator: "/").map(String.init)
+        for (index, title) in titles.enumerated() {
+            guard let itemIndex = current.items.firstIndex(where: { $0.title == title }) else {
+                return false
+            }
+
+            if index == titles.count - 1 {
+                current.performActionForItem(at: itemIndex)
+                return true
+            }
+
+            guard let submenu = current.items[itemIndex].submenu else {
+                return false
+            }
+
+            current = submenu
+        }
+
+        return false
+    }
+
     private static func capture(to path: String) {
         let windows = NSApp.windows.filter { $0.isVisible && $0.frame.width > 100 && $0.frame.height > 100 }
         for (index, window) in windows.enumerated() {
