@@ -52,6 +52,21 @@ final class PlayerController {
     }
 
     var preventDownloadOnLowData = false
+
+    /// Whether the window is on screen. When it is not, `currentTime` is not published (nothing displays it)
+    /// and background work runs less often.
+    var isUIVisible = true {
+        didSet {
+            if isUIVisible && !oldValue {
+                currentTime = playbackTime
+            }
+        }
+    }
+
+    /// The actual playback position, even while `currentTime` is not being published.
+    private var playbackTime: TimeInterval {
+        engine.hasFile ? engine.currentTime : currentTime
+    }
     var networkType = NetworkType.normal
     var isOnline = true
     var cachedTrackIds: Set<String> = []
@@ -254,7 +269,7 @@ final class PlayerController {
     }
 
     func previous() {
-        if currentTime > 3 {
+        if playbackTime > 3 {
             seek(to: 0)
             return
         }
@@ -276,7 +291,7 @@ final class PlayerController {
     }
 
     func skip(by offset: TimeInterval) {
-        seek(to: currentTime + offset)
+        seek(to: playbackTime + offset)
     }
 
     func setVolume(_ newVolume: Double) {
@@ -486,7 +501,7 @@ final class PlayerController {
         }
 
         let tailWindow = min(30, duration * 0.1)
-        guard duration - currentTime <= tailWindow else {
+        guard duration - playbackTime <= tailWindow else {
             return
         }
 
@@ -607,13 +622,17 @@ final class PlayerController {
 
         progressTask = Task {
             while !Task.isCancelled {
-                currentTime = engine.currentTime
+                // Publishing the time redraws the player bar: only do it when it can be seen
+                if isUIVisible {
+                    currentTime = engine.currentTime
+                }
+
                 checkForPreload()
                 if Date().timeIntervalSince(lastSaveDate) >= 5 {
                     saveState()
                 }
 
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: isUIVisible ? .milliseconds(250) : .seconds(1))
             }
         }
     }

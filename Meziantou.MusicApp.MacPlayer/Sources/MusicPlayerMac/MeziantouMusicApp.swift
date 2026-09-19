@@ -8,7 +8,7 @@ struct MeziantouMusicApp: App {
     private let model = AppModel.shared
 
     var body: some Scene {
-        Window("Meziantou Music", id: "main") {
+        WindowGroup("Meziantou Music", id: "main") {
             // Views read `AppModel.shared` directly: environment objects are not reliably available
             // in views hosted by NSTableView (List and Table rows) and crash when missing
             ContentView()
@@ -16,6 +16,10 @@ struct MeziantouMusicApp: App {
         }
         .defaultSize(width: 1200, height: 760)
         .commands {
+            // Single-window app: a WindowGroup is used because closing its window releases the views
+            CommandGroup(replacing: .newItem) {
+            }
+
             PlayerCommands(model: model, player: model.player)
         }
 
@@ -32,13 +36,16 @@ extension AppModel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
+    private var visibilityObservers: [any NSObjectProtocol] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
+        observeVisibility()
 #if DEBUG
         DebugSnapshots.startIfRequested()
         DebugSnapshots.dumpDockMenuIfRequested()
+        DebugSnapshots.runWindowTestIfRequested()
 #endif
 
         // Space toggles playback, except while typing in a text field
@@ -53,6 +60,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return nil
         }
+    }
+
+    /// Tracks whether a window is on screen, so work that only matters for the UI can pause.
+    private func observeVisibility() {
+        let names: [Notification.Name] = [
+            NSWindow.didChangeOcclusionStateNotification,
+            NSWindow.didMiniaturizeNotification,
+            NSWindow.didDeminiaturizeNotification,
+            NSWindow.willCloseNotification,
+            NSWindow.didBecomeKeyNotification,
+            NSApplication.didHideNotification,
+            NSApplication.didUnhideNotification,
+        ]
+        for name in names {
+            let observer = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                // A closing window still reports itself as visible
+                let window = name == NSWindow.willCloseNotification ? notification.object as? NSWindow : nil
+                let closingWindow = window.map(ObjectIdentifier.init)
+                MainActor.assumeIsolated {
+                    if window?.identifier?.rawValue.hasPrefix("main") == true {
+                        AppModel.shared.mainWindowDidClose()
+                    }
+
+                    self?.updateVisibility(excluding: closingWindow)
+                }
+            }
+            visibilityObservers.append(observer)
+        }
+    }
+
+    private func updateVisibility(excluding closingWindow: ObjectIdentifier?) {
+        let isVisible = !NSApp.isHidden && NSApp.windows.contains { window in
+            ObjectIdentifier(window) != closingWindow
+                && window.canBecomeMain
+                && window.isVisible
+                && !window.isMiniaturized
+                && window.occlusionState.contains(.visible)
+        }
+        AppModel.shared.setUIVisible(isVisible)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

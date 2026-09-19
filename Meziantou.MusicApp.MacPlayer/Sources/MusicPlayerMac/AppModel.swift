@@ -46,6 +46,8 @@ final class AppModel {
     /// Incremented to ask the track list to focus the search field.
     private(set) var searchFocusRequest = 0
     var isQueueVisible = false
+    /// Whether a window of the app is on screen (not minimized, hidden, covered or on another Space).
+    private(set) var isUIVisible = true
 
     var isLoading: Bool {
         loadingCount > 0
@@ -59,6 +61,9 @@ final class AppModel {
     @ObservationIgnored private let apiBox = APIClientBox()
     @ObservationIgnored private var syncTask: Task<Void, Never>?
     @ObservationIgnored private var scanMonitorTask: Task<Void, Never>?
+    @ObservationIgnored private var memoryPressureSource: (any DispatchSourceMemoryPressure)?
+    /// Whether the track list is displayed; when the main window is closed its tracks are released.
+    @ObservationIgnored private var isTrackListShown = true
 
     init(store: LibraryStore = LibraryStore(rootDirectory: LibraryStore.defaultRootDirectory())) {
         self.store = store
@@ -123,6 +128,7 @@ final class AppModel {
         }
 
         startPeriodicSync()
+        startMemoryPressureMonitoring()
     }
 
     private func loadInitialData() async {
@@ -372,7 +378,7 @@ final class AppModel {
                         }
                     }
 
-                    if selectedPlaylistId == playlist.id && selectedPlaylistTracks != tracks {
+                    if selectedPlaylistId == playlist.id && isTrackListShown && selectedPlaylistTracks != tracks {
                         selectedPlaylistTracks = tracks
                     }
                 } else if isOffline, let cached {
@@ -763,6 +769,66 @@ final class AppModel {
         }
 
         return try? await api.scanStatus()
+    }
+
+    // MARK: Memory
+
+    /// Called when the app's windows appear or disappear from the screen.
+    func setUIVisible(_ visible: Bool) {
+        guard visible != isUIVisible else {
+            return
+        }
+
+        isUIVisible = visible
+        player.isUIVisible = visible
+        if !visible {
+            releaseMemory()
+        } else if !isTrackListShown {
+            Task { await reloadTrackList() }
+        }
+    }
+
+    /// The main window was closed: release the displayed tracks. They are reloaded from the disk cache
+    /// when a window is shown again.
+    func mainWindowDidClose() {
+        guard isTrackListShown else {
+            return
+        }
+
+        isTrackListShown = false
+        selectedPlaylistTracks = []
+        releaseMemory()
+        // SwiftUI tears the window's views down after this notification: release again once it is done
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            releaseMemory()
+        }
+    }
+
+    private func reloadTrackList() async {
+        isTrackListShown = true
+        guard isInitialized, let selectedPlaylistId, selectedPlaylistTracks.isEmpty else {
+            return
+        }
+
+        _ = await loadPlaylistTracks(playlistId: selectedPlaylistId)
+    }
+
+    /// Drops what can be rebuilt (decoded covers) and gives freed memory back to the system.
+    func releaseMemory() {
+        coverLoader.clearMemoryCache()
+        malloc_zone_pressure_relief(nil, 0)
+    }
+
+    private func startMemoryPressureMonitoring() {
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                self?.releaseMemory()
+            }
+        }
+        source.resume()
+        memoryPressureSource = source
     }
 
     // MARK: Lifecycle

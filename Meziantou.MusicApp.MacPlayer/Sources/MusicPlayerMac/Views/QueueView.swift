@@ -18,7 +18,7 @@ struct QueueView: View {
                     if let currentTrack = player.currentTrack {
                         Section("Now Playing") {
                             HStack(spacing: 10) {
-                                PlayingIndicator(isPlaying: player.isPlaying, isAnimated: !model.settings.disablePlayingAnimation)
+                                PlayingIndicator(isPlaying: player.isPlaying, isAnimated: !model.settings.disablePlayingAnimation && model.isUIVisible)
                                     .frame(width: 24)
                                     .onTapGesture {
                                         player.togglePlayPause()

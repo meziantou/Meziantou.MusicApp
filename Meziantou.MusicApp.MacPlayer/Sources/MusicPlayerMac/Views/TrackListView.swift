@@ -2,11 +2,33 @@ import AppKit
 import MusicPlayerCore
 import SwiftUI
 
+/// The tracks displayed by the table, shared by all rows instead of copying each track into its row.
+final class TrackRowStorage {
+    let tracks: [TrackInfo]
+
+    init(tracks: [TrackInfo]) {
+        self.tracks = tracks
+    }
+}
+
 /// A row of the track table. `id` is the index of the track in the playlist, which is unique
 /// even when the same track appears several times.
 struct TrackRow: Identifiable, Hashable {
     let id: Int
-    let track: TrackInfo
+    let storage: TrackRowStorage
+
+    var track: TrackInfo {
+        storage.tracks[id]
+    }
+
+    static func == (lhs: TrackRow, rhs: TrackRow) -> Bool {
+        lhs.id == rhs.id && lhs.storage === rhs.storage
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(ObjectIdentifier(storage))
+    }
 
     var title: String {
         track.title
@@ -109,7 +131,7 @@ struct TrackListView: View {
                     index: row.id,
                     isCurrent: isCurrent(row),
                     isPlaying: player.isPlaying,
-                    isAnimated: !model.settings.disablePlayingAnimation,
+                    isAnimated: !model.settings.disablePlayingAnimation && model.isUIVisible,
                     onTogglePlay: { player.togglePlayPause() })
             }
             .width(min: 34, ideal: 40, max: 60)
@@ -331,7 +353,8 @@ struct TrackListView: View {
     private func rebuildRows() {
         let tracks = model.selectedPlaylistTracks
         let indices = TrackSorting.sortIndices(tracks, by: sortOption, direction: sortDirection)
-        sortedRows = indices.map { TrackRow(id: $0, track: tracks[$0]) }
+        let storage = TrackRowStorage(tracks: tracks)
+        sortedRows = indices.map { TrackRow(id: $0, storage: storage) }
         haystacks = nil
         updateVisibleRows()
     }
@@ -339,6 +362,8 @@ struct TrackListView: View {
     private func updateVisibleRows() {
         let fragments = Search.normalize(appliedSearch).split(separator: " ")
         guard !fragments.isEmpty else {
+            // The normalized search text is only needed while searching
+            haystacks = nil
             visibleRows = sortedRows
             return
         }

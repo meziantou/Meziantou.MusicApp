@@ -32,7 +32,15 @@ public struct APIClient: Sendable {
     public let baseUrl: String
     private let session: URLSession
 
-    public init(baseUrl: String, session: URLSession = .shared) {
+    /// The app caches playlists and covers itself: don't keep a second copy in URLCache (memory and disk).
+    public static let defaultSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
+    }()
+
+    public init(baseUrl: String, session: URLSession = APIClient.defaultSession) {
         var url = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
         while url.hasSuffix("/") {
             url.removeLast()

@@ -45,9 +45,7 @@ public struct TrackInfo: Codable, Hashable, Sendable, Identifiable {
     public var title: String
     public var path: String
     public var artists: String?
-    public var artistId: String?
     public var album: String?
-    public var albumId: String?
     public var duration: Double
     public var track: Int?
     public var year: Int?
@@ -67,9 +65,7 @@ public struct TrackInfo: Codable, Hashable, Sendable, Identifiable {
         title: String,
         path: String = "",
         artists: String? = nil,
-        artistId: String? = nil,
         album: String? = nil,
-        albumId: String? = nil,
         duration: Double = 0,
         track: Int? = nil,
         year: Int? = nil,
@@ -88,9 +84,7 @@ public struct TrackInfo: Codable, Hashable, Sendable, Identifiable {
         self.title = title
         self.path = path
         self.artists = artists
-        self.artistId = artistId
         self.album = album
-        self.albumId = albumId
         self.duration = duration
         self.track = track
         self.year = year
@@ -112,9 +106,7 @@ public struct TrackInfo: Codable, Hashable, Sendable, Identifiable {
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         path = try container.decodeIfPresent(String.self, forKey: .path) ?? ""
         artists = try container.decodeIfPresent(String.self, forKey: .artists)
-        artistId = try container.decodeIfPresent(String.self, forKey: .artistId)
         album = try container.decodeIfPresent(String.self, forKey: .album)
-        albumId = try container.decodeIfPresent(String.self, forKey: .albumId)
         duration = try container.decodeIfPresent(Double.self, forKey: .duration) ?? 0
         track = try container.decodeIfPresent(Int.self, forKey: .track)
         year = try container.decodeIfPresent(Int.self, forKey: .year)

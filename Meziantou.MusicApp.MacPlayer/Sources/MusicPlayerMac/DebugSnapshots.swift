@@ -40,6 +40,30 @@ enum DebugSnapshots {
         }
     }
 
+    /// When `MEZIANTOU_MUSIC_WINDOW_TEST` is `minimize` or `close`, minimizes or closes the main window after
+    /// 25 seconds (and restores a minimized window 25 seconds later) to measure the app while it is not visible.
+    static func runWindowTestIfRequested() {
+        guard let mode = ProcessInfo.processInfo.environment["MEZIANTOU_MUSIC_WINDOW_TEST"] else {
+            return
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(25))
+            guard let window = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) else {
+                return
+            }
+
+            if mode == "close" {
+                window.performClose(nil)
+                return
+            }
+
+            window.miniaturize(nil)
+            try? await Task.sleep(for: .seconds(25))
+            window.deminiaturize(nil)
+        }
+    }
+
     private static func describe(_ menu: NSMenu, indent: String) -> String {
         menu.items.map { item in
             if item.isSeparatorItem {
