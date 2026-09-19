@@ -60,6 +60,7 @@ final class AppModel {
     @ObservationIgnored private let networkMonitor = NetworkMonitor()
     @ObservationIgnored private let apiBox = APIClientBox()
     @ObservationIgnored private var syncTask: Task<Void, Never>?
+    @ObservationIgnored private var lastPlaylistSyncDate = Date.distantPast
     @ObservationIgnored private var scanMonitorTask: Task<Void, Never>?
     @ObservationIgnored private var memoryPressureSource: (any DispatchSourceMemoryPressure)?
     /// Whether the track list is displayed; when the main window is closed its tracks are released.
@@ -314,7 +315,8 @@ final class AppModel {
 
     /// Called when the app becomes active, like the web player does when the tab becomes visible.
     func applicationDidBecomeActive() {
-        guard isInitialized, isOnline, !settings.serverUrl.isEmpty else {
+        // Switching back and forth between apps should not refetch the playlists every time
+        guard isInitialized, isOnline, !settings.serverUrl.isEmpty, Date().timeIntervalSince(lastPlaylistSyncDate) >= PlaybackConstants.activationSyncMinInterval else {
             return
         }
 
@@ -326,6 +328,8 @@ final class AppModel {
         guard isOnline, api.isConfigured else {
             return playlists
         }
+
+        lastPlaylistSyncDate = Date()
 
         // Decoding playlists allocates a lot of short-lived memory: give the freed pages back to the system
         defer { malloc_zone_pressure_relief(nil, 0) }

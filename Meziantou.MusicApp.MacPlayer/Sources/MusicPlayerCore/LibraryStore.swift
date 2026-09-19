@@ -307,6 +307,11 @@ public actor LibraryStore {
         return data
     }
 
+    /// Whether a cover is cached, without reading it or refreshing its timestamp.
+    public func hasCachedCover(trackId: String) -> Bool {
+        coverIndex[trackId] != nil
+    }
+
     public func saveCover(trackId: String, data: Data) {
         do {
             try data.write(to: coverFileUrl(trackId: trackId), options: .atomic)

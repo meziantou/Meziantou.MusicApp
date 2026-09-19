@@ -165,11 +165,14 @@ struct LibraryStoreTests {
         let store = try await makeStore()
         await store.addMissingCover(trackId: "x")
         #expect(await store.isCoverMissing(trackId: "x"))
+        #expect(await !store.hasCachedCover(trackId: "x"))
         await store.saveCover(trackId: "x", data: Data([1]))
         #expect(await !store.isCoverMissing(trackId: "x"))
+        #expect(await store.hasCachedCover(trackId: "x"))
         await store.addMissingCover(trackId: "y")
         await store.clearCovers()
         #expect(await !store.isCoverMissing(trackId: "y"))
+        #expect(await !store.hasCachedCover(trackId: "x"))
         #expect(await store.cachedCover(trackId: "x") == nil)
     }
 
