@@ -30,6 +30,8 @@ public struct QualityOption: Hashable, Sendable, Identifiable {
 public enum PlaybackConstants {
     /// Interval between two background playlist synchronizations.
     public static let playlistSyncInterval: Duration = .seconds(5 * 60)
+    /// Minimum time since the last playlist synchronization before activating the app synchronizes again.
+    public static let activationSyncMinInterval: TimeInterval = 60
     /// Delay after which a paused player releases its audio resources.
     public static let idleReleaseDelay: Duration = .seconds(5 * 60)
     /// Maximum number of recently played tracks remembered.

@@ -18,7 +18,7 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Audio output selection, including AirPlay speakers
 - Now Playing integration: media keys, Control Center, and the lock screen, with artwork
 - Dock menu: current track, play/pause, next/previous, volume and mute, shuffle and repeat, and a Playlists submenu to start playing a playlist
-- Background synchronization of playlists every 5 minutes and when the app becomes active
+- Background synchronization of playlists every 5 minutes and when the app becomes active (at most once a minute)
 - Single instance: starting the app again (from another copy, with `open -n`, or by running the executable) brings the running instance to the front and shows its window
 - Low resource use in the background: when no window is visible, UI updates and animations stop and cached images are released; closing the window also releases the track list
 - Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics

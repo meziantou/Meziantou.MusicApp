@@ -59,6 +59,7 @@ final class PlayerController {
         didSet {
             if isUIVisible && !oldValue {
                 currentTime = playbackTime
+                restartProgressUpdates()
             }
         }
     }
@@ -285,6 +286,7 @@ final class PlayerController {
         let clamped = max(0, min(time, duration > 0 ? duration : time))
         engine.seek(to: clamped)
         currentTime = clamped
+        restartProgressUpdates()
         preloadedFileWasScheduled = false
         nowPlaying.updatePlayback(elapsed: clamped, duration: duration, isPlaying: isPlaying)
         scheduleStateSave()
@@ -500,8 +502,7 @@ final class PlayerController {
             return
         }
 
-        let tailWindow = min(30, duration * 0.1)
-        guard duration - playbackTime <= tailWindow else {
+        guard playbackTime >= preloadStartTime else {
             return
         }
 
@@ -521,6 +522,11 @@ final class PlayerController {
             preloadedFile = file
             preloadedFileWasScheduled = engine.scheduleNext(url: file.url)
         }
+    }
+
+    /// The time from which the next track is preloaded.
+    private var preloadStartTime: TimeInterval {
+        duration - min(30, duration * 0.1)
     }
 
     private func cancelPreload() {
@@ -556,6 +562,7 @@ final class PlayerController {
         currentQuality = preloadedFile.quality
         duration = engine.duration
         currentTime = engine.currentTime
+        restartProgressUpdates()
         applyReplayGain()
         if let track {
             recordRecentlyPlayed(track.id)
@@ -624,9 +631,10 @@ final class PlayerController {
 
         progressTask = Task {
             while !Task.isCancelled {
+                let time = playbackTime
                 // Publishing the time redraws the player bar: only do it when it can be seen
                 if isUIVisible {
-                    currentTime = engine.currentTime
+                    currentTime = time
                 }
 
                 checkForPreload()
@@ -634,9 +642,29 @@ final class PlayerController {
                     saveState()
                 }
 
-                try? await Task.sleep(for: isUIVisible ? .milliseconds(250) : .seconds(1))
+                try? await Task.sleep(for: .seconds(progressUpdateDelay(at: time)))
             }
         }
+    }
+
+    private func restartProgressUpdates() {
+        guard progressTask != nil else {
+            return
+        }
+
+        progressTask?.cancel()
+        progressTask = nil
+        startProgressUpdates()
+    }
+
+    /// The player bar shows whole seconds (and its slider moves about a point per second): wake up right after
+    /// the displayed second changes. When nothing is displayed, only the preload and the periodic save matter.
+    private func progressUpdateDelay(at time: TimeInterval) -> TimeInterval {
+        if isUIVisible {
+            return max(0.05, 1.01 - time.truncatingRemainder(dividingBy: 1))
+        }
+
+        return min(5, max(0.25, preloadStartTime - time))
     }
 
     private func scheduleIdleRelease() {

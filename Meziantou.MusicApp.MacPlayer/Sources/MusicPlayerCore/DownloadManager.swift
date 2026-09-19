@@ -142,7 +142,7 @@ public final class DownloadManager {
     }
 
     private func downloadCoverIfNeeded(trackId: String, client: APIClient) async {
-        guard await store.cachedCover(trackId: trackId) == nil, await !store.isCoverMissing(trackId: trackId) else {
+        guard await !store.hasCachedCover(trackId: trackId), await !store.isCoverMissing(trackId: trackId) else {
             return
         }
 
