@@ -869,6 +869,7 @@ extension Logger {
 enum DefaultsKeys {
     static let lastViewedPlaylistId = "lastViewedPlaylistId"
     static let showRemainingTime = "showRemainingTime"
+    static let skippedUpdateVersion = "skippedUpdateVersion"
     static let trackSortOption = "trackSortOption"
     static let trackSortDirection = "trackSortDirection"
 }

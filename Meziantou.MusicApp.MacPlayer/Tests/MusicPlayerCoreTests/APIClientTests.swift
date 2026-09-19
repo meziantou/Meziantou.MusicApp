@@ -164,3 +164,66 @@ struct APIClientTests {
         #expect(try Data(contentsOf: file) == Data([9, 8, 7]))
     }
 }
+
+struct UpdateCheckerTests {
+    @Test(arguments: [
+        ("1.2.3", "1.2.3"),
+        ("macos-v1.2.3", "1.2.3"),
+        ("v10.0.1", "10.0.1"),
+        (" 1.0 ", "1.0"),
+    ])
+    func parsesVersions(input: String, expected: String) throws {
+        #expect(try #require(AppVersion(input)).description == expected)
+    }
+
+    @Test(arguments: ["", "abc", "1..2", "1.2.x", "macos-v", "1.-2", "v1.0.0-beta"])
+    func rejectsInvalidVersions(input: String) {
+        #expect(AppVersion(input) == nil)
+    }
+
+    @Test func comparesVersions() throws {
+        let v = { (value: String) in AppVersion(value)! }
+        #expect(v("1.0.0") < v("1.0.1"))
+        #expect(v("1.9.0") < v("1.10.0"))
+        #expect(v("1.0") < v("1.0.1"))
+        #expect(v("1.0") == v("1.0.0"))
+        #expect(Set([v("1.0"), v("1.0.0")]).count == 1)
+        #expect(!(v("2.0.0") < v("1.99.99")))
+    }
+
+    @Test func findsLatestMacRelease() async throws {
+        MockURLProtocol.register(host: "releases.test") { request in
+            #expect(request.value(forHTTPHeaderField: "Accept") == "application/vnd.github+json")
+            let json = """
+            [
+              {"tag_name":"v9.0.0","html_url":"https://github.com/o/r/releases/tag/v9.0.0","draft":false,"prerelease":false},
+              {"tag_name":"macos-v1.10.0","html_url":"https://github.com/o/r/releases/tag/macos-v1.10.0","draft":false,"prerelease":false},
+              {"tag_name":"macos-v2.0.0","html_url":"https://github.com/o/r/releases/tag/macos-v2.0.0","draft":false,"prerelease":true},
+              {"tag_name":"macos-v3.0.0","html_url":"https://github.com/o/r/releases/tag/macos-v3.0.0","draft":true,"prerelease":false},
+              {"tag_name":"macos-v1.9.0","html_url":"https://github.com/o/r/releases/tag/macos-v1.9.0","draft":false,"prerelease":false}
+            ]
+            """
+            return (200, ["Content-Type": "application/json"], Data(json.utf8))
+        }
+
+        let checker = UpdateChecker(releasesUrl: URL(string: "https://releases.test/releases")!, session: MockURLProtocol.session())
+        let release = try #require(try await checker.latestRelease())
+        #expect(release.tag == "macos-v1.10.0")
+        #expect(release.url.absoluteString == "https://github.com/o/r/releases/tag/macos-v1.10.0")
+
+        #expect(try await checker.availableUpdate(currentVersion: AppVersion("1.9.5")!)?.tag == "macos-v1.10.0")
+        #expect(try await checker.availableUpdate(currentVersion: AppVersion("1.10.0")!) == nil)
+        #expect(try await checker.availableUpdate(currentVersion: AppVersion("1.11")!) == nil)
+    }
+
+    @Test func throwsOnHttpError() async {
+        MockURLProtocol.register(host: "releases-error.test") { _ in
+            (403, [:], Data("{}".utf8))
+        }
+
+        let checker = UpdateChecker(releasesUrl: URL(string: "https://releases-error.test/releases")!, session: MockURLProtocol.session())
+        await #expect(throws: APIError.http(statusCode: 403, message: nil)) {
+            try await checker.latestRelease()
+        }
+    }
+}
