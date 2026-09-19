@@ -112,7 +112,8 @@ final class AudioEngine {
 
         if isSuspended {
             isSuspended = false
-            let position = pausedPosition ?? 0
+            // A file that played to the end starts over, as when it is not suspended
+            let position = isFinished ? 0 : pausedPosition ?? 0
             connect(format: current.file.processingFormat)
             schedule(file: current.file, from: position)
         } else if isFinished {
@@ -129,13 +130,17 @@ final class AudioEngine {
     }
 
     func pause() {
-        guard isPlaying else {
-            return
+        if isPlaying {
+            pausedPosition = currentTime
+            player.pause()
+            isPlaying = false
         }
 
-        pausedPosition = currentTime
-        player.pause()
-        isPlaying = false
+        // Nothing is audible: stop the audio device instead of mixing silence. `play()` restarts it and the
+        // player resumes where it was. The resources are kept until `suspend()`.
+        if engine.isRunning {
+            engine.pause()
+        }
     }
 
     /// Stops playback and forgets the current file.
