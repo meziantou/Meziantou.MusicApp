@@ -240,7 +240,7 @@ public enum ReplayGain {
     public static let maxLinearGain: Double = 2
 
     /// The linear gain to apply for a track, or 1 when ReplayGain is disabled or unavailable.
-    public static func linearGain(for track: TrackInfo, mode: ReplayGainMode, preamp: Double) -> Double {
+    public static func linearGain(for track: TrackInfo, mode: ReplayGainMode) -> Double {
         let gainDb: Double?
         switch mode {
         case .off:
@@ -255,8 +255,7 @@ public enum ReplayGain {
             return 1
         }
 
-        let safePreamp = preamp.isFinite ? preamp : 0
-        let linear = pow(10, (gainDb + safePreamp) / 20)
+        let linear = pow(10, gainDb / 20)
         return linear.isFinite ? min(linear, maxLinearGain) : 1
     }
 

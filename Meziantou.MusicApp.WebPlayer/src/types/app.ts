@@ -15,7 +15,6 @@ export interface AppSettings {
   disablePlayingAnimation: boolean;
   showPlaylistFileSize: boolean;
   replayGainMode: ReplayGainMode;
-  replayGainPreamp: number; // in dB
   showReplayGainWarning: boolean;
 }
 

@@ -302,8 +302,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var disablePlayingAnimation = false
     public var showPlaylistFileSize = false
     public var replayGainMode = ReplayGainMode.off
-    /// In dB.
-    public var replayGainPreamp: Double = 0
     public var showReplayGainWarning = true
 
     public init() {
@@ -324,7 +322,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         disablePlayingAnimation = try container.decodeIfPresent(Bool.self, forKey: .disablePlayingAnimation) ?? defaults.disablePlayingAnimation
         showPlaylistFileSize = try container.decodeIfPresent(Bool.self, forKey: .showPlaylistFileSize) ?? defaults.showPlaylistFileSize
         replayGainMode = try container.decodeIfPresent(ReplayGainMode.self, forKey: .replayGainMode) ?? defaults.replayGainMode
-        replayGainPreamp = try container.decodeIfPresent(Double.self, forKey: .replayGainPreamp) ?? defaults.replayGainPreamp
         showReplayGainWarning = try container.decodeIfPresent(Bool.self, forKey: .showReplayGainWarning) ?? defaults.showReplayGainWarning
     }
 

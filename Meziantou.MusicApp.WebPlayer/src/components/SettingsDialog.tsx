@@ -412,22 +412,6 @@ export function SettingsDialog({ isOpen, onClose, onOpenDiagnostics }: SettingsD
               <small>Normalize volume levels across tracks</small>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="replaygain-preamp">ReplayGain Preamp</label>
-              <div className="range-with-value">
-                <input
-                  type="range"
-                  id="replaygain-preamp"
-                  min="-15"
-                  max="15"
-                  step="1"
-                  value={formData.replayGainPreamp}
-                  onChange={(e) => handleInputChange('replayGainPreamp', parseInt(e.target.value, 10))}
-                />
-                <span className="range-value">{formData.replayGainPreamp} dB</span>
-              </div>
-            </div>
-
             <div className="form-group checkbox-group">
               <label>
                 <input

@@ -153,7 +153,6 @@ function AppDataProvider({ children }: AppProviderProps) {
 
         // Apply loaded settings to audio player
         playerActions.setReplayGainMode(normalizedSettings.replayGainMode);
-        playerActions.setReplayGainPreamp(normalizedSettings.replayGainPreamp);
         playerActions.setPreventDownloadOnLowData(normalizedSettings.preventDownloadOnLowData);
 
         const networkType = getNetworkType();
@@ -676,7 +675,6 @@ function AppDataProvider({ children }: AppProviderProps) {
     initApiService(normalizedSettings.serverUrl);
 
     playerActions.setReplayGainMode(normalizedSettings.replayGainMode);
-    playerActions.setReplayGainPreamp(normalizedSettings.replayGainPreamp);
     playerActions.setPreventDownloadOnLowData(normalizedSettings.preventDownloadOnLowData);
 
     const networkType = getNetworkType();

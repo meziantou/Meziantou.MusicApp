@@ -171,25 +171,25 @@ struct ReplayGainTests {
     private let track = TrackInfo(id: "1", title: "t", replayGainTrackGain: -6, replayGainAlbumGain: -3)
 
     @Test func offReturnsUnityGain() {
-        #expect(ReplayGain.linearGain(for: track, mode: .off, preamp: 5) == 1)
+        #expect(ReplayGain.linearGain(for: track, mode: .off) == 1)
     }
 
     @Test func usesTrackGain() {
-        #expect(abs(ReplayGain.linearGain(for: track, mode: .track, preamp: 0) - 0.501) < 0.001)
+        #expect(abs(ReplayGain.linearGain(for: track, mode: .track) - 0.501) < 0.001)
     }
 
-    @Test func usesAlbumGainWithPreamp() {
-        #expect(abs(ReplayGain.linearGain(for: track, mode: .album, preamp: 3) - 1) < 0.001)
+    @Test func usesAlbumGain() {
+        #expect(abs(ReplayGain.linearGain(for: track, mode: .album) - 0.708) < 0.001)
     }
 
     @Test func albumModeFallsBackToTrackGain() {
         let trackOnly = TrackInfo(id: "1", title: "t", replayGainTrackGain: 0)
-        #expect(ReplayGain.linearGain(for: trackOnly, mode: .album, preamp: 0) == 1)
+        #expect(ReplayGain.linearGain(for: trackOnly, mode: .album) == 1)
     }
 
     @Test func limitsGainToAvoidClipping() {
         let loud = TrackInfo(id: "1", title: "t", replayGainTrackGain: 20)
-        #expect(ReplayGain.linearGain(for: loud, mode: .track, preamp: 0) == ReplayGain.maxLinearGain)
+        #expect(ReplayGain.linearGain(for: loud, mode: .track) == ReplayGain.maxLinearGain)
     }
 
     @Test func warnsAboutMissingData() {

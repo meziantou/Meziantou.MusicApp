@@ -226,7 +226,6 @@ final class AppModel {
 
     private func applySettingsToPlayer() {
         player.replayGainMode = settings.replayGainMode
-        player.replayGainPreamp = settings.replayGainPreamp
         player.preventDownloadOnLowData = settings.preventDownloadOnLowData
         player.quality = settings.streamingQuality(for: networkType)
         coverLoader.isEnabled = !settings.hideCoverArt

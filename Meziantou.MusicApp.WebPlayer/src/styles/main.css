@@ -1326,40 +1326,6 @@ body {
   cursor: pointer;
 }
 
-.range-with-value {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.range-with-value input[type="range"] {
-  flex: 1;
-  height: 4px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: var(--bg-tertiary);
-  border-radius: 2px;
-  cursor: pointer;
-}
-
-.range-with-value input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: var(--accent-primary);
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.range-value {
-  min-width: 50px;
-  text-align: right;
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
 .connection-status {
   font-size: 13px;
   margin-left: 12px;

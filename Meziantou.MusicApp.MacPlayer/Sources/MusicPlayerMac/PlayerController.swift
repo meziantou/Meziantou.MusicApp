@@ -51,10 +51,6 @@ final class PlayerController {
         didSet { applyReplayGain() }
     }
 
-    var replayGainPreamp: Double = 0 {
-        didSet { applyReplayGain() }
-    }
-
     var preventDownloadOnLowData = false
     var networkType = NetworkType.normal
     var isOnline = true
@@ -657,7 +653,7 @@ final class PlayerController {
             return
         }
 
-        engine.setReplayGain(linear: ReplayGain.linearGain(for: currentTrack, mode: replayGainMode, preamp: replayGainPreamp))
+        engine.setReplayGain(linear: ReplayGain.linearGain(for: currentTrack, mode: replayGainMode))
     }
 
     private func recordRecentlyPlayed(_ trackId: String) {

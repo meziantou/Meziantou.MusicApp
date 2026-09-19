@@ -51,7 +51,6 @@ export class AudioPlayerService {
 
   private quality: StreamingQuality = { format: 'raw' };
   private replayGainMode: ReplayGainMode = 'off';
-  private replayGainPreamp: number = 0;
   private preventDownloadOnLowData: boolean = false;
   private networkType: 'normal' | 'low-data' | 'unknown' = 'unknown';
   private cachedTrackIds: Set<string> = new Set();
@@ -401,8 +400,7 @@ export class AudioPlayerService {
 
       if (gainDb !== null && gainDb !== undefined && Number.isFinite(gainDb)) {
         // Convert dB to linear gain: 10^(dB/20)
-        const preamp = Number.isFinite(this.replayGainPreamp) ? this.replayGainPreamp : 0;
-        const linearGain = Math.pow(10, (gainDb + preamp) / 20);
+        const linearGain = Math.pow(10, gainDb / 20);
 
         if (Number.isFinite(linearGain)) {
           // Prevent clipping by limiting to reasonable values
@@ -419,7 +417,6 @@ export class AudioPlayerService {
         trackGain: track.replayGainTrackGain,
         albumGain: track.replayGainAlbumGain,
         usedGain: gainDb,
-        preamp: this.replayGainPreamp,
         appliedGain: appliedGain
       });
     }
@@ -1053,11 +1050,6 @@ export class AudioPlayerService {
 
   setReplayGainMode(mode: ReplayGainMode): void {
     this.replayGainMode = mode;
-    this.applyReplayGain(this.activeInstance);
-  }
-
-  setReplayGainPreamp(preamp: number): void {
-    this.replayGainPreamp = preamp;
     this.applyReplayGain(this.activeInstance);
   }
 

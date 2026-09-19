@@ -37,7 +37,6 @@ export interface AudioPlayerActions {
   removeFromQueue: (index: number) => void;
   setQuality: (quality: StreamingQuality) => void;
   setReplayGainMode: (mode: ReplayGainMode) => void;
-  setReplayGainPreamp: (preamp: number) => void;
   setScrobbleEnabled: (enabled: boolean) => void;
   setPreventDownloadOnLowData: (prevent: boolean) => void;
   setNetworkType: (type: 'normal' | 'low-data' | 'unknown') => void;
@@ -188,9 +187,6 @@ export function useAudioPlayer(): [AudioPlayerState, AudioPlayerActions] {
     },
     setReplayGainMode: (mode: ReplayGainMode) => {
       audioPlayer.setReplayGainMode(mode);
-    },
-    setReplayGainPreamp: (preamp: number) => {
-      audioPlayer.setReplayGainPreamp(preamp);
     },
     setScrobbleEnabled: (enabled: boolean) => {
       audioPlayer.setScrobbleEnabled(enabled);

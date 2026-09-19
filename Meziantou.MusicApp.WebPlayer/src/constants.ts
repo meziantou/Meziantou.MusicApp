@@ -13,7 +13,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   disablePlayingAnimation: false,
   showPlaylistFileSize: false,
   replayGainMode: 'off',
-  replayGainPreamp: 0,
   showReplayGainWarning: true,
 };
 

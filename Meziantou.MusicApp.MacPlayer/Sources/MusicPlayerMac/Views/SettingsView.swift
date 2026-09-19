@@ -178,15 +178,6 @@ struct SettingsView: View {
                 Text("Normalize volume levels across tracks")
             }
 
-            LabeledContent("ReplayGain Preamp") {
-                HStack {
-                    Slider(value: $draft.replayGainPreamp, in: -15...15, step: 1)
-                    Text("\(Int(draft.replayGainPreamp)) dB")
-                        .monospacedDigit()
-                        .frame(width: 48, alignment: .trailing)
-                }
-            }
-
             Toggle(isOn: $draft.showReplayGainWarning) {
                 Text("Show ReplayGain Warning")
                 Text("Show an indicator when a track is missing ReplayGain data")
