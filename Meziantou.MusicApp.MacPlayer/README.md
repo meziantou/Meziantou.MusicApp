@@ -18,9 +18,11 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Audio output selection, including AirPlay speakers
 - Now Playing integration: media keys, Control Center, and the lock screen, with artwork
 - Dock menu: current track, play/pause, next/previous, volume and mute, shuffle and repeat, and a Playlists submenu to start playing a playlist
+- Menu bar mode (Settings > Interface > Show in Menu Bar): the same controls as the Dock menu in the menu bar, plus Show Meziantou Music, Settings and Quit. While no window is open, the Dock icon is hidden: close the window to keep playing with the least resources
 - Background synchronization of playlists every 5 minutes and when the app becomes active (at most once a minute)
 - Single instance: starting the app again (from another copy, with `open -n`, or by running the executable) brings the running instance to the front and shows its window
-- Low resource use in the background: when no window is visible, UI updates and animations stop and cached images are released; closing the window also releases the track list
+- Low resource use in the background: when no window is visible, UI updates and animations stop and cached images are released; closing the window also releases the track list. While playing without a visible window, the app only wakes up to preload the next track and to save the playback position (every 30 seconds; pausing, seeking, changing track or quitting save right away)
+- Large audio I/O buffer (up to 4096 frames, as supported by the output device): music does not need a low latency, and the audio thread wakes up far less often
 - Update check: at launch, the app checks the GitHub releases (`macos-v*` tags) and suggests updating when a newer version is available; "Update" opens the release page, and "Skip This Version" stops suggesting that version. Use **Meziantou Music > Check for Updates…** to check manually. Debug builds don't check at launch
 - Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics
 

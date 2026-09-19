@@ -34,6 +34,9 @@ public enum PlaybackConstants {
     public static let activationSyncMinInterval: TimeInterval = 60
     /// Delay after which a paused player releases its audio resources.
     public static let idleReleaseDelay: Duration = .seconds(5 * 60)
+    /// Interval between two saves of the playback position while playing. Pausing, seeking, changing track
+    /// or the queue, and quitting save right away, so this only bounds what a crash loses.
+    public static let playbackStateSaveInterval: TimeInterval = 30
     /// Maximum number of recently played tracks remembered.
     public static let recentlyPlayedMaxCount = 300
     /// Maximum number of cover images kept in the cache (covers of downloaded tracks are never evicted).

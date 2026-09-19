@@ -32,6 +32,14 @@ struct MeziantouMusicApp: App {
         Settings {
             SettingsView()
         }
+
+        // A menu (not a window) costs nothing while it is closed
+        MenuBarExtra("Meziantou Music", systemImage: "music.note", isInserted: Binding(
+            get: { model.settings.showInMenuBar },
+            set: { isInserted in Task { await model.setShowInMenuBar(isInserted) } })) {
+            MenuBarMenu()
+        }
+        .menuBarExtraStyle(.menu)
     }
 }
 
@@ -98,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
 
                     self?.updateVisibility(excluding: closingWindow)
+                    self?.updateActivationPolicy(excluding: closingWindow)
                 }
             }
             visibilityObservers.append(observer)
@@ -113,6 +122,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 && window.occlusionState.contains(.visible)
         }
         AppModel.shared.setUIVisible(isVisible)
+    }
+
+    /// In menu bar mode, the app has no Dock icon (and no menu bar of its own) while no window is open,
+    /// so it only lives in the menu bar and in Control Center.
+    private func updateActivationPolicy(excluding closingWindow: ObjectIdentifier?) {
+        let hasWindow = NSApp.windows.contains { window in
+            ObjectIdentifier(window) != closingWindow
+                && window.canBecomeMain
+                && (window.isVisible || window.isMiniaturized)
+        }
+        let policy: NSApplication.ActivationPolicy = AppModel.shared.settings.showInMenuBar && !hasWindow ? .accessory : .regular
+        if NSApp.activationPolicy() != policy {
+            NSApp.setActivationPolicy(policy)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -23,6 +23,7 @@ struct LibraryStoreTests {
         var settings = AppSettings()
         settings.serverUrl = "https://music.example.com"
         settings.replayGainMode = .album
+        settings.showInMenuBar = true
         await store.saveSettings(settings)
         #expect(await store.settings() == settings)
     }
@@ -32,6 +33,7 @@ struct LibraryStoreTests {
         #expect(settings.serverUrl == "http://x")
         #expect(settings.normalQuality == StreamingQuality(format: .opus, maxBitRate: 160))
         #expect(settings.showReplayGainWarning)
+        #expect(!settings.showInMenuBar)
     }
 
     @Test func roundTripsPlaybackState() async throws {

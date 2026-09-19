@@ -279,6 +279,21 @@ final class AppModel {
         }
     }
 
+    /// Shows or hides the menu bar item (also called when the user removes it from the menu bar).
+    func setShowInMenuBar(_ enabled: Bool) async {
+        guard settings.showInMenuBar != enabled else {
+            return
+        }
+
+        settings.showInMenuBar = enabled
+        if !enabled {
+            // Without the menu bar item, the Dock icon is the only way back to the app
+            NSApp.setActivationPolicy(.regular)
+        }
+
+        await store.saveSettings(settings)
+    }
+
     func testConnection(serverUrl: String) async -> Bool {
         await APIClient(baseUrl: serverUrl).testConnection()
     }

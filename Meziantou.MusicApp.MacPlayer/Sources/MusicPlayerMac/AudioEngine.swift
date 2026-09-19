@@ -15,6 +15,11 @@ final class AudioEngine {
         let token: Int
     }
 
+    /// Music does not need a low latency: a large I/O buffer wakes the audio thread up far less often
+    /// (512 frames at 48 kHz is about 94 times per second, 4096 frames about 12). The HAL applies it to
+    /// this process only, and limits it to what the device supports (for instance 960 frames on some Bluetooth headphones).
+    private static let preferredIOBufferFrameSize: UInt32 = 4096
+
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     /// Applies ReplayGain and the volume boost above 100% through its global gain.
@@ -121,6 +126,7 @@ final class AudioEngine {
         }
 
         if !engine.isRunning {
+            applyIOBufferSize()
             engine.prepare()
             try engine.start()
         }
@@ -232,9 +238,34 @@ final class AudioEngine {
         }
 
         AudioUnitSetProperty(audioUnit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        // Each device has its own buffer size
+        applyIOBufferSize()
     }
 
     // MARK: Internals
+
+    private func applyIOBufferSize() {
+        guard let audioUnit = engine.outputNode.audioUnit else {
+            return
+        }
+
+        var deviceId = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioUnitGetProperty(audioUnit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &deviceId, &size) == noErr,
+              deviceId != 0,
+              let range = AudioOutputDevices.bufferFrameSizeRange(deviceId) else {
+            return
+        }
+
+        var frameSize = min(max(Self.preferredIOBufferFrameSize, range.lowerBound), range.upperBound)
+        var currentFrameSize: UInt32 = 0
+        size = UInt32(MemoryLayout<UInt32>.size)
+        if AudioUnitGetProperty(audioUnit, kAudioDevicePropertyBufferFrameSize, kAudioUnitScope_Global, 0, &currentFrameSize, &size) == noErr, currentFrameSize == frameSize {
+            return
+        }
+
+        AudioUnitSetProperty(audioUnit, kAudioDevicePropertyBufferFrameSize, kAudioUnitScope_Global, 0, &frameSize, UInt32(MemoryLayout<UInt32>.size))
+    }
 
     private func applyGain() {
         let volumeAmplitude = Volume.perceptualAmplitude(volume)
@@ -334,6 +365,9 @@ final class AudioEngine {
         stopPlayer()
         if let outputDeviceId {
             setOutputDevice(outputDeviceId)
+        } else {
+            // The default device may have changed (e.g. headphones connected)
+            applyIOBufferSize()
         }
 
         schedule(file: current.file, from: position)

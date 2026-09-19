@@ -42,6 +42,18 @@ enum AudioOutputDevices {
         return id
     }
 
+    /// The I/O buffer sizes (in frames) the device supports.
+    static func bufferFrameSizeRange(_ id: AudioDeviceID) -> ClosedRange<UInt32>? {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyBufferFrameSizeRange, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var range = AudioValueRange()
+        var size = UInt32(MemoryLayout<AudioValueRange>.size)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &range) == noErr, range.mMinimum <= range.mMaximum, range.mMinimum >= 0 else {
+            return nil
+        }
+
+        return UInt32(range.mMinimum)...UInt32(range.mMaximum)
+    }
+
     private static func hasOutputChannels(_ id: AudioDeviceID) -> Bool {
         var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration, mScope: kAudioDevicePropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
         var size: UInt32 = 0
