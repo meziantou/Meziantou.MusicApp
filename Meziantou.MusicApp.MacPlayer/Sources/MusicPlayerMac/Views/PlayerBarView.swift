@@ -147,6 +147,10 @@ private struct ProgressBar: View {
     private let player = AppModel.shared.player
     @AppStorage(DefaultsKeys.showRemainingTime) private var showRemainingTime = false
     @State private var dragValue: Double?
+    @State private var scrollSeekTask: Task<Void, Never>?
+
+    /// Seconds seeked by one mouse wheel notch.
+    private static let scrollSeekStep: Double = 5
 
     var body: some View {
         let duration = max(player.duration, 0)
@@ -167,6 +171,9 @@ private struct ProgressBar: View {
             }
             .controlSize(.small)
             .disabled(player.currentTrack == nil || duration <= 0)
+            .onScrollWheel { steps in
+                scrollSeek(by: steps * Self.scrollSeekStep, from: time, duration: duration)
+            }
 
             Button {
                 showRemainingTime.toggle()
@@ -179,6 +186,26 @@ private struct ProgressBar: View {
         }
         .font(.caption.monospacedDigit())
         .foregroundStyle(.secondary)
+    }
+
+    /// Moves the slider immediately and seeks once scrolling pauses, so a trackpad
+    /// scroll doesn't reschedule the audio for every event.
+    private func scrollSeek(by offset: Double, from time: Double, duration: Double) {
+        guard player.currentTrack != nil, duration > 0 else {
+            return
+        }
+
+        dragValue = min(duration, max(0, time + offset))
+        scrollSeekTask?.cancel()
+        scrollSeekTask = Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled, let dragValue else {
+                return
+            }
+
+            player.seek(to: dragValue)
+            self.dragValue = nil
+        }
     }
 }
 
@@ -203,6 +230,9 @@ private struct VolumeControl: View {
             .controlSize(.small)
             .frame(width: 90)
             .help("Volume: \(Int((player.volume * 100).rounded()))%")
+            .onScrollWheel { steps in
+                player.setVolume(player.volume + steps * PlaybackConstants.volumeStep)
+            }
 
             Text("\(Int(((player.isMuted ? 0 : player.volume) * 100).rounded()))%")
                 .font(.caption.monospacedDigit())

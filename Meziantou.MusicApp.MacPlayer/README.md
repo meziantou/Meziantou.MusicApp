@@ -8,7 +8,7 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Track list for playlists with thousands of tracks (native table), with sortable columns (title, artist, album, added date)
 - Accent-insensitive and case-insensitive search on title, artist, album and ISRC (⌘F)
 - Context menu: play, add to queue, download / remove download, download the raw file, copy the file path, view details. Works on multiple selected tracks.
-- Player bar: play/pause, previous/next, shuffle, repeat (off/all/one), seek bar, elapsed/remaining time, volume up to 200%, mute
+- Player bar: play/pause, previous/next, shuffle, repeat (off/all/one), seek bar, elapsed/remaining time, volume up to 200%, mute. The mouse wheel or trackpad adjusts the volume (5% per notch) and seeks (5 seconds per notch) when over those sliders
 - ReplayGain (track/album) with preamp, and warnings for tracks without ReplayGain data
 - Gapless playback: the next track is preloaded near the end of the current one and scheduled right after it
 - Playing queue in the inspector: "Now Playing", "Next Up" (manually added) and "Next from: playlist" sections; double-click to jump, drag to reorder, remove items
