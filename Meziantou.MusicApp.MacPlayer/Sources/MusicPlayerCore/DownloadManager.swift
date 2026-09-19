@@ -76,11 +76,18 @@ public final class DownloadManager {
     }
 
     public func cancelPlaylistDownloads(playlistId: String) {
+        var cancelledTrackIds = Set<String>()
         for trackId in Array(pending.keys) {
             pending[trackId]?.playlistIds.remove(playlistId)
             if pending[trackId]?.playlistIds.isEmpty == true {
-                cancelDownload(trackId: trackId)
+                pending.removeValue(forKey: trackId)
+                cancelledTrackIds.insert(trackId)
             }
+        }
+
+        // Filter the order once: removing the tracks one by one is quadratic for large playlists
+        if !cancelledTrackIds.isEmpty {
+            pendingOrder.removeAll { cancelledTrackIds.contains($0) }
         }
     }
 

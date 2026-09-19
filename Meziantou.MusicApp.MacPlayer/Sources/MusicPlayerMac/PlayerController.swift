@@ -578,8 +578,10 @@ final class PlayerController {
             return
         }
 
+        engine.pause()
         setPlaying(false)
         currentTime = duration
+        scheduleIdleRelease()
         saveState()
     }
 

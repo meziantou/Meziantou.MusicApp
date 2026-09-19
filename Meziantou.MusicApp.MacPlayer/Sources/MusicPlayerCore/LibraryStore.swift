@@ -43,6 +43,13 @@ public actor LibraryStore {
     private var recentlyPlayed: [String: Date] = [:]
     private var coverSavesSinceEviction = 0
     private var coverIndexDirty = false
+    private var trackIndexDirty = false
+    private var missingCoversDirty = false
+    private var flushTask: Task<Void, Never>?
+
+    /// Index changes are written together after this delay: rewriting a whole index for every downloaded
+    /// track or cover makes downloading a large playlist quadratic.
+    private static let flushDelay: Duration = .seconds(2)
 
     private let fileManager = FileManager.default
     private let encoder: JSONEncoder = {
@@ -106,7 +113,7 @@ public actor LibraryStore {
                 trackIndex.removeValue(forKey: entry.trackId)
             }
 
-            persistTrackIndex()
+            scheduleTrackIndexSave()
         }
     }
 
@@ -220,7 +227,7 @@ public actor LibraryStore {
         let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
         let mergedPlaylistIds = Array(Set(playlistIds).union(trackIndex[trackId]?.playlistIds ?? [])).sorted()
         trackIndex[trackId] = CachedTrackEntry(trackId: trackId, playlistIds: mergedPlaylistIds, quality: quality, cachedAt: Date(), fileName: fileName, size: size)
-        persistTrackIndex()
+        scheduleTrackIndexSave()
     }
 
     public func addPlaylist(_ playlistId: String, toTrack trackId: String) {
@@ -230,7 +237,7 @@ public actor LibraryStore {
 
         entry.playlistIds.append(playlistId)
         trackIndex[trackId] = entry
-        persistTrackIndex()
+        scheduleTrackIndexSave()
     }
 
     /// Unlinks a playlist from a track, deleting the track when no playlist references it anymore.
@@ -244,7 +251,7 @@ public actor LibraryStore {
             deleteCachedTrack(id: trackId)
         } else {
             trackIndex[trackId] = entry
-            persistTrackIndex()
+            scheduleTrackIndexSave()
         }
     }
 
@@ -254,7 +261,7 @@ public actor LibraryStore {
         }
 
         try? fileManager.removeItem(at: trackFileUrl(fileName: entry.fileName))
-        persistTrackIndex()
+        scheduleTrackIndexSave()
     }
 
     public func clearCachedTracks() {
@@ -263,7 +270,7 @@ public actor LibraryStore {
         }
 
         trackIndex = [:]
-        persistTrackIndex()
+        scheduleTrackIndexSave()
     }
 
     /// Removes tracks that do not belong to any offline playlist. Returns the number of removed tracks.
@@ -283,7 +290,7 @@ public actor LibraryStore {
             }
         }
 
-        persistTrackIndex()
+        scheduleTrackIndexSave()
         return removedCount
     }
 
@@ -318,12 +325,13 @@ public actor LibraryStore {
             evictOldCovers()
         }
 
-        persistCoverIndexIfNeeded()
+        scheduleCoverIndexSave()
     }
 
     public func addMissingCover(trackId: String) {
         missingCovers.insert(trackId)
-        write(missingCovers, to: coversDirectory.appendingPathComponent("missing.json"))
+        missingCoversDirty = true
+        scheduleFlush()
     }
 
     public func isCoverMissing(trackId: String) -> Bool {
@@ -354,7 +362,7 @@ public actor LibraryStore {
         }
 
         coverIndexDirty = true
-        persistCoverIndexIfNeeded()
+        scheduleCoverIndexSave()
     }
 
     public func clearCovers() {
@@ -365,13 +373,43 @@ public actor LibraryStore {
         coverIndex = [:]
         missingCovers = []
         coverIndexDirty = true
-        persistCoverIndexIfNeeded()
-        write(missingCovers, to: coversDirectory.appendingPathComponent("missing.json"))
+        missingCoversDirty = true
+        scheduleFlush()
     }
 
-    /// Writes pending LRU timestamp updates.
+    /// Writes pending index changes, including LRU timestamp updates (call it before the app quits).
     public func flush() {
-        persistCoverIndexIfNeeded()
+        flushTask?.cancel()
+        flushTask = nil
+        if trackIndexDirty {
+            trackIndexDirty = false
+            write(trackIndex, to: tracksDirectory.appendingPathComponent("index.json"))
+        }
+
+        if coverIndexDirty {
+            coverIndexDirty = false
+            write(coverIndex, to: coversDirectory.appendingPathComponent("index.json"))
+        }
+
+        if missingCoversDirty {
+            missingCoversDirty = false
+            write(missingCovers, to: coversDirectory.appendingPathComponent("missing.json"))
+        }
+    }
+
+    private func scheduleFlush() {
+        guard flushTask == nil else {
+            return
+        }
+
+        flushTask = Task {
+            try? await Task.sleep(for: Self.flushDelay)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            flush()
+        }
     }
 
     // MARK: Recently played
@@ -432,17 +470,15 @@ public actor LibraryStore {
         coversDirectory.appendingPathComponent(Self.hash(trackId))
     }
 
-    private func persistTrackIndex() {
-        write(trackIndex, to: tracksDirectory.appendingPathComponent("index.json"))
+    private func scheduleTrackIndexSave() {
+        trackIndexDirty = true
+        scheduleFlush()
     }
 
-    private func persistCoverIndexIfNeeded() {
-        guard coverIndexDirty else {
-            return
+    private func scheduleCoverIndexSave() {
+        if coverIndexDirty {
+            scheduleFlush()
         }
-
-        coverIndexDirty = false
-        write(coverIndex, to: coversDirectory.appendingPathComponent("index.json"))
     }
 
     private func read<T: Decodable>(_ type: T.Type, from url: URL) -> T? {
@@ -462,8 +498,20 @@ public actor LibraryStore {
     }
 
     static func hash(_ value: String) -> String {
-        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return String(unsafeUninitializedCapacity: SHA256.byteCount * 2) { buffer in
+            var index = 0
+            for byte in digest {
+                buffer[index] = hexDigits[Int(byte >> 4)]
+                buffer[index + 1] = hexDigits[Int(byte & 0x0F)]
+                index += 2
+            }
+
+            return index
+        }
     }
+
+    private static let hexDigits = Array("0123456789abcdef".utf8)
 
     static func directorySize(_ url: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileSizeKey]) else {

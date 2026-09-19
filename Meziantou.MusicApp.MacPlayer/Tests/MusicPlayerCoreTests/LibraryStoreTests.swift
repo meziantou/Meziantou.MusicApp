@@ -99,11 +99,28 @@ struct LibraryStoreTests {
         let store = try await makeStore()
         try await store.saveCachedTrack(trackId: "t1", playlistIds: ["p1"], quality: .raw, file: try makeAudioFile())
         await store.setPlaylistOffline(id: "p1", enabled: true)
+        await store.flush()
 
         let reopened = LibraryStore(rootDirectory: store.rootDirectory)
         try await reopened.initialize()
         #expect(await reopened.cachedTrackIds() == ["t1"])
         #expect(await reopened.offlinePlaylistIds() == ["p1"])
+    }
+
+    @Test func writesIndexChangesAfterADelay() async throws {
+        let store = try await makeStore()
+        try await store.saveCachedTrack(trackId: "t1", playlistIds: ["p1"], quality: .raw, file: try makeAudioFile())
+        await store.saveCover(trackId: "t1", data: Data([1]))
+        await store.addMissingCover(trackId: "t2")
+        let trackIndexUrl = store.rootDirectory.appendingPathComponent("Tracks/index.json")
+        #expect(!FileManager.default.fileExists(atPath: trackIndexUrl.path))
+
+        try await Task.sleep(for: .seconds(3))
+        let reopened = LibraryStore(rootDirectory: store.rootDirectory)
+        try await reopened.initialize()
+        #expect(await reopened.cachedTrackIds() == ["t1"])
+        #expect(await reopened.coverCount() == 1)
+        #expect(await reopened.isCoverMissing(trackId: "t2"))
     }
 
     @Test func cleansUpOrphanedTracks() async throws {

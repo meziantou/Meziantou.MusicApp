@@ -165,6 +165,26 @@ struct FormattingTests {
         #expect(DateParsing.parse("2024-01-01") != nil)
         #expect(DateParsing.parse("not a date") == nil)
     }
+
+    @Test(arguments: [
+        ("2024-01-01", 1_704_067_200.0),
+        ("1969-12-31", -86_400.0),
+        ("2024-02-29T23:59:59Z", 1_709_251_199.0),
+        ("2024-03-01T12:30:00", 1_709_296_200.0),
+        ("2024-03-01T12:30:00.5Z", 1_709_296_200.5),
+        ("2024-03-01T14:30:00.12+02:00", 1_709_296_200.12),
+        ("2024-03-01T07:00:00-0530", 1_709_296_200.0),
+        (" 2024-03-01T12:30:00Z ", 1_709_296_200.0),
+    ])
+    func parsesDateFormats(value: String, expected: Double) throws {
+        let date = try #require(DateParsing.parse(value))
+        #expect(date.timeIntervalSince1970 == expected)
+    }
+
+    @Test(arguments: ["2024-13-01", "2024-01-01T25:00:00Z", "2024-01-01T12:00:00.Z", ""])
+    func rejectsInvalidDates(value: String) {
+        #expect(DateParsing.parse(value) == nil)
+    }
 }
 
 struct ReplayGainTests {
