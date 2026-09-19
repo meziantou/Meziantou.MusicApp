@@ -72,6 +72,22 @@ The application icon (`Sources/MusicPlayerMac/Resources/AppIcon.icns`) is genera
 swift Scripts/generate-icon.swift
 ```
 
+## Releases
+
+The [Build and release macOS player](../.github/workflows/mac-player-release.yml) workflow publishes the app as a GitHub release. Push a tag such as `macos-v1.2.0`, or run the workflow manually with the tag (and optionally as a prerelease):
+
+```bash
+git tag macos-v1.2.0
+git push origin macos-v1.2.0
+```
+
+The release contains `MeziantouMusic-<tag>.zip` with the app and an `Open-MeziantouMusic.command` helper that removes the quarantine flag.
+
+The app is ad-hoc signed unless these repository secrets are configured:
+
+- Developer ID signing: `MACOS_CERT_P12_BASE64`, `MACOS_CERT_P12_PASSWORD`, `MACOS_SIGNING_IDENTITY`
+- Notarization: `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`
+
 ## Tests
 
 ```bash
