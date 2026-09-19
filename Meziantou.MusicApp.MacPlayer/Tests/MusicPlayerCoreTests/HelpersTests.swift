@@ -257,18 +257,18 @@ struct PlaybackSourceTests {
 
 struct ScrollWheelTests {
     @Test func wheelNotchIsOneStepRegardlessOfAcceleration() {
-        #expect(ScrollWheel.steps(deltaX: 0, deltaY: 1, hasPreciseDeltas: false, isDirectionInverted: false) == 1)
-        #expect(ScrollWheel.steps(deltaX: 0, deltaY: 7.5, hasPreciseDeltas: false, isDirectionInverted: false) == 1)
-        #expect(ScrollWheel.steps(deltaX: 0, deltaY: -3, hasPreciseDeltas: false, isDirectionInverted: false) == -1)
+        #expect(ScrollWheel.steps(deltaX: 0, deltaY: 1, hasPreciseDeltas: false, isDirectionInverted: false) == -1)
+        #expect(ScrollWheel.steps(deltaX: 0, deltaY: 7.5, hasPreciseDeltas: false, isDirectionInverted: false) == -1)
+        #expect(ScrollWheel.steps(deltaX: 0, deltaY: -3, hasPreciseDeltas: false, isDirectionInverted: false) == 1)
     }
 
     @Test func naturalScrollingKeepsPhysicalDirection() {
-        #expect(ScrollWheel.steps(deltaX: 0, deltaY: -1, hasPreciseDeltas: false, isDirectionInverted: true) == 1)
-        #expect(ScrollWheel.steps(deltaX: 0, deltaY: -20, hasPreciseDeltas: true, isDirectionInverted: true) == 2)
+        #expect(ScrollWheel.steps(deltaX: 0, deltaY: -1, hasPreciseDeltas: false, isDirectionInverted: true) == -1)
+        #expect(ScrollWheel.steps(deltaX: 0, deltaY: -20, hasPreciseDeltas: true, isDirectionInverted: true) == -2)
     }
 
     @Test func trackpadProducesFractionalSteps() {
-        #expect(ScrollWheel.steps(deltaX: 0, deltaY: 5, hasPreciseDeltas: true, isDirectionInverted: false) == 0.5)
+        #expect(ScrollWheel.steps(deltaX: 0, deltaY: 5, hasPreciseDeltas: true, isDirectionInverted: false) == -0.5)
     }
 
     @Test func horizontalScrollingToTheRightIncreases() {

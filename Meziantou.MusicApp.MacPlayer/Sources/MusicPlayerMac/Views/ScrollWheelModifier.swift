@@ -3,7 +3,7 @@ import MusicPlayerCore
 import SwiftUI
 
 extension View {
-    /// Calls `action` with the number of steps (positive when scrolling up or right) when the mouse wheel
+    /// Calls `action` with the number of steps (positive when scrolling down or right) when the mouse wheel
     /// or trackpad scrolls over the view. Clicks and drags still reach the view underneath.
     func onScrollWheel(perform action: @escaping (Double) -> Void) -> some View {
         overlay(ScrollWheelCatcher(action: action))

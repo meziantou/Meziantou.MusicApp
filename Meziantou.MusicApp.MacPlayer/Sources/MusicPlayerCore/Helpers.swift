@@ -294,12 +294,12 @@ public enum ScrollWheel {
     /// Trackpad points that count as one wheel notch.
     public static let pointsPerStep: Double = 10
 
-    /// Converts a scroll event into slider steps: positive when scrolling up or right, whatever the
-    /// "natural scrolling" setting, like turning a knob. A wheel notch is one step; trackpad
-    /// (precise) scrolling produces fractional steps for smooth adjustments.
+    /// Converts a scroll event into slider steps: positive when scrolling down or right, whatever the
+    /// "natural scrolling" setting. A wheel notch is one step; trackpad (precise) scrolling produces
+    /// fractional steps for smooth adjustments.
     public static func steps(deltaX: Double, deltaY: Double, hasPreciseDeltas: Bool, isDirectionInverted: Bool) -> Double {
         // Use the dominant axis; natural scrolling reports inverted deltas
-        let physicalDelta = abs(deltaY) >= abs(deltaX) ? deltaY : -deltaX
+        let physicalDelta = abs(deltaY) >= abs(deltaX) ? -deltaY : -deltaX
         let delta = isDirectionInverted ? -physicalDelta : physicalDelta
         guard delta != 0 else {
             return 0
