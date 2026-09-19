@@ -38,6 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private var visibilityObservers: [any NSObjectProtocol] = []
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Quit before loading or saving anything, so the running instance's state is left untouched
+        if SingleInstance.activateExistingInstance() {
+            exit(0)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()

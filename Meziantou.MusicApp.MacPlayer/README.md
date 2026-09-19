@@ -19,6 +19,7 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Now Playing integration: media keys, Control Center, and the lock screen, with artwork
 - Dock menu: current track, play/pause, next/previous, volume and mute, shuffle and repeat, and a Playlists submenu to start playing a playlist
 - Background synchronization of playlists every 5 minutes and when the app becomes active
+- Single instance: starting the app again (from another copy, with `open -n`, or by running the executable) brings the running instance to the front and shows its window
 - Low resource use in the background: when no window is visible, UI updates and animations stop and cached images are released; closing the window also releases the track list
 - Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics
 
@@ -102,4 +103,4 @@ swift test
 - `Sources/MusicPlayerMac`: the macOS application (SwiftUI views, AVAudioEngine playback, Now Playing, network monitoring, audio outputs)
 - `Tests/MusicPlayerCoreTests`: unit tests
 
-Data is stored in `~/Library/Application Support/Meziantou Music`. Set the `MEZIANTOU_MUSIC_DATA_DIR` environment variable to use another directory (useful during development).
+Data is stored in `~/Library/Application Support/Meziantou Music`. Set the `MEZIANTOU_MUSIC_DATA_DIR` environment variable to use another directory (useful during development); such an instance can run alongside the regular one.
