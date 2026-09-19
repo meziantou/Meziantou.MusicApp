@@ -20,6 +20,12 @@ struct MeziantouMusicApp: App {
             CommandGroup(replacing: .newItem) {
             }
 
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    UpdateService.checkForUpdates()
+                }
+            }
+
             PlayerCommands(model: model, player: model.player)
         }
 
@@ -49,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         observeVisibility()
+        UpdateService.checkAtLaunch()
 #if DEBUG
         DebugSnapshots.startIfRequested()
         DebugSnapshots.dumpDockMenuIfRequested()

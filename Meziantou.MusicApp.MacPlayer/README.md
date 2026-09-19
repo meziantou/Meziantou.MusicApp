@@ -21,6 +21,7 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Background synchronization of playlists every 5 minutes and when the app becomes active (at most once a minute)
 - Single instance: starting the app again (from another copy, with `open -n`, or by running the executable) brings the running instance to the front and shows its window
 - Low resource use in the background: when no window is visible, UI updates and animations stop and cached images are released; closing the window also releases the track list
+- Update check: at launch, the app checks the GitHub releases (`macos-v*` tags) and suggests updating when a newer version is available; "Update" opens the release page, and "Skip This Version" stops suggesting that version. Use **Meziantou Music > Check for Updates…** to check manually. Debug builds don't check at launch
 - Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics
 
 ## Keyboard shortcuts
