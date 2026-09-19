@@ -2,6 +2,16 @@ import AppKit
 import ImageIO
 import MusicPlayerCore
 
+/// A decoded image that can cross actors: `CGImage` is immutable, unlike `NSImage` which is not `Sendable` in every SDK.
+struct DecodedImage: @unchecked Sendable {
+    let cgImage: CGImage
+
+    @MainActor
+    var nsImage: NSImage {
+        NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    }
+}
+
 /// Loads cover art from the disk cache or the server, with an in-memory cache and request de-duplication.
 ///
 /// Covers are downloaded once per track at `downloadSize` and decoded at the size they are displayed:
@@ -15,7 +25,7 @@ final class CoverLoader {
     private let clientProvider: () -> APIClient
     /// Decoded images, limited by their size in bytes.
     private let memoryCache = NSCache<NSString, NSImage>()
-    private var inFlight: [String: Task<NSImage?, Never>] = [:]
+    private var inFlight: [String: Task<DecodedImage?, Never>] = [:]
 
     /// Whether network requests are allowed for tracks that are not downloaded (false in Low Data Mode).
     var allowsNetworkForUncachedTracks = true
@@ -45,13 +55,13 @@ final class CoverLoader {
 
         let keyString = key as String
         if let task = inFlight[keyString] {
-            return await task.value
+            return await task.value?.nsImage
         }
 
         let store = store
         let client = clientProvider()
         let canDownload = isOnline && (allowsNetworkForUncachedTracks || isTrackCached)
-        let task = Task<NSImage?, Never> {
+        let task = Task<DecodedImage?, Never> {
             guard let data = await Self.coverData(trackId: trackId, store: store, client: client, canDownload: canDownload) else {
                 return nil
             }
@@ -60,12 +70,14 @@ final class CoverLoader {
         }
 
         inFlight[keyString] = task
-        let image = await task.value
+        let decoded = await task.value
         inFlight[keyString] = nil
-        if let image, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-            memoryCache.setObject(image, forKey: key, cost: cgImage.bytesPerRow * cgImage.height)
+        guard let decoded else {
+            return nil
         }
 
+        let image = decoded.nsImage
+        memoryCache.setObject(image, forKey: key, cost: decoded.cgImage.bytesPerRow * decoded.cgImage.height)
         return image
     }
 
@@ -100,7 +112,7 @@ final class CoverLoader {
     }
 
     /// Decodes a thumbnail off the main thread, without ever decoding the full-size bitmap.
-    private nonisolated static func decode(_ data: Data, maxPixelSize: Int) async -> NSImage? {
+    private nonisolated static func decode(_ data: Data, maxPixelSize: Int) async -> DecodedImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
             return nil
         }
@@ -115,6 +127,6 @@ final class CoverLoader {
             return nil
         }
 
-        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        return DecodedImage(cgImage: cgImage)
     }
 }

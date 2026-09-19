@@ -81,9 +81,13 @@ final class NowPlayingService {
         center.playbackState = isPlaying ? .playing : .paused
     }
 
-    /// MediaPlayer calls the request handler on a background queue, so it must not be main-actor isolated.
-    private nonisolated static func makeArtwork(_ image: NSImage) -> MPMediaItemArtwork {
-        return MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
+    /// MediaPlayer calls the request handler on a background queue, so it must not be main-actor isolated
+    /// and can only capture sendable values.
+    private nonisolated static func makeArtwork(_ image: DecodedImage) -> MPMediaItemArtwork {
+        let size = CGSize(width: image.cgImage.width, height: image.cgImage.height)
+        return MPMediaItemArtwork(boundsSize: size) { @Sendable _ in
+            NSImage(cgImage: image.cgImage, size: size)
+        }
     }
 
     private func loadArtwork(trackId: String) {
@@ -92,7 +96,11 @@ final class NowPlayingService {
                 return
             }
 
-            info[MPMediaItemPropertyArtwork] = Self.makeArtwork(image)
+            guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                return
+            }
+
+            info[MPMediaItemPropertyArtwork] = Self.makeArtwork(DecodedImage(cgImage: cgImage))
             MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         }
     }
