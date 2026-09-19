@@ -41,6 +41,21 @@ jobs:
       - name: Create image
         run: dotnet publish Meziantou.MusicApp.Server --os linux --arch x64 --configuration Release /t:PublishContainer
 
+  mac-player:
+    runs-on: macos-15
+    permissions:
+        contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Run tests
+        working-directory: Meziantou.MusicApp.MacPlayer
+        run: swift test
+
+      - name: Build application
+        working-directory: Meziantou.MusicApp.MacPlayer
+        run: Scripts/build-app.sh release
+
   player:
     runs-on: ubuntu-latest
     permissions:

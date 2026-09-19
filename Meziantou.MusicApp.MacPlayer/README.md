@@ -1,0 +1,87 @@
+# Meziantou.MusicApp.MacPlayer
+
+A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music Server. It has the same features as the [web player](../Meziantou.MusicApp.WebPlayer/README.md).
+
+## Features
+
+- Playlists in the sidebar with track count, duration, optional file size, and a playing indicator
+- Track list for playlists with thousands of tracks (native table), with sortable columns (title, artist, album, added date)
+- Accent-insensitive and case-insensitive search on title, artist, album and ISRC (⌘F)
+- Context menu: play, add to queue, download / remove download, download the raw file, copy the file path, view details. Works on multiple selected tracks.
+- Player bar: play/pause, previous/next, shuffle, repeat (off/all/one), seek bar, elapsed/remaining time, volume up to 200%, mute
+- ReplayGain (track/album) with preamp, and warnings for tracks without ReplayGain data
+- Gapless playback: the next track is preloaded near the end of the current one and scheduled right after it
+- Playing queue in the inspector: "Now Playing", "Next Up" (manually added) and "Next from: playlist" sections; double-click to jump, drag to reorder, remove items
+- The queue, the current track and position, the volume, shuffle and repeat are restored when the app starts; playback resumes if it was playing
+- Offline mode: download playlists for offline use (with progress), downloaded tracks are marked, unavailable tracks are dimmed when offline
+- Low Data Mode (constrained or expensive networks) uses the low data quality and can prevent streaming
+- Audio output selection, including AirPlay speakers
+- Now Playing integration: media keys, Control Center, and the lock screen, with artwork
+- Background synchronization of playlists every 5 minutes and when the app becomes active
+- Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Space | Play / pause |
+| ⌘→ / ⌘← | Next / previous track |
+| ⇧⌘→ / ⇧⌘← | Skip forward / back 10 seconds |
+| ⌥⌘→ / ⌥⌘← | Skip forward / back 30 seconds |
+| ⌘↑ / ⌘↓ | Volume up / down |
+| ⌥⌘↓ | Mute |
+| ⌘R | Cycle repeat mode |
+| ⌘L | Go to the playing track |
+| ⌥⌘U | Show / hide the playing queue |
+| ⌘F | Search |
+| ⌘, | Settings |
+
+## Playback algorithm
+
+The source of the audio is chosen as described in the web player's README:
+
+1. **Offline**: play the downloaded file; tracks that are not downloaded cannot be played.
+2. **Low Data Mode**: play the downloaded file, otherwise stream with the low data quality, or skip the track if "Prevent download on Low Data Mode" is enabled.
+3. **Normal**: play the downloaded file when its quality is at least the requested quality, otherwise stream with the normal quality.
+
+If macOS cannot decode a stream (for instance Ogg/Opus on older macOS versions, or unusual raw files), the player asks the server for AAC (for Opus/OGG) or FLAC (for raw files) instead.
+
+## Requirements
+
+- macOS 15 or later
+- Xcode 16 or later (Swift 6)
+
+## Build and run
+
+```bash
+swift build
+swift run MeziantouMusic
+```
+
+To create an application bundle (`.build/Meziantou Music.app`):
+
+```bash
+Scripts/build-app.sh
+```
+
+You can also open `Package.swift` in Xcode.
+
+The application icon (`Sources/MusicPlayerMac/Resources/AppIcon.icns`) is generated from the web player's icon design:
+
+```bash
+swift Scripts/generate-icon.swift
+```
+
+## Tests
+
+```bash
+swift test
+```
+
+## Project structure
+
+- `Sources/MusicPlayerCore`: platform-independent logic (API client, models, play queue, playback source selection, search and sorting, local storage, downloads)
+- `Sources/MusicPlayerMac`: the macOS application (SwiftUI views, AVAudioEngine playback, Now Playing, network monitoring, audio outputs)
+- `Tests/MusicPlayerCoreTests`: unit tests
+
+Data is stored in `~/Library/Application Support/Meziantou Music`. Set the `MEZIANTOU_MUSIC_DATA_DIR` environment variable to use another directory (useful during development).
