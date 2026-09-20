@@ -266,6 +266,42 @@ struct DownloadManagerTests {
         #expect(!manager.isTrackCached("t1"))
     }
 
+    @Test func queueingATrackAlreadyDownloadingLinksThePlaylistInstead() async throws {
+        let dataRequestCount = Counter()
+        MockURLProtocol.register(host: "inflight.test") { request in
+            if request.url?.path.hasSuffix("/cover") == true {
+                return (404, [:], Data())
+            }
+
+            dataRequestCount.increment()
+            return (200, ["Content-Type": "audio/mpeg"], Data([1, 2, 3]))
+        }
+
+        let store = try await makeStore()
+        let client = APIClient(baseUrl: "https://inflight.test", session: MockURLProtocol.session())
+        let manager = DownloadManager(store: store) { client }
+        let events = AsyncStream.makeStream(of: DownloadEvent.self)
+        manager.onEvent = { events.continuation.yield($0) }
+
+        let track = TrackInfo(id: "t1", title: "t")
+        await manager.queueDownload(track, playlistId: "p1", quality: .raw)
+        #expect(manager.isTrackDownloading("t1"))
+        // The download is already in flight: the playlist is linked to it instead of downloading the track twice
+        await manager.queueDownload(track, playlistId: "p2", quality: .raw)
+
+        var iterator = events.stream.makeAsyncIterator()
+        guard case let .completed(trackId, playlistIds) = await iterator.next() else {
+            Issue.record("Expected a completion")
+            return
+        }
+
+        #expect(trackId == "t1")
+        #expect(playlistIds == ["p1", "p2"])
+        #expect(dataRequestCount.value == 1)
+        #expect(await store.cachedTrack(id: "t1")?.playlistIds == ["p1", "p2"])
+        #expect(manager.queueSize == 0)
+    }
+
     @Test func cancelsPlaylistDownloads() async throws {
         let store = try await makeStore()
         let manager = DownloadManager(store: store) { APIClient(baseUrl: "https://never.test", session: MockURLProtocol.session()) }
@@ -274,5 +310,24 @@ struct DownloadManagerTests {
         #expect(manager.queueSize == 20)
         manager.cancelPlaylistDownloads(playlistId: "p1")
         #expect(manager.queueSize <= 8)
+    }
+}
+
+
+/// Counts calls from the URL protocol, which serves requests on its own threads.
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
     }
 }

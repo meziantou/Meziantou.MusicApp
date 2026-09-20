@@ -178,15 +178,17 @@ public struct PlayQueue: Sendable {
     }
 
     public var hasNext: Bool {
-        if repeatMode != .off {
-            return !playlist.isEmpty
-        }
-
         if currentIndex < 0 {
             return !items.isEmpty
         }
 
-        return currentIndex < items.count - 1
+        // Something is already queued after the current item, whatever the repeat mode
+        if currentIndex < items.count - 1 {
+            return true
+        }
+
+        // Repeating refills the lookahead from the playlist
+        return repeatMode != .off && !playlist.isEmpty
     }
 
     public var hasPrevious: Bool {

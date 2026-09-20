@@ -3,7 +3,7 @@ import SwiftUI
 
 struct CacheDiagnosticsView: View {
     private enum PendingAction: Identifiable {
-        case clearSongs
+        case clearAll
         case clearCovers
 
         var id: Self {
@@ -31,8 +31,8 @@ struct CacheDiagnosticsView: View {
                 }
 
                 Section("Actions") {
-                    action("Clear Downloaded Songs", description: "Removes all offline tracks to free up space.") {
-                        pendingAction = .clearSongs
+                    action("Clear All Cached Data", description: "Removes downloaded tracks, cached playlists and cover art, and stops keeping any playlist offline.") {
+                        pendingAction = .clearAll
                     }
                     action("Clear Cover Cache", description: "Removes all cached album art images. They are downloaded again when needed.") {
                         pendingAction = .clearCovers
@@ -67,10 +67,10 @@ struct CacheDiagnosticsView: View {
         }
         .alert(item: $pendingAction) { action in
             switch action {
-            case .clearSongs:
+            case .clearAll:
                 Alert(
-                    title: Text("Clear downloaded songs?"),
-                    message: Text("You will need to download them again for offline playback."),
+                    title: Text("Clear all cached data?"),
+                    message: Text("Downloaded tracks, cached playlists and cover art are deleted, and no playlist is kept offline anymore. You will need to mark the playlists you want offline again."),
                     primaryButton: .destructive(Text("Clear")) { run { await model.clearAllCachedData() } },
                     secondaryButton: .cancel())
             case .clearCovers:
