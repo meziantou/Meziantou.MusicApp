@@ -419,18 +419,17 @@ final class AppModel {
 
             return sorted
         } catch {
-            if let status = try? await api.scanStatus() {
-                if !status.isInitialScanCompleted {
-                    return await store.cachedPlaylistSummaries()
-                }
-            } else {
-                // The server is unreachable: show what we have
-                let cached = await store.cachedPlaylistSummaries()
-                if !cached.isEmpty {
-                    showToast("Server unavailable, showing cached data")
-                    playlists = cached
-                    return cached
-                }
+            if let status = try? await api.scanStatus(), !status.isInitialScanCompleted {
+                // The server is still indexing: keep the cached data and retry later
+                return await store.cachedPlaylistSummaries()
+            }
+
+            // The request failed, whether the server is unreachable or answered with an error: show what we have
+            let cached = await store.cachedPlaylistSummaries()
+            if !cached.isEmpty {
+                showToast("Server unavailable, showing cached data")
+                playlists = cached
+                return cached
             }
 
             return []

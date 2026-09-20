@@ -264,12 +264,21 @@ final class PlayerController {
     }
 
     func next() {
+        advanceToNextTrack()
+    }
+
+    /// Moves to the next item and loads it. Returns false when the queue could not advance, which
+    /// `hasNext` alone does not tell: repeating only refills the lookahead when the playlist has a
+    /// track that can be played (offline, tracks that are not downloaded are filtered out).
+    @discardableResult
+    private func advanceToNextTrack() -> Bool {
         updateQueueFilters()
-        guard queue.hasNext, queue.next(force: true), let track = queue.currentTrack else {
-            return
+        guard queue.next(force: true), let track = queue.currentTrack else {
+            return false
         }
 
         loadTrack(track, autoPlay: true)
+        return true
     }
 
     func previous() {
@@ -290,7 +299,9 @@ final class PlayerController {
         engine.seek(to: clamped)
         currentTime = clamped
         restartProgressUpdates()
-        preloadedFileWasScheduled = false
+        // Seeking reschedules the current file, which drops the gaplessly scheduled next one:
+        // schedule it again, otherwise the transition has a gap
+        preloadedFileWasScheduled = preloadedFile.map { engine.scheduleNext(url: $0.url) } ?? false
         nowPlaying.updatePlayback(elapsed: clamped, duration: duration, isPlaying: isPlaying)
         scheduleStateSave()
     }
@@ -584,8 +595,7 @@ final class PlayerController {
             return
         }
 
-        if queue.hasNext {
-            next()
+        if advanceToNextTrack() {
             return
         }
 

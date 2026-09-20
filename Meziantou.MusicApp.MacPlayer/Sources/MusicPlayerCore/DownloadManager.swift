@@ -10,7 +10,6 @@ public enum DownloadEvent: Sendable {
 @MainActor
 public final class DownloadManager {
     private struct PendingDownload {
-        var track: TrackInfo
         var playlistIds: Set<String>
         var quality: StreamingQuality
     }
@@ -19,7 +18,9 @@ public final class DownloadManager {
     private let clientProvider: @MainActor () -> APIClient
     private var pendingOrder: [String] = []
     private var pending: [String: PendingDownload] = [:]
-    private var active: Set<String> = []
+    /// Downloads in flight, so queueing a track that is already downloading links the playlist
+    /// to that download instead of starting a second one.
+    private var active: [String: PendingDownload] = [:]
     private var cachedTrackIds: Set<String> = []
     private let maxConcurrentDownloads: Int
 
@@ -40,7 +41,7 @@ public final class DownloadManager {
     }
 
     public func isTrackDownloading(_ trackId: String) -> Bool {
-        active.contains(trackId) || pending[trackId] != nil
+        active[trackId] != nil || pending[trackId] != nil
     }
 
     /// Number of queued and in-progress downloads.
@@ -59,7 +60,13 @@ public final class DownloadManager {
             return
         }
 
-        pending[track.id] = PendingDownload(track: track, playlistIds: [playlistId], quality: quality)
+        // Already downloading: the playlist is saved with the download in flight
+        if active[track.id] != nil {
+            active[track.id]?.playlistIds.insert(playlistId)
+            return
+        }
+
+        pending[track.id] = PendingDownload(playlistIds: [playlistId], quality: quality)
         pendingOrder.append(track.id)
         processQueue()
     }
@@ -117,22 +124,26 @@ public final class DownloadManager {
                 continue
             }
 
-            active.insert(trackId)
+            active[trackId] = download
             let client = clientProvider()
             Task {
-                await self.download(download, client: client)
-                self.active.remove(trackId)
+                await self.download(trackId: trackId, client: client)
+                self.active.removeValue(forKey: trackId)
                 self.processQueue()
             }
         }
     }
 
-    private func download(_ download: PendingDownload, client: APIClient) async {
-        let trackId = download.track.id
-        let playlistIds = download.playlistIds.sorted()
+    private func download(trackId: String, client: APIClient) async {
+        guard let quality = active[trackId]?.quality else {
+            return
+        }
+
         do {
-            let file = try await client.downloadSong(songId: trackId, quality: download.quality)
-            try await store.saveCachedTrack(trackId: trackId, playlistIds: playlistIds, quality: download.quality, file: file)
+            let file = try await client.downloadSong(songId: trackId, quality: quality)
+            // Playlists linked while the download was in flight are saved too
+            let playlistIds = (active[trackId]?.playlistIds ?? []).sorted()
+            try await store.saveCachedTrack(trackId: trackId, playlistIds: playlistIds, quality: quality, file: file)
             await downloadCoverIfNeeded(trackId: trackId, client: client)
             cachedTrackIds.insert(trackId)
             onEvent?(.completed(trackId: trackId, playlistIds: playlistIds))

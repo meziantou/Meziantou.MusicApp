@@ -259,6 +259,30 @@ struct PlayQueueTests {
         #expect(queue.currentTrack?.id == "1")
     }
 
+    @Test func hasNextIsTrueForQueuedItemsWithoutAPlaylist() {
+        var queue = PlayQueue()
+        queue.addToQueue(makeTrack("1"), playlistId: "playlist1", indexInPlaylist: 0)
+        queue.addToQueue(makeTrack("2"), playlistId: "playlist1", indexInPlaylist: 1)
+        queue.setRepeatMode(.all)
+        #expect(queue.hasNext)
+        let advanced = queue.next(force: true)
+        #expect(advanced)
+        #expect(queue.currentTrack?.id == "2")
+    }
+
+    @Test func repeatAllCannotAdvanceWhenNoOtherTrackCanBeQueued() {
+        var queue = PlayQueue()
+        queue.isOnline = false
+        queue.cachedTrackIds = ["1"]
+        queue.setPlaylist(id: "playlist1", tracks: (1...5).map { makeTrack(String($0)) })
+        queue.setRepeatMode(.all)
+        queue.play(atPosition: 0)
+        #expect(queue.lookahead.isEmpty)
+        // Repeating cannot produce a track to play: callers must not be left waiting for one
+        let advanced = queue.next(force: true)
+        #expect(!advanced)
+    }
+
     @Test func restoresState() {
         let original = makeQueue(playAt: 2)
         var restored = PlayQueue()
