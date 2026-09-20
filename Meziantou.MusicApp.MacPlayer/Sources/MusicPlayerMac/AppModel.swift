@@ -250,6 +250,8 @@ final class AppModel {
         showToast("Settings saved")
 
         if normalized.downloadQuality != previous.downloadQuality {
+            // Downloads already queued (or in flight) would otherwise be cached with the previous quality
+            downloads.clearQueue()
             await store.clearCachedTracks()
             await downloads.refreshCacheState()
             setCachedTrackIds([])

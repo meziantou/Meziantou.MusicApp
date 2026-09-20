@@ -304,4 +304,18 @@ struct PlayQueueTests {
         restored.restore(playlistId: "playlist1", playlist: [], shuffleEnabled: false, shuffleOrder: [], repeatMode: .off, items: original.items, currentIndex: 999)
         #expect(restored.currentIndex == original.items.count - 1)
     }
+
+    @Test func previousGoesBackInAQueueFilledWithoutAPlaylist() {
+        var queue = PlayQueue()
+        queue.addToQueue(makeTrack("a"), playlistId: "playlist1", indexInPlaylist: 0)
+        queue.addToQueue(makeTrack("b"), playlistId: "playlist1", indexInPlaylist: 1)
+        let advanced = queue.next(force: true)
+        #expect(advanced)
+        #expect(queue.currentTrack?.id == "b")
+
+        #expect(queue.hasPrevious)
+        let wentBack = queue.previous()
+        #expect(wentBack)
+        #expect(queue.currentTrack?.id == "a")
+    }
 }
