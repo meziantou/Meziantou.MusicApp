@@ -302,6 +302,37 @@ struct DownloadManagerTests {
         #expect(manager.queueSize == 0)
     }
 
+    @Test func clearingTheQueueDiscardsDownloadsInFlight() async throws {
+        // Holds the response until the test releases it, so the download is still in flight
+        let requestStarted = Counter()
+        let gate = DispatchSemaphore(value: 0)
+        MockURLProtocol.register(host: "stalequality.test") { request in
+            if request.url?.path.hasSuffix("/cover") == true {
+                return (404, [:], Data())
+            }
+
+            requestStarted.increment()
+            gate.wait()
+            return (200, ["Content-Type": "audio/mpeg"], Data([1, 2, 3]))
+        }
+
+        let store = try await makeStore()
+        let client = APIClient(baseUrl: "https://stalequality.test", session: MockURLProtocol.session())
+        let manager = DownloadManager(store: store) { client }
+        await manager.queueDownload(TrackInfo(id: "t1", title: "t"), playlistId: "p1", quality: StreamingQuality(format: .mp3, maxBitRate: 128))
+        try await waitUntil { requestStarted.value > 0 }
+        #expect(manager.isTrackDownloading("t1"))
+
+        // The download quality changed: what is downloading has the previous quality and must not be cached
+        manager.clearQueue()
+        gate.signal()
+        try await waitUntil { !manager.isTrackDownloading("t1") }
+
+        #expect(!manager.isTrackDownloading("t1"))
+        #expect(!manager.isTrackCached("t1"))
+        #expect(await store.cachedTrack(id: "t1") == nil)
+    }
+
     @Test func cancelsPlaylistDownloads() async throws {
         let store = try await makeStore()
         let manager = DownloadManager(store: store) { APIClient(baseUrl: "https://never.test", session: MockURLProtocol.session()) }
@@ -313,6 +344,15 @@ struct DownloadManagerTests {
     }
 }
 
+
+/// Polls `condition` until it holds, or gives up after a few seconds.
+@MainActor
+private func waitUntil(_ condition: () -> Bool) async throws {
+    let deadline = Date().addingTimeInterval(10)
+    while !condition() && Date() < deadline {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+}
 
 /// Counts calls from the URL protocol, which serves requests on its own threads.
 private final class Counter: @unchecked Sendable {

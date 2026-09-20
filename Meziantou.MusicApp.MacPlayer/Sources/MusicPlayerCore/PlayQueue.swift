@@ -192,12 +192,13 @@ public struct PlayQueue: Sendable {
     }
 
     public var hasPrevious: Bool {
-        guard playlistId != nil, !playlist.isEmpty else {
-            return false
-        }
-
+        // Something is already in the history, whatever the playlist the queue was filled from
         if currentIndex > 0 {
             return true
+        }
+
+        guard playlistId != nil, !playlist.isEmpty else {
+            return false
         }
 
         if shuffleEnabled {

@@ -22,6 +22,9 @@ public final class DownloadManager {
     /// to that download instead of starting a second one.
     private var active: [String: PendingDownload] = [:]
     private var cachedTrackIds: Set<String> = []
+    /// Incremented when the queue is cleared, so downloads in flight are discarded instead of being cached
+    /// with what may now be the wrong quality.
+    private var generation = 0
     private let maxConcurrentDownloads: Int
 
     public var onEvent: ((DownloadEvent) -> Void)?
@@ -99,6 +102,7 @@ public final class DownloadManager {
     }
 
     public func clearQueue() {
+        generation += 1
         pending = [:]
         pendingOrder = []
     }
@@ -139,11 +143,23 @@ public final class DownloadManager {
             return
         }
 
+        let generation = generation
         do {
             let file = try await client.downloadSong(songId: trackId, quality: quality)
+            guard generation == self.generation else {
+                try? FileManager.default.removeItem(at: file)
+                return
+            }
+
             // Playlists linked while the download was in flight are saved too
             let playlistIds = (active[trackId]?.playlistIds ?? []).sorted()
-            try await store.saveCachedTrack(trackId: trackId, playlistIds: playlistIds, quality: quality, file: file)
+            do {
+                try await store.saveCachedTrack(trackId: trackId, playlistIds: playlistIds, quality: quality, file: file)
+            } catch {
+                try? FileManager.default.removeItem(at: file)
+                throw error
+            }
+
             await downloadCoverIfNeeded(trackId: trackId, client: client)
             cachedTrackIds.insert(trackId)
             onEvent?(.completed(trackId: trackId, playlistIds: playlistIds))

@@ -82,6 +82,8 @@ final class PlayerController {
     @ObservationIgnored private var loadedFile: LoadedFile?
     @ObservationIgnored private var preloadedFile: LoadedFile?
     @ObservationIgnored private var preloadTask: Task<Void, Never>?
+    /// Incremented whenever a preload is started or cancelled, so the result of a superseded one is discarded.
+    @ObservationIgnored private var preloadToken = 0
     @ObservationIgnored private var loadToken = 0
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var idleReleaseTask: Task<Void, Never>?
@@ -441,16 +443,23 @@ final class PlayerController {
                 return
             }
 
+            var fallbackUrl: URL?
             do {
                 let url = try await clientProvider().downloadSong(songId: track.id, quality: fallback)
-                file = LoadedFile(trackId: track.id, url: url, quality: fallback, isTemporary: true)
+                fallbackUrl = url
                 guard token == loadToken else {
                     try? FileManager.default.removeItem(at: url)
                     return
                 }
 
                 try engine.load(url: url, startTime: startTime)
+                file = LoadedFile(trackId: track.id, url: url, quality: fallback, isTemporary: true)
             } catch {
+                // The fallback was downloaded but could not be decoded either: don't leave it behind
+                if let fallbackUrl {
+                    try? FileManager.default.removeItem(at: fallbackUrl)
+                }
+
                 isLoadingTrack = false
                 onError?("Cannot play \"\(track.title)\": \(error.localizedDescription)")
                 return
@@ -516,16 +525,26 @@ final class PlayerController {
             return
         }
 
-        let token = loadToken
+        preloadToken += 1
+        let token = preloadToken
         let nextTrack = next.track
         preloadTask = Task {
             defer {
-                if token == loadToken {
+                if token == preloadToken {
                     preloadTask = nil
                 }
             }
 
-            guard let file = try? await resolveFile(for: nextTrack), !Task.isCancelled, token == loadToken else {
+            guard let file = try? await resolveFile(for: nextTrack) else {
+                return
+            }
+
+            // The preload was cancelled or superseded while the file was downloading: drop what it produced
+            guard token == preloadToken else {
+                if file.isTemporary {
+                    try? FileManager.default.removeItem(at: file.url)
+                }
+
                 return
             }
 
@@ -545,6 +564,8 @@ final class PlayerController {
     }
 
     private func cancelPreload() {
+        // Invalidate the token so a download still in flight deletes its file instead of installing it
+        preloadToken += 1
         preloadTask?.cancel()
         preloadTask = nil
         if preloadedFileWasScheduled {
