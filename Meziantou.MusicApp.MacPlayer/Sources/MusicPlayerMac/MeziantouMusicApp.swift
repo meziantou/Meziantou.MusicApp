@@ -70,18 +70,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugSnapshots.runWindowTestIfRequested()
 #endif
 
-        // Space toggles playback, except while typing in a text field
+        // Space toggles playback and the arrow keys seek, except while typing in a text field.
+        // These are handled here rather than as menu shortcuts: a menu key equivalent on a bare
+        // arrow key would also steal it from text fields and lists.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
-            guard event.keyCode == 49, modifiers.isEmpty, !(NSApp.keyWindow?.firstResponder is NSText), NSApp.keyWindow?.attachedSheet == nil else {
+            guard modifiers.subtracting(.shift).isEmpty, !(NSApp.keyWindow?.firstResponder is NSText), NSApp.keyWindow?.attachedSheet == nil else {
                 return event
             }
 
-            MainActor.assumeIsolated {
-                AppModel.shared.player.togglePlayPause()
+            let keyCode = event.keyCode
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                let player = AppModel.shared.player
+                switch keyCode {
+                case KeyCode.space where !modifiers.contains(.shift):
+                    player.togglePlayPause()
+                    return true
+                case KeyCode.leftArrow, KeyCode.rightArrow:
+                    // Without a track, the arrow keys keep their usual meaning (moving in the track list)
+                    guard player.currentTrack != nil else {
+                        return false
+                    }
+
+                    let step = modifiers.contains(.shift) ? PlaybackConstants.fineSeekStep : PlaybackConstants.seekStep
+                    player.skip(by: keyCode == KeyCode.leftArrow ? -step : step)
+                    return true
+                default:
+                    return false
+                }
             }
-            return nil
+
+            return handled ? nil : event
         }
+    }
+
+    private enum KeyCode {
+        static let space: UInt16 = 49
+        static let leftArrow: UInt16 = 123
+        static let rightArrow: UInt16 = 124
     }
 
     /// Tracks whether a window is on screen, so work that only matters for the UI can pause.

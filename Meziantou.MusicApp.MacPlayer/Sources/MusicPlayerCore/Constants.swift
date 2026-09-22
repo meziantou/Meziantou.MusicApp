@@ -43,6 +43,10 @@ public enum PlaybackConstants {
     public static let coverCacheMaxEntries = 300
     /// Volume step used by keyboard shortcuts and the scroll wheel.
     public static let volumeStep: Double = 0.05
+    /// Seek step used by the left and right arrow keys.
+    public static let seekStep: TimeInterval = 20
+    /// Seek step used by Shift + the left and right arrow keys.
+    public static let fineSeekStep: TimeInterval = 5
     /// Maximum volume (200%).
     public static let maxVolume: Double = 2
 }

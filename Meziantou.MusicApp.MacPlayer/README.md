@@ -32,6 +32,8 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 | Shortcut | Action |
 |----------|--------|
 | Space | Play / pause |
+| → / ← | Skip forward / back 20 seconds |
+| ⇧→ / ⇧← | Skip forward / back 5 seconds |
 | ⌘→ / ⌘← | Next / previous track |
 | ⇧⌘→ / ⇧⌘← | Skip forward / back 10 seconds |
 | ⌥⌘→ / ⌥⌘← | Skip forward / back 30 seconds |
@@ -42,6 +44,8 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 | ⌥⌘U | Show / hide the playing queue |
 | ⌘F | Search |
 | ⌘, | Settings |
+
+Space and the bare or ⇧ arrow keys are ignored while typing in a text field, and the arrow keys only seek while a track is loaded, so they keep their usual meaning in the track list otherwise.
 
 ## Playback algorithm
 
