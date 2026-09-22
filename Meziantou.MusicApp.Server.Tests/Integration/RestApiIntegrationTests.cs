@@ -67,7 +67,7 @@ public class RestApiIntegrationTests
             .Validate(response, """
                 StatusCode: 200 (OK)
                 Headers:
-                  Cache-Control: no-store, must-revalidate, no-cache
+                  Cache-Control: no-cache,no-store,must-revalidate
                 Content:
                   Headers:
                     Content-Type: application/json; charset=utf-8
@@ -98,7 +98,7 @@ public class RestApiIntegrationTests
             .Validate(response, """
                 StatusCode: 200 (OK)
                 Headers:
-                  Cache-Control: no-store, must-revalidate, no-cache
+                  Cache-Control: no-cache,no-store,must-revalidate
                 Content:
                   Headers:
                     Content-Type: application/json; charset=utf-8
@@ -144,7 +144,7 @@ public class RestApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -177,7 +177,7 @@ public class RestApiIntegrationTests
             .Validate(response, """
                 StatusCode: 200 (OK)
                 Headers:
-                  Cache-Control: no-store, must-revalidate, no-cache
+                  Cache-Control: no-cache,no-store,must-revalidate
                 Content:
                   Headers:
                     Content-Type: application/json; charset=utf-8
@@ -242,7 +242,7 @@ public class RestApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -266,7 +266,7 @@ public class RestApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -288,7 +288,7 @@ public class RestApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8
@@ -308,7 +308,7 @@ public class RestApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 404 (NotFound)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/json; charset=utf-8

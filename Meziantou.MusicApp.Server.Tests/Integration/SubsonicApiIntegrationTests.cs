@@ -18,7 +18,7 @@ public class SubsonicApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
@@ -34,7 +34,7 @@ public class SubsonicApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/xml
@@ -62,7 +62,7 @@ public class SubsonicApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
@@ -710,7 +710,7 @@ public class SubsonicApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
@@ -805,7 +805,7 @@ public class SubsonicApiIntegrationTests
         InlineSnapshot.Validate(response, """
             StatusCode: 200 (OK)
             Headers:
-              Cache-Control: no-store, must-revalidate, no-cache
+              Cache-Control: no-cache,no-store,must-revalidate
             Content:
               Headers:
                 Content-Type: application/xml; charset=utf-8
