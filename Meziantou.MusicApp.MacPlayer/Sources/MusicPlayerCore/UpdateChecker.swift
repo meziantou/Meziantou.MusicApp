@@ -64,6 +64,7 @@ public struct AppRelease: Equatable, Sendable {
 public struct UpdateChecker: Sendable {
     public static let tagPrefix = "macos-v"
     public static let defaultReleasesUrl = URL(string: "https://api.github.com/repos/meziantou/meziantou.musicapp/releases?per_page=50")!
+    public static let releasesPageUrl = URL(string: "https://github.com/meziantou/meziantou.musicapp/releases")!
 
     private let releasesUrl: URL
     private let session: URLSession
@@ -76,6 +77,11 @@ public struct UpdateChecker: Sendable {
     /// The version of the running app (`CFBundleShortVersionString`).
     public static var currentVersion: AppVersion? {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String).flatMap(AppVersion.init)
+    }
+
+    /// The GitHub page of a release, which may not exist for development builds.
+    public static func releasePageUrl(for version: AppVersion) -> URL {
+        releasesPageUrl.appendingPathComponent("tag").appendingPathComponent("\(tagPrefix)\(version)")
     }
 
     /// Returns the latest published release, or nil when there is none.

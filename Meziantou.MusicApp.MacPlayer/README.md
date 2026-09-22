@@ -24,6 +24,7 @@ A native macOS player (Swift, SwiftUI and AVFoundation) for the Meziantou Music 
 - Low resource use in the background: when no window is visible, UI updates and animations stop and cached images are released; closing the window also releases the track list. While playing without a visible window, the app only wakes up to preload the next track and to save the playback position (every 30 seconds; pausing, seeking, changing track or quitting save right away)
 - Large audio I/O buffer (up to 4096 frames, as supported by the output device): music does not need a low latency, and the audio thread wakes up far less often
 - Update check: at launch, the app checks the GitHub releases (`macos-v*` tags) and suggests updating when a newer version is available; "Update" opens the release page, and "Skip This Version" stops suggesting that version. Use **Meziantou Music > Check for Updates…** to check manually. Debug builds don't check at launch
+- Version link: the version at the bottom of the sidebar opens the GitHub page of that release
 - Settings: server URL with connection test, streaming/download qualities, interface options, ReplayGain, library rescan (with progress), transcoding cache cleanup, and cache diagnostics
 
 ## Keyboard shortcuts

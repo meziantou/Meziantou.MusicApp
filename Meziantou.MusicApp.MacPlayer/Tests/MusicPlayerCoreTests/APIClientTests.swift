@@ -191,6 +191,11 @@ struct UpdateCheckerTests {
         #expect(!(v("2.0.0") < v("1.99.99")))
     }
 
+    @Test func buildsReleasePageUrl() throws {
+        let url = UpdateChecker.releasePageUrl(for: try #require(AppVersion("1.2.3")))
+        #expect(url.absoluteString == "https://github.com/meziantou/meziantou.musicapp/releases/tag/macos-v1.2.3")
+    }
+
     @Test func findsLatestMacRelease() async throws {
         MockURLProtocol.register(host: "releases.test") { request in
             #expect(request.value(forHTTPHeaderField: "Accept") == "application/vnd.github+json")
