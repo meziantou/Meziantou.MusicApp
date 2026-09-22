@@ -103,8 +103,9 @@ struct SidebarView: View {
                     .foregroundStyle(.orange)
             }
 
-            Text("Version \(AppInfo.version)")
+            Link("Version \(AppInfo.version)", destination: AppInfo.releaseUrl)
                 .foregroundStyle(.tertiary)
+                .help("Open the release notes on GitHub")
         }
         .font(.caption)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -195,9 +196,11 @@ private struct PlaylistRow: View {
 
 enum AppInfo {
     static var version: String {
-        let info = Bundle.main.infoDictionary
-        let shortVersion = info?["CFBundleShortVersionString"] as? String ?? "dev"
-        let build = info?["CFBundleVersion"] as? String
-        return build.map { "\(shortVersion) (\($0))" } ?? shortVersion
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    }
+
+    /// The GitHub page of the running release, or the list of releases for development builds.
+    static var releaseUrl: URL {
+        UpdateChecker.currentVersion.map(UpdateChecker.releasePageUrl) ?? UpdateChecker.releasesPageUrl
     }
 }
