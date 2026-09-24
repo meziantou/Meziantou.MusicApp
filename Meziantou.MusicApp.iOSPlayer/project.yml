@@ -1,0 +1,42 @@
+name: MeziantouMusic
+options:
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    DEVELOPMENT_TEAM: MS568XRUBB
+targets:
+  MusicPlayerCore:
+    type: framework
+    platform: iOS
+    sources:
+      - path: ../Meziantou.MusicApp.MacPlayer/Sources/MusicPlayerCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.meziantou.music.core
+        GENERATE_INFOPLIST_FILE: YES
+  MeziantouMusic:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources/Assets.xcassets
+        buildPhase: resources
+    dependencies:
+      - target: MusicPlayerCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.meziantou.music.ios
+        INFOPLIST_FILE: Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+schemes:
+  MeziantouMusic:
+    build:
+      targets:
+        MeziantouMusic: all
+    run:
+      config: Debug
