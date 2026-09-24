@@ -56,6 +56,31 @@ jobs:
         working-directory: Meziantou.MusicApp.MacPlayer
         run: Scripts/build-app.sh release
 
+  ios-player:
+    runs-on: macos-15
+    permissions:
+        contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install XcodeGen
+        run: command -v xcodegen || brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: Meziantou.MusicApp.iOSPlayer
+        run: xcodegen generate
+
+      - name: Build application
+        working-directory: Meziantou.MusicApp.iOSPlayer
+        run: |
+          xcodebuild -project MeziantouMusic.xcodeproj \
+            -scheme MeziantouMusic \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
   player:
     runs-on: ubuntu-latest
     permissions:
