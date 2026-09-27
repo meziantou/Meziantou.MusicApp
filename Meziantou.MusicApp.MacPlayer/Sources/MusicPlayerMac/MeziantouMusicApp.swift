@@ -27,19 +27,12 @@ struct MeziantouMusicApp: App {
             }
 
             PlayerCommands(model: model, player: model.player)
+            SceneActionsCommands()
         }
 
         Settings {
             SettingsView()
         }
-
-        // A menu (not a window) costs nothing while it is closed
-        MenuBarExtra("Meziantou Music", systemImage: "music.note", isInserted: Binding(
-            get: { model.settings.showInMenuBar },
-            set: { isInserted in Task { await model.setShowInMenuBar(isInserted) } })) {
-            MenuBarMenu()
-        }
-        .menuBarExtraStyle(.menu)
     }
 }
 
@@ -63,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         observeVisibility()
+        MenuBarController.shared.start(model: AppModel.shared)
         UpdateService.checkAtLaunch()
 #if DEBUG
         DebugSnapshots.startIfRequested()
