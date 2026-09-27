@@ -6,8 +6,17 @@ import MusicPlayerCore
 @MainActor
 enum DockMenu {
     static func make(model: AppModel) -> NSMenu {
-        let player = model.player
         let menu = NSMenu()
+        addPlayerItems(to: menu, model: model, usesVolumeSlider: false)
+        return menu
+    }
+
+    /// Adds the playback items shared by the Dock menu and the menu bar menu. With `usesVolumeSlider`, a slider
+    /// replaces the Volume Up and Volume Down items (the Dock draws its menu itself and ignores custom views).
+    static func addPlayerItems(to menu: NSMenu, model: AppModel, usesVolumeSlider: Bool) {
+        let player = model.player
+        // Items are enabled according to `isEnabled`, not to whether their target handles their action
+        menu.autoenablesItems = false
 
         if let track = player.currentTrack {
             let nowPlaying = NSMenuItem(title: track.title, action: nil, keyEquivalent: "")
@@ -31,15 +40,24 @@ enum DockMenu {
         })
 
         menu.addItem(.separator())
-        menu.addItem(ActionMenuItem(title: "Volume Up", isEnabled: player.volume < PlaybackConstants.maxVolume) {
-            player.setVolume(player.volume + PlaybackConstants.volumeStep)
-        })
-        menu.addItem(ActionMenuItem(title: "Volume Down", isEnabled: player.volume > 0) {
-            player.setVolume(player.volume - PlaybackConstants.volumeStep)
-        })
-        menu.addItem(ActionMenuItem(title: player.isMuted ? "Unmute" : "Mute") {
+        let mute = ActionMenuItem(title: player.isMuted ? "Unmute" : "Mute") {
             player.toggleMute()
-        })
+        }
+        if usesVolumeSlider {
+            // The menu stays open while the slider moves, and moving it unmutes
+            menu.addItem(VolumeSliderMenuItem(player: player) {
+                mute.title = player.isMuted ? "Unmute" : "Mute"
+            })
+        } else {
+            menu.addItem(ActionMenuItem(title: "Volume Up", isEnabled: player.volume < PlaybackConstants.maxVolume) {
+                player.setVolume(player.volume + PlaybackConstants.volumeStep)
+            })
+            menu.addItem(ActionMenuItem(title: "Volume Down", isEnabled: player.volume > 0) {
+                player.setVolume(player.volume - PlaybackConstants.volumeStep)
+            })
+        }
+
+        menu.addItem(mute)
 
         menu.addItem(.separator())
         let shuffle = ActionMenuItem(title: "Shuffle") {
@@ -57,12 +75,11 @@ enum DockMenu {
             playlists.submenu = playlistsMenu(model: model)
             menu.addItem(playlists)
         }
-
-        return menu
     }
 
     private static func playlistsMenu(model: AppModel) -> NSMenu {
         let menu = NSMenu()
+        menu.autoenablesItems = false
         for playlist in model.playlists {
             // Offline, only playlists downloaded for offline use can be played
             let isAvailable = model.isOnline || model.offlinePlaylistIds.contains(playlist.id)

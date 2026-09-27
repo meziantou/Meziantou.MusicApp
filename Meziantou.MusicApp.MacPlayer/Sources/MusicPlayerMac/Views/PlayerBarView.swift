@@ -217,7 +217,7 @@ private struct VolumeControl: View {
             Button {
                 player.toggleMute()
             } label: {
-                Image(systemName: volumeSymbol)
+                Image(systemName: player.volumeSymbolName)
                     .frame(width: 22)
             }
             .buttonStyle(.borderless)
@@ -239,14 +239,6 @@ private struct VolumeControl: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 34, alignment: .trailing)
         }
-    }
-
-    private var volumeSymbol: String {
-        if player.isMuted || player.volume == 0 {
-            return "speaker.slash.fill"
-        }
-
-        return player.volume < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.3.fill"
     }
 }
 
