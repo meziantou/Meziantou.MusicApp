@@ -42,7 +42,7 @@ jobs:
         run: dotnet publish Meziantou.MusicApp.Server --os linux --arch x64 --configuration Release /t:PublishContainer
 
   mac-player:
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
         contents: read
     steps:
@@ -57,7 +57,7 @@ jobs:
         run: Scripts/build-app.sh release
 
   ios-player:
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
         contents: read
     steps:
